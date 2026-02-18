@@ -1,0 +1,195 @@
+{
+  "id": "openclaw-cortex",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "enabled": {
+        "type": "boolean",
+        "default": true,
+        "description": "Enable/disable the cortex plugin entirely"
+      },
+      "workspace": {
+        "type": "string",
+        "default": "",
+        "description": "Workspace directory override. Empty = auto-detect from OpenClaw context."
+      },
+      "threadTracker": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "Enable thread detection and tracking"
+          },
+          "pruneDays": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 90,
+            "default": 7,
+            "description": "Auto-prune closed threads older than N days"
+          },
+          "maxThreads": {
+            "type": "integer",
+            "minimum": 5,
+            "maximum": 200,
+            "default": 50,
+            "description": "Maximum number of threads to retain"
+          }
+        }
+      },
+      "decisionTracker": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "Enable decision extraction from messages"
+          },
+          "maxDecisions": {
+            "type": "integer",
+            "minimum": 10,
+            "maximum": 500,
+            "default": 100,
+            "description": "Maximum number of decisions to retain"
+          },
+          "dedupeWindowHours": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 168,
+            "default": 24,
+            "description": "Skip decisions with identical 'what' within this window"
+          }
+        }
+      },
+      "bootContext": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "Enable BOOTSTRAP.md generation"
+          },
+          "maxChars": {
+            "type": "integer",
+            "minimum": 2000,
+            "maximum": 64000,
+            "default": 16000,
+            "description": "Maximum character budget for BOOTSTRAP.md (~4 chars per token)"
+          },
+          "onSessionStart": {
+            "type": "boolean",
+            "default": true,
+            "description": "Generate BOOTSTRAP.md on session_start hook"
+          },
+          "maxThreadsInBoot": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 20,
+            "default": 7,
+            "description": "Maximum number of threads to include in boot context"
+          },
+          "maxDecisionsInBoot": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 30,
+            "default": 10,
+            "description": "Maximum number of recent decisions in boot context"
+          },
+          "decisionRecencyDays": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 90,
+            "default": 14,
+            "description": "Include decisions from the last N days"
+          }
+        }
+      },
+      "preCompaction": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "Enable pre-compaction snapshot pipeline"
+          },
+          "maxSnapshotMessages": {
+            "type": "integer",
+            "minimum": 5,
+            "maximum": 50,
+            "default": 15,
+            "description": "Maximum messages to include in hot snapshot"
+          }
+        }
+      },
+      "narrative": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "Enable structured narrative generation"
+          }
+        }
+      },
+      "patterns": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "language": {
+            "type": "string",
+            "enum": ["en", "de", "both"],
+            "default": "both",
+            "description": "Language for regex pattern matching: English, German, or both"
+          }
+        }
+      },
+      "llm": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Optional LLM enhancement — any OpenAI-compatible API (Ollama, OpenAI, OpenRouter, vLLM, etc.)",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "default": false,
+            "description": "Enable LLM-powered analysis on top of regex patterns"
+          },
+          "endpoint": {
+            "type": "string",
+            "default": "http://localhost:11434/v1",
+            "description": "OpenAI-compatible API endpoint"
+          },
+          "model": {
+            "type": "string",
+            "default": "mistral:7b",
+            "description": "Model identifier (e.g. mistral:7b, gpt-4o-mini)"
+          },
+          "apiKey": {
+            "type": "string",
+            "default": "",
+            "description": "API key (optional, for cloud providers)"
+          },
+          "timeoutMs": {
+            "type": "integer",
+            "minimum": 1000,
+            "maximum": 60000,
+            "default": 15000,
+            "description": "Timeout per LLM call in milliseconds"
+          },
+          "batchSize": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 20,
+            "default": 3,
+            "description": "Number of messages to buffer before calling the LLM"
+          }
+        }
+      }
+    }
+  }
+}

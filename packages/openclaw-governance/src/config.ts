@@ -1,0 +1,118 @@
+import type {
+  AuditConfig,
+  BuiltinPoliciesConfig,
+  FailMode,
+  GovernanceConfig,
+  PerformanceConfig,
+  Policy,
+  TimeWindow,
+  TrustConfig,
+} from "./types.js";
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+function resolveTrust(raw: unknown): TrustConfig {
+  const r = isRecord(raw) ? raw : {};
+  const decay = isRecord(r["decay"]) ? r["decay"] : {};
+
+  return {
+    enabled: typeof r["enabled"] === "boolean" ? r["enabled"] : true,
+    defaults: isRecord(r["defaults"])
+      ? Object.fromEntries(
+          Object.entries(r["defaults"]).filter(
+            (e): e is [string, number] => typeof e[1] === "number",
+          ),
+        )
+      : { main: 60, "*": 10 },
+    persistIntervalSeconds:
+      typeof r["persistIntervalSeconds"] === "number"
+        ? r["persistIntervalSeconds"]
+        : 60,
+    decay: {
+      enabled: typeof decay["enabled"] === "boolean" ? decay["enabled"] : true,
+      inactivityDays:
+        typeof decay["inactivityDays"] === "number"
+          ? decay["inactivityDays"]
+          : 30,
+      rate: typeof decay["rate"] === "number" ? decay["rate"] : 0.95,
+    },
+    weights: isRecord(r["weights"])
+      ? (r["weights"] as TrustConfig["weights"])
+      : undefined,
+    maxHistoryPerAgent:
+      typeof r["maxHistoryPerAgent"] === "number"
+        ? r["maxHistoryPerAgent"]
+        : 100,
+  };
+}
+
+function resolveAudit(raw: unknown): AuditConfig {
+  const r = isRecord(raw) ? raw : {};
+  return {
+    enabled: typeof r["enabled"] === "boolean" ? r["enabled"] : true,
+    retentionDays:
+      typeof r["retentionDays"] === "number" ? r["retentionDays"] : 90,
+    redactPatterns: Array.isArray(r["redactPatterns"])
+      ? (r["redactPatterns"] as string[]).filter(
+          (p): p is string => typeof p === "string",
+        )
+      : [],
+    level:
+      r["level"] === "minimal" || r["level"] === "standard" || r["level"] === "verbose"
+        ? r["level"]
+        : "standard",
+  };
+}
+
+function resolvePerformance(raw: unknown): PerformanceConfig {
+  const r = isRecord(raw) ? raw : {};
+  return {
+    maxEvalUs:
+      typeof r["maxEvalUs"] === "number" ? r["maxEvalUs"] : 5000,
+    maxContextMessages:
+      typeof r["maxContextMessages"] === "number"
+        ? r["maxContextMessages"]
+        : 10,
+    frequencyBufferSize:
+      typeof r["frequencyBufferSize"] === "number"
+        ? r["frequencyBufferSize"]
+        : 1000,
+  };
+}
+
+export function resolveConfig(
+  raw?: Record<string, unknown>,
+): GovernanceConfig {
+  const r = raw ?? {};
+
+  const failMode = r["failMode"];
+  const resolvedFailMode: FailMode =
+    failMode === "open" || failMode === "closed" ? failMode : "open";
+
+  return {
+    enabled: typeof r["enabled"] === "boolean" ? r["enabled"] : true,
+    timezone: typeof r["timezone"] === "string" ? r["timezone"] : "UTC",
+    failMode: resolvedFailMode,
+    policies: Array.isArray(r["policies"])
+      ? (r["policies"] as Policy[])
+      : [],
+    timeWindows: isRecord(r["timeWindows"])
+      ? (r["timeWindows"] as Record<string, TimeWindow>)
+      : {},
+    trust: resolveTrust(r["trust"]),
+    audit: resolveAudit(r["audit"]),
+    toolRiskOverrides: isRecord(r["toolRiskOverrides"])
+      ? Object.fromEntries(
+          Object.entries(r["toolRiskOverrides"]).filter(
+            (e): e is [string, number] => typeof e[1] === "number",
+          ),
+        )
+      : {},
+    builtinPolicies: isRecord(r["builtinPolicies"])
+      ? (r["builtinPolicies"] as BuiltinPoliciesConfig)
+      : {},
+    performance: resolvePerformance(r["performance"]),
+  };
+}

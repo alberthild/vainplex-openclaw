@@ -1,0 +1,39 @@
+{
+  "name": "@vainplex/openclaw-knowledge-engine",
+  "version": "0.1.2",
+  "description": "An OpenClaw plugin for real-time and batch knowledge extraction from conversational data.",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "tsx --test test/*.test.ts",
+    "lint": "eslint . --ext .ts",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "openclaw",
+    "plugin",
+    "knowledge-extraction",
+    "nlp",
+    "entity-extraction"
+  ],
+  "author": "OpenClaw Community",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/alberthild/openclaw-knowledge-engine.git"
+  },
+  "openclaw": {
+    "id": "openclaw-knowledge-engine",
+    "extensions": [
+      "./dist/index.js"
+    ]
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.24",
+    "eslint": "^8.57.0",
+    "typescript": "^5.3.3",
+    "tsx": "^4.7.1"
+  },
+  "type": "module"
+}

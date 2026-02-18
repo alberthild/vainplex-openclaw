@@ -1,0 +1,48 @@
+{
+  "name": "@vainplex/openclaw-governance",
+  "version": "0.1.0",
+  "description": "Contextual, learning, cross-agent governance for AI agents",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist/",
+    "openclaw.plugin.json",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "clean": "rm -rf dist/"
+  },
+  "devDependencies": {
+    "@types/node": "^25.2.3",
+    "@vitest/coverage-v8": "^3.0.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "license": "MIT",
+  "author": "Albert Hild <albert@vainplex.dev>",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/alberthild/openclaw-governance.git"
+  },
+  "keywords": [
+    "openclaw",
+    "governance",
+    "ai-agents",
+    "policy-engine",
+    "trust",
+    "audit"
+  ],
+  "openclaw": {
+    "extensions": [
+      "./dist/index.js"
+    ]
+  }
+}

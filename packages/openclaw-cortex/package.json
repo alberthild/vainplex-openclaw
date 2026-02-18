@@ -1,0 +1,49 @@
+{
+  "name": "@vainplex/openclaw-cortex",
+  "version": "0.2.1",
+  "description": "OpenClaw plugin: conversation intelligence — thread tracking, decision extraction, boot context, pre-compaction snapshots",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "openclaw.plugin.json",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "vitest": "^3.0.0",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0"
+  },
+  "openclaw": {
+    "extensions": [
+      "./dist/index.js"
+    ],
+    "id": "openclaw-cortex"
+  },
+  "keywords": [
+    "openclaw",
+    "plugin",
+    "cortex",
+    "memory",
+    "thread-tracking",
+    "boot-context",
+    "conversation-intelligence"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alberthild/openclaw-cortex.git"
+  },
+  "homepage": "https://github.com/alberthild/openclaw-cortex#readme",
+  "author": "Vainplex <hildalbert@gmail.com>"
+}

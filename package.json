@@ -1,0 +1,28 @@
+{
+  "name": "vainplex-openclaw",
+  "version": "0.1.0",
+  "description": "Turn OpenClaw from a smart assistant into a self-governing, learning system.",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspaces",
+    "test": "npm run test --workspaces",
+    "clean": "npm run clean --workspaces --if-present"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/alberthild/vainplex-openclaw.git"
+  },
+  "author": "Albert Hild <a.hild@vainplex.de>",
+  "license": "MIT",
+  "keywords": [
+    "openclaw",
+    "ai-agents",
+    "governance",
+    "knowledge",
+    "memory",
+    "plugins"
+  ]
+}

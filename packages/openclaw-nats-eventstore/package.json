@@ -1,0 +1,53 @@
+{
+  "name": "@vainplex/nats-eventstore",
+  "version": "0.2.0",
+  "description": "OpenClaw plugin: publish agent events to NATS JetStream for audit, replay, and multi-agent sharing",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist",
+    "openclaw.plugin.json",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "nats": "^2.29.0"
+  },
+  "devDependencies": {
+    "vitest": "^3.0.0",
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0"
+  },
+  "openclaw": {
+    "extensions": [
+      "./dist/index.js"
+    ]
+  },
+  "peerDependencies": {},
+  "keywords": [
+    "openclaw",
+    "plugin",
+    "nats",
+    "jetstream",
+    "event-store",
+    "audit"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/alberthild/openclaw-nats-eventstore.git"
+  },
+  "homepage": "https://github.com/alberthild/openclaw-nats-eventstore#readme",
+  "bugs": {
+    "url": "https://github.com/alberthild/openclaw-nats-eventstore/issues"
+  },
+  "author": "Vainplex <hildalbert@gmail.com>"
+}

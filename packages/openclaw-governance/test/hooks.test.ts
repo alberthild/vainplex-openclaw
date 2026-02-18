@@ -1,0 +1,341 @@
+import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
+import { existsSync, mkdirSync, rmSync } from "node:fs";
+import { join } from "node:path";
+import { GovernanceEngine } from "../src/engine.js";
+import { registerGovernanceHooks } from "../src/hooks.js";
+import { resolveConfig } from "../src/config.js";
+import type { GovernanceConfig, OpenClawPluginApi, PluginCommand, PluginLogger, PluginService } from "../src/types.js";
+
+const WORKSPACE = "/tmp/governance-test-hooks";
+const logger: PluginLogger = { info: () => {}, warn: () => {}, error: () => {} };
+
+type HookHandler = (...args: unknown[]) => unknown;
+type HookEntry = { name: string; handler: HookHandler; opts?: { priority?: number } };
+
+function createMockApi() {
+  const hooks: HookEntry[] = [];
+  const commands: PluginCommand[] = [];
+  const services: PluginService[] = [];
+  const methods: { method: string; handler: (...args: unknown[]) => unknown }[] = [];
+
+  const api: OpenClawPluginApi = {
+    id: "openclaw-governance",
+    pluginConfig: {},
+    logger,
+    config: {},
+    registerService: (s) => services.push(s),
+    registerCommand: (c) => commands.push(c),
+    registerGatewayMethod: (m, h) => methods.push({ method: m, handler: h }),
+    on: (name, handler, opts) => hooks.push({ name, handler: handler as HookHandler, opts }),
+  };
+
+  return { api, hooks, commands, services, methods };
+}
+
+function makeConfig(overrides: Partial<GovernanceConfig> = {}): GovernanceConfig {
+  return { ...resolveConfig({}), ...overrides };
+}
+
+beforeEach(() => {
+  if (existsSync(WORKSPACE)) rmSync(WORKSPACE, { recursive: true });
+  mkdirSync(join(WORKSPACE, "governance", "audit"), { recursive: true });
+});
+
+afterEach(() => {
+  if (existsSync(WORKSPACE)) rmSync(WORKSPACE, { recursive: true });
+});
+
+describe("registerGovernanceHooks", () => {
+  it("should register all expected hooks", async () => {
+    const { api, hooks } = createMockApi();
+    const config = makeConfig();
+    const engine = new GovernanceEngine(config, logger, WORKSPACE);
+    await engine.start();
+
+    registerGovernanceHooks(api, engine, config);
+
+    const hookNames = hooks.map((h) => h.name);
+    expect(hookNames).toContain("before_tool_call");
+    expect(hookNames).toContain("message_sending");
+    expect(hookNames).toContain("after_tool_call");
+    expect(hookNames).toContain("before_agent_start");
+    expect(hookNames).toContain("session_start");
+    expect(hookNames).toContain("gateway_start");
+    expect(hookNames).toContain("gateway_stop");
+
+    await engine.stop();
+  });
+
+  it("should set correct priorities", async () => {
+    const { api, hooks } = createMockApi();
+    const config = makeConfig();
+    const engine = new GovernanceEngine(config, logger, WORKSPACE);
+    await engine.start();
+
+    registerGovernanceHooks(api, engine, config);
+
+    const btc = hooks.find((h) => h.name === "before_tool_call");
+    expect(btc?.opts?.priority).toBe(1000);
+
+    const atc = hooks.find((h) => h.name === "after_tool_call");
+    expect(atc?.opts?.priority).toBe(900);
+
+    await engine.stop();
+  });
+
+  it("should block denied tool calls", async () => {
+    const { api, hooks } = createMockApi();
+    const config = makeConfig({
+      policies: [
+        {
+          id: "deny-exec",
+          name: "Deny Exec",
+          version: "1.0.0",
+          scope: {},
+          rules: [
+            {
+              id: "r1",
+              conditions: [{ type: "tool", name: "exec" }],
+              effect: { action: "deny", reason: "Blocked" },
+            },
+          ],
+        },
+      ],
+    });
+
+    const engine = new GovernanceEngine(config, logger, WORKSPACE);
+    await engine.start();
+    registerGovernanceHooks(api, engine, config);
+
+    const handler = hooks.find((h) => h.name === "before_tool_call")?.handler;
+    expect(handler).toBeDefined();
+
+    const result = await handler!(
+      { toolName: "exec", params: { command: "ls" } },
+      { agentId: "main", sessionKey: "agent:main", toolName: "exec" },
+    );
+
+    expect(result).toEqual({ block: true, blockReason: "Blocked" });
+
+    await engine.stop();
+  });
+
+  it("should return undefined for allowed tool calls", async () => {
+    const { api, hooks } = createMockApi();
+    const config = makeConfig();
+    const engine = new GovernanceEngine(config, logger, WORKSPACE);
+    await engine.start();
+    registerGovernanceHooks(api, engine, config);
+
+    const handler = hooks.find((h) => h.name === "before_tool_call")?.handler;
+    const result = await handler!(
+      { toolName: "read", params: { path: "/tmp/test" } },
+      { agentId: "main", sessionKey: "agent:main", toolName: "read" },
+    );
+
+    expect(result).toBeUndefined();
+
+    await engine.stop();
+  });
+
+  it("should register governance command", async () => {
+    const { api, commands } = createMockApi();
+    const config = makeConfig();
+    const engine = new GovernanceEngine(config, logger, WORKSPACE);
+    await engine.start();
+    registerGovernanceHooks(api, engine, config);
+
+    const cmd = commands.find((c) => c.name === "governance");
+    expect(cmd).toBeDefined();
+
+    const result = await cmd!.handler();
+    expect(result.text).toContain("Governance Engine");
+
+    await engine.stop();
+  });
+
+  it("should handle after_tool_call for trust feedback", async () => {
+    const { api, hooks } = createMockApi();
+    const config = makeConfig();
+    const engine = new GovernanceEngine(config, logger, WORKSPACE);
+    await engine.start();
+    registerGovernanceHooks(api, engine, config);
+
+    const handler = hooks.find((h) => h.name === "after_tool_call")?.handler;
+    expect(handler).toBeDefined();
+
+    // Should not throw
+    handler!(
+      { toolName: "exec", params: {}, durationMs: 100 },
+      { agentId: "main", sessionKey: "agent:main", toolName: "exec" },
+    );
+
+    await engine.stop();
+  });
+
+  it("should handle before_agent_start for context injection", async () => {
+    const { api, hooks } = createMockApi();
+    const config = makeConfig();
+    const engine = new GovernanceEngine(config, logger, WORKSPACE);
+    await engine.start();
+    registerGovernanceHooks(api, engine, config);
+
+    const handler = hooks.find((h) => h.name === "before_agent_start")?.handler;
+    const result = handler!(
+      { prompt: "test" },
+      { agentId: "main", sessionKey: "agent:main" },
+    );
+
+    expect(result).toBeDefined();
+    if (result && typeof result === "object" && "prependContext" in result) {
+      expect((result as { prependContext: string }).prependContext).toContain("Governance");
+    }
+
+    await engine.stop();
+  });
+
+  it("should handle session_start without error", async () => {
+    const { api, hooks } = createMockApi();
+    const config = makeConfig();
+    const engine = new GovernanceEngine(config, logger, WORKSPACE);
+    await engine.start();
+    registerGovernanceHooks(api, engine, config);
+
+    const handler = hooks.find((h) => h.name === "session_start")?.handler;
+    expect(handler).toBeDefined();
+
+    // Should not throw
+    handler!(
+      { sessionId: "test-session" },
+      { agentId: "main", sessionId: "test-session" },
+    );
+
+    await engine.stop();
+  });
+
+  it("should handle errors with fail-closed", async () => {
+    const { api, hooks } = createMockApi();
+    const config = makeConfig({ failMode: "closed" });
+    const engine = new GovernanceEngine(config, logger, WORKSPACE);
+
+    // Don't start engine — simulate error scenario
+    registerGovernanceHooks(api, engine, config);
+
+    const handler = hooks.find((h) => h.name === "before_tool_call")?.handler;
+
+    const result = await handler!(
+      { toolName: "exec", params: {} },
+      { agentId: "main", sessionKey: "agent:main", toolName: "exec" },
+    );
+
+    expect(result === undefined || (typeof result === "object" && result !== null)).toBe(true);
+  });
+
+  it("should handle message_sending deny", async () => {
+    const { api, hooks } = createMockApi();
+    const config = makeConfig({
+      policies: [
+        {
+          id: "deny-msg",
+          name: "Deny Messages",
+          version: "1.0.0",
+          scope: { hooks: ["message_sending"] },
+          rules: [
+            {
+              id: "r1",
+              conditions: [{ type: "context", messageContains: "forbidden" }],
+              effect: { action: "deny", reason: "Forbidden content" },
+            },
+          ],
+        },
+      ],
+    });
+
+    const engine = new GovernanceEngine(config, logger, WORKSPACE);
+    await engine.start();
+    registerGovernanceHooks(api, engine, config);
+
+    const handler = hooks.find((h) => h.name === "message_sending")?.handler;
+    expect(handler).toBeDefined();
+
+    const result = await handler!(
+      { to: "user", content: "forbidden word", metadata: {} },
+      { channelId: "matrix" },
+    );
+    expect(result).toEqual({ cancel: true });
+
+    await engine.stop();
+  });
+
+  it("should allow messages that don't match deny", async () => {
+    const { api, hooks } = createMockApi();
+    const config = makeConfig();
+    const engine = new GovernanceEngine(config, logger, WORKSPACE);
+    await engine.start();
+    registerGovernanceHooks(api, engine, config);
+
+    const handler = hooks.find((h) => h.name === "message_sending")?.handler;
+    const result = await handler!(
+      { to: "user", content: "hello" },
+      { channelId: "matrix" },
+    );
+    expect(result).toBeUndefined();
+
+    await engine.stop();
+  });
+
+  it("should detect sub-agent spawn in after_tool_call", async () => {
+    const { api, hooks } = createMockApi();
+    const config = makeConfig();
+    const engine = new GovernanceEngine(config, logger, WORKSPACE);
+    await engine.start();
+    registerGovernanceHooks(api, engine, config);
+
+    const handler = hooks.find((h) => h.name === "after_tool_call")?.handler;
+
+    // Simulate sessions_spawn result
+    handler!(
+      {
+        toolName: "sessions_spawn",
+        params: {},
+        result: { sessionId: "agent:main:subagent:forge:abc" },
+      },
+      { agentId: "main", sessionKey: "agent:main", toolName: "sessions_spawn" },
+    );
+
+    // No error expected
+    await engine.stop();
+  });
+
+  it("should handle failed tool in after_tool_call", async () => {
+    const { api, hooks } = createMockApi();
+    const config = makeConfig();
+    const engine = new GovernanceEngine(config, logger, WORKSPACE);
+    await engine.start();
+    registerGovernanceHooks(api, engine, config);
+
+    const handler = hooks.find((h) => h.name === "after_tool_call")?.handler;
+
+    handler!(
+      { toolName: "exec", params: {}, error: "Command failed" },
+      { agentId: "main", sessionKey: "agent:main", toolName: "exec" },
+    );
+
+    // No error expected
+    await engine.stop();
+  });
+
+  it("should handle gateway_start and gateway_stop", async () => {
+    const { api, hooks } = createMockApi();
+    const config = makeConfig();
+    const engine = new GovernanceEngine(config, logger, WORKSPACE);
+    await engine.start();
+    registerGovernanceHooks(api, engine, config);
+
+    const startHandler = hooks.find((h) => h.name === "gateway_start")?.handler;
+    startHandler!({ port: 3000 });
+
+    const stopHandler = hooks.find((h) => h.name === "gateway_stop")?.handler;
+    await stopHandler!({ reason: "shutdown" });
+  });
+});

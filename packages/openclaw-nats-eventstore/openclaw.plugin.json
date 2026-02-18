@@ -1,0 +1,81 @@
+{
+  "id": "nats-eventstore",
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "enabled": {
+        "type": "boolean",
+        "default": true,
+        "description": "Enable/disable event publishing"
+      },
+      "natsUrl": {
+        "type": "string",
+        "default": "nats://localhost:4222",
+        "description": "NATS server URL. Supports auth: nats://user:pass@host:port"
+      },
+      "streamName": {
+        "type": "string",
+        "default": "openclaw-events",
+        "description": "JetStream stream name"
+      },
+      "subjectPrefix": {
+        "type": "string",
+        "default": "openclaw.events",
+        "description": "Subject prefix for all published events"
+      },
+      "retention": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "maxMessages": {
+            "type": "integer",
+            "minimum": -1,
+            "default": -1,
+            "description": "Maximum messages to retain (-1 = unlimited)"
+          },
+          "maxBytes": {
+            "type": "integer",
+            "minimum": -1,
+            "default": -1,
+            "description": "Maximum bytes to retain (-1 = unlimited)"
+          },
+          "maxAgeHours": {
+            "type": "number",
+            "minimum": 0,
+            "default": 0,
+            "description": "Maximum age of messages in hours (0 = unlimited)"
+          }
+        }
+      },
+      "publishTimeoutMs": {
+        "type": "integer",
+        "minimum": 100,
+        "default": 5000,
+        "description": "Timeout for individual publish operations"
+      },
+      "connectTimeoutMs": {
+        "type": "integer",
+        "minimum": 1000,
+        "default": 5000,
+        "description": "Timeout for initial NATS connection"
+      },
+      "drainTimeoutMs": {
+        "type": "integer",
+        "minimum": 1000,
+        "default": 5000,
+        "description": "Timeout for graceful drain on shutdown"
+      },
+      "includeHooks": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "Whitelist of hook names to publish (empty = all)"
+      },
+      "excludeHooks": {
+        "type": "array",
+        "items": { "type": "string" },
+        "description": "Blacklist of hook names to skip"
+      }
+    }
+  }
+}

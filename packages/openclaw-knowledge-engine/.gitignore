@@ -1,0 +1,17 @@
+# Node.js
+node_modules/
+dist/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# TypeScript
+*.tsbuildinfo
+
+# Test
+coverage/
+
+# OS
+.DS_Store
+Thumbs.db
