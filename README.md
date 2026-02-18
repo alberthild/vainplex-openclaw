@@ -22,7 +22,7 @@ We built these plugins because we needed them. Not as a product exercise — as 
 | **[Knowledge Engine](packages/openclaw-knowledge-engine)** | Real-time fact extraction from conversations — entities, relationships, structured knowledge, all without external APIs | [`@vainplex/openclaw-knowledge-engine`](https://www.npmjs.com/package/@vainplex/openclaw-knowledge-engine) |
 | **[Governance](packages/openclaw-governance)** | Policy-as-code for AI agents — tool blocking, trust scoring, time-based rules, credential protection. Deterministic, not probabilistic. | [`@vainplex/openclaw-governance`](https://www.npmjs.com/package/@vainplex/openclaw-governance) |
 | **[NATS EventStore](packages/openclaw-nats-eventstore)** | Publish every agent event to NATS JetStream — full audit trail, replay capability, multi-agent event sharing | [`@vainplex/openclaw-nats-eventstore`](https://www.npmjs.com/package/@vainplex/openclaw-nats-eventstore) |
-| **[Memory LanceDB](packages/memory-lancedb)** | Vector-based long-term memory with semantic search — the agent remembers what matters | *coming soon* |
+| **Membrane** | Structured memory substrate with revision operations, competence learning, and decay — built with [GustyCube](https://github.com/gustycube/membrane) | *in development* |
 
 ## Numbers
 
