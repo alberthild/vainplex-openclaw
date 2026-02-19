@@ -1,123 +1,127 @@
 {
   "id": "openclaw-knowledge-engine",
   "configSchema": {
-    "enabled": {
-      "type": "boolean",
-      "default": true,
-      "description": "Whether the knowledge engine plugin is enabled."
-    },
-    "workspace": {
-      "type": "string",
-      "default": "~/.clawd/plugins/knowledge-engine",
-      "description": "The directory to store knowledge files (entities.json, facts.json)."
-    },
-    "extraction": {
-      "type": "object",
-      "properties": {
-        "regex": {
-          "type": "object",
-          "properties": {
-            "enabled": {
-              "type": "boolean",
-              "default": true,
-              "description": "Enable or disable high-speed regex-based entity extraction."
+    "type": "object",
+    "additionalProperties": true,
+    "properties": {
+      "enabled": {
+        "type": "boolean",
+        "default": true,
+        "description": "Whether the knowledge engine plugin is enabled."
+      },
+      "workspace": {
+        "type": "string",
+        "default": "~/.clawd/plugins/knowledge-engine",
+        "description": "The directory to store knowledge files (entities.json, facts.json)."
+      },
+      "extraction": {
+        "type": "object",
+        "properties": {
+          "regex": {
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "type": "boolean",
+                "default": true,
+                "description": "Enable or disable high-speed regex-based entity extraction."
+              }
+            }
+          },
+          "llm": {
+            "type": "object",
+            "properties": {
+              "enabled": {
+                "type": "boolean",
+                "default": true,
+                "description": "Enable or disable high-fidelity LLM-based entity and fact extraction."
+              },
+              "model": {
+                "type": "string",
+                "default": "mistral:7b",
+                "description": "The model name to use for the LLM API call (e.g., Ollama model)."
+              },
+              "endpoint": {
+                "type": "string",
+                "default": "http://localhost:11434/api/generate",
+                "description": "The HTTP endpoint for the LLM generation API."
+              },
+              "batchSize": {
+                "type": "number",
+                "default": 10,
+                "description": "Number of messages to batch together before sending to the LLM."
+              },
+              "cooldownMs": {
+                "type": "number",
+                "default": 30000,
+                "description": "Milliseconds to wait after the last message before sending a batch to the LLM."
+              }
             }
           }
-        },
-        "llm": {
-          "type": "object",
-          "properties": {
-            "enabled": {
-              "type": "boolean",
-              "default": true,
-              "description": "Enable or disable high-fidelity LLM-based entity and fact extraction."
-            },
-            "model": {
-              "type": "string",
-              "default": "mistral:7b",
-              "description": "The model name to use for the LLM API call (e.g., Ollama model)."
-            },
-            "endpoint": {
-              "type": "string",
-              "default": "http://localhost:11434/api/generate",
-              "description": "The HTTP endpoint for the LLM generation API."
-            },
-            "batchSize": {
-              "type": "number",
-              "default": 10,
-              "description": "Number of messages to batch together before sending to the LLM."
-            },
-            "cooldownMs": {
-              "type": "number",
-              "default": 30000,
-              "description": "Milliseconds to wait after the last message before sending a batch to the LLM."
-            }
+        }
+      },
+      "decay": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "Enable or disable the periodic decay of fact relevance."
+          },
+          "intervalHours": {
+            "type": "number",
+            "default": 24,
+            "description": "How often (in hours) to run the decay process."
+          },
+          "rate": {
+            "type": "number",
+            "default": 0.02,
+            "description": "The percentage of relevance to decay in each interval (e.g., 0.02 is 2%)."
           }
         }
-      }
-    },
-    "decay": {
-      "type": "object",
-      "properties": {
-        "enabled": {
-          "type": "boolean",
-          "default": true,
-          "description": "Enable or disable the periodic decay of fact relevance."
-        },
-        "intervalHours": {
-          "type": "number",
-          "default": 24,
-          "description": "How often (in hours) to run the decay process."
-        },
-        "rate": {
-          "type": "number",
-          "default": 0.02,
-          "description": "The percentage of relevance to decay in each interval (e.g., 0.02 is 2%)."
+      },
+      "embeddings": {
+        "type": "object",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "default": false,
+            "description": "Enable or disable syncing of facts to a vector database."
+          },
+          "endpoint": {
+            "type": "string",
+            "default": "http://localhost:8000/api/v1/collections/facts/add",
+            "description": "The HTTP endpoint for the vector database's add API (ChromaDB compatible)."
+          },
+          "collectionName": {
+            "type": "string",
+            "default": "openclaw-facts",
+            "description": "The name of the collection to use in the vector database."
+          },
+          "syncIntervalMinutes": {
+            "type": "number",
+            "default": 15,
+            "description": "How often (in minutes) to sync new facts to the vector database."
+          }
         }
-      }
-    },
-    "embeddings": {
-      "type": "object",
-      "properties": {
-        "enabled": {
-          "type": "boolean",
-          "default": false,
-          "description": "Enable or disable syncing of facts to a vector database."
-        },
-        "endpoint": {
-          "type": "string",
-          "default": "http://localhost:8000/api/v1/collections/facts/add",
-          "description": "The HTTP endpoint for the vector database's add API (ChromaDB compatible)."
-        },
-        "collectionName": {
-          "type": "string",
-          "default": "openclaw-facts",
-          "description": "The name of the collection to use in the vector database."
-        },
-        "syncIntervalMinutes": {
-          "type": "number",
-          "default": 15,
-          "description": "How often (in minutes) to sync new facts to the vector database."
-        }
-      }
-    },
-    "storage": {
-      "type": "object",
-      "properties": {
-        "maxEntities": {
-          "type": "number",
-          "default": 5000,
-          "description": "The maximum number of entities to store before pruning."
-        },
-        "maxFacts": {
-          "type": "number",
-          "default": 10000,
-          "description": "The maximum number of facts to store before pruning."
-        },
-        "writeDebounceMs": {
-          "type": "number",
-          "default": 15000,
-          "description": "Milliseconds to wait after a change before writing data to disk."
+      },
+      "storage": {
+        "type": "object",
+        "properties": {
+          "maxEntities": {
+            "type": "number",
+            "default": 5000,
+            "description": "The maximum number of entities to store before pruning."
+          },
+          "maxFacts": {
+            "type": "number",
+            "default": 10000,
+            "description": "The maximum number of facts to store before pruning."
+          },
+          "writeDebounceMs": {
+            "type": "number",
+            "default": 15000,
+            "description": "Milliseconds to wait after a change before writing data to disk."
+          }
         }
       }
     }

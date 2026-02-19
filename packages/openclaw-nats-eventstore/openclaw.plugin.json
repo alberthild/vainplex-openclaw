@@ -2,7 +2,7 @@
   "id": "nats-eventstore",
   "configSchema": {
     "type": "object",
-    "additionalProperties": false,
+    "additionalProperties": true,
     "properties": {
       "enabled": {
         "type": "boolean",
@@ -68,12 +68,16 @@
       },
       "includeHooks": {
         "type": "array",
-        "items": { "type": "string" },
+        "items": {
+          "type": "string"
+        },
         "description": "Whitelist of hook names to publish (empty = all)"
       },
       "excludeHooks": {
         "type": "array",
-        "items": { "type": "string" },
+        "items": {
+          "type": "string"
+        },
         "description": "Blacklist of hook names to skip"
       }
     }

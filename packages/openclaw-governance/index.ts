@@ -1,5 +1,5 @@
 import type { OpenClawPluginApi } from "./src/types.js";
-import { resolveConfig } from "./src/config.js";
+import { loadConfig } from "./src/config-loader.js";
 import { GovernanceEngine } from "./src/engine.js";
 import { registerGovernanceHooks } from "./src/hooks.js";
 
@@ -9,11 +9,16 @@ const plugin = {
   id: "openclaw-governance",
   name: "OpenClaw Governance",
   description: "Contextual, learning, cross-agent governance for AI agents",
-  version: "0.2.0",
+  version: "0.3.0",
 
   register(api: OpenClawPluginApi) {
-    const config = resolveConfig(
+    const { config, source, filePath } = loadConfig(
       api.pluginConfig as Record<string, unknown> | undefined,
+      api.logger,
+    );
+
+    api.logger.info(
+      `[governance] Config loaded (source=${source}${filePath ? `, path=${filePath}` : ""})`,
     );
 
     if (!config.enabled) {

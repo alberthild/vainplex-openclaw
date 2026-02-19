@@ -2,7 +2,7 @@
   "id": "openclaw-cortex",
   "configSchema": {
     "type": "object",
-    "additionalProperties": false,
+    "additionalProperties": true,
     "properties": {
       "enabled": {
         "type": "boolean",
@@ -143,7 +143,11 @@
         "properties": {
           "language": {
             "type": "string",
-            "enum": ["en", "de", "both"],
+            "enum": [
+              "en",
+              "de",
+              "both"
+            ],
             "default": "both",
             "description": "Language for regex pattern matching: English, German, or both"
           }
