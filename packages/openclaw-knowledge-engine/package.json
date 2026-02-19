@@ -17,11 +17,12 @@
     "nlp",
     "entity-extraction"
   ],
-  "author": "OpenClaw Community",
+  "author": "Albert Hild <a.hild@vainplex.de>",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/alberthild/openclaw-knowledge-engine.git"
+    "url": "https://github.com/alberthild/vainplex-openclaw.git",
+    "directory": "packages/openclaw-knowledge-engine"
   },
   "openclaw": {
     "id": "openclaw-knowledge-engine",
@@ -35,5 +36,11 @@
     "typescript": "^5.3.3",
     "tsx": "^4.7.1"
   },
-  "type": "module"
+  "type": "module",
+  "files": [
+    "dist",
+    "openclaw.plugin.json",
+    "README.md",
+    "LICENSE"
+  ]
 }

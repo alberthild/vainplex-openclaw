@@ -42,8 +42,9 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/alberthild/openclaw-cortex.git"
+    "url": "https://github.com/alberthild/vainplex-openclaw.git",
+    "directory": "packages/openclaw-cortex"
   },
   "homepage": "https://github.com/alberthild/openclaw-cortex#readme",
-  "author": "Vainplex <hildalbert@gmail.com>"
+  "author": "Albert Hild <a.hild@vainplex.de>"
 }

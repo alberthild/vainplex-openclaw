@@ -43,11 +43,12 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/alberthild/openclaw-nats-eventstore.git"
+    "url": "https://github.com/alberthild/vainplex-openclaw.git",
+    "directory": "packages/openclaw-nats-eventstore"
   },
   "homepage": "https://github.com/alberthild/openclaw-nats-eventstore#readme",
   "bugs": {
     "url": "https://github.com/alberthild/openclaw-nats-eventstore/issues"
   },
-  "author": "Vainplex <hildalbert@gmail.com>"
+  "author": "Albert Hild <a.hild@vainplex.de>"
 }

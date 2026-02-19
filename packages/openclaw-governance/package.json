@@ -27,10 +27,11 @@
     "node": ">=22.0.0"
   },
   "license": "MIT",
-  "author": "Albert Hild <albert@vainplex.dev>",
+  "author": "Albert Hild <a.hild@vainplex.de>",
   "repository": {
     "type": "git",
-    "url": "https://github.com/alberthild/openclaw-governance.git"
+    "url": "https://github.com/alberthild/vainplex-openclaw.git",
+    "directory": "packages/openclaw-governance"
   },
   "keywords": [
     "openclaw",
