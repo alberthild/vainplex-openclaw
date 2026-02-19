@@ -142,7 +142,8 @@ function handleMessageSending(
       }
 
       return undefined;
-    } catch {
+    } catch (err) {
+      logger.error(`[governance] message_sending hook error: ${err}`);
       return undefined;
     }
   };
@@ -191,8 +192,9 @@ function handleBeforeMessageWrite(
       }
 
       return undefined;
-    } catch {
-      // Don't break message writing on output validation errors
+    } catch (err) {
+      // Don't break message writing on output validation errors — but log it
+      logger.error(`[governance] before_message_write hook error: ${err}`);
       return undefined;
     }
   };

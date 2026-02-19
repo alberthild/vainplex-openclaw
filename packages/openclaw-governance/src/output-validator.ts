@@ -8,9 +8,9 @@
  *
  * Verdict rules:
  * - No claims or no contradictions → "pass"
- * - Contradiction + trust ≥ flagAbove (default 60) → "flag"
+ * - Contradiction + trust ≥ flagAbove (default 60) → "pass" (trusted agents tolerate contradictions)
+ * - Contradiction + blockBelow ≤ trust < flagAbove → "flag"
  * - Contradiction + trust < blockBelow (default 40) → "block"
- * - Contradiction + trust between thresholds → "flag"
  * - unverifiedClaimPolicy default "ignore" → unverified claims not flagged
  *
  * All operations are synchronous. Target: <10ms total.
@@ -155,7 +155,7 @@ export class OutputValidator {
     contradictions: FactCheckResult[],
     trustScore: number,
   ): { action: OutputVerdict; reason: string } {
-    const { blockBelow } = this.config.contradictionThresholds;
+    const { blockBelow, flagAbove } = this.config.contradictionThresholds;
 
     const summaries = contradictions.map((c) => {
       const claimed = c.claim.value;
@@ -171,7 +171,14 @@ export class OutputValidator {
       };
     }
 
-    // Trust >= blockBelow → flag
+    if (trustScore >= flagAbove) {
+      return {
+        action: "pass",
+        reason: `Contradiction detected but trusted (trust ${trustScore} >= ${flagAbove}): ${detail}`,
+      };
+    }
+
+    // blockBelow <= trust < flagAbove → flag
     return {
       action: "flag",
       reason: `Contradiction detected (trust ${trustScore}): ${detail}`,

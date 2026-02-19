@@ -63,10 +63,10 @@ describe("OutputValidator", () => {
       ],
     });
 
-    it("detects contradiction and flags for trust >= 60", () => {
+    it("passes contradiction for trust >= flagAbove (default 60)", () => {
       const v = new OutputValidator(configWithFacts, logger);
       const result = v.validate("nginx is running", 65);
-      expect(result.verdict).toBe("flag");
+      expect(result.verdict).toBe("pass");
       expect(result.contradictions).toHaveLength(1);
       expect(result.reason).toContain("Contradiction");
       expect(result.reason).toContain("nginx");
@@ -140,16 +140,16 @@ describe("OutputValidator", () => {
       expect(result.verdict).toBe("flag");
     });
 
-    it("flags at trust 60", () => {
+    it("passes at trust 60 (== flagAbove)", () => {
       const v = new OutputValidator(configWithFacts, logger);
       const result = v.validate("nginx is running", 60);
-      expect(result.verdict).toBe("flag");
+      expect(result.verdict).toBe("pass");
     });
 
-    it("flags at trust 100", () => {
+    it("passes at trust 100 (> flagAbove)", () => {
       const v = new OutputValidator(configWithFacts, logger);
       const result = v.validate("nginx is running", 100);
-      expect(result.verdict).toBe("flag");
+      expect(result.verdict).toBe("pass");
     });
 
     it("uses custom thresholds", () => {
@@ -168,8 +168,8 @@ describe("OutputValidator", () => {
       expect(v.validate("nginx is running", 15).verdict).toBe("block");
       // Trust 50 between 20 and 80 → flag
       expect(v.validate("nginx is running", 50).verdict).toBe("flag");
-      // Trust 85 >= flagAbove 80 → flag (still flag, not pass)
-      expect(v.validate("nginx is running", 85).verdict).toBe("flag");
+      // Trust 85 >= flagAbove 80 → pass (trusted, contradiction tolerated)
+      expect(v.validate("nginx is running", 85).verdict).toBe("pass");
     });
   });
 

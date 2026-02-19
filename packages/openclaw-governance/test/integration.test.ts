@@ -389,7 +389,7 @@ describe("Governance Integration", () => {
     await engine.stop();
   });
 
-  it("should detect contradiction and flag for high-trust agent", async () => {
+  it("should pass contradiction for high-trust agent (trust >= flagAbove)", async () => {
     const config = makeConfig({
       outputValidation: {
         enabled: true,
@@ -414,7 +414,7 @@ describe("Governance Integration", () => {
     await engine.start();
 
     const result = engine.validateOutput("nginx is running on port 80", "high-trust-agent");
-    expect(result.verdict).toBe("flag");
+    expect(result.verdict).toBe("pass");
     expect(result.contradictions.length).toBeGreaterThanOrEqual(1);
 
     await engine.stop();
