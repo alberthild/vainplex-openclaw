@@ -15,6 +15,8 @@ import type { LlmConfig } from "../llm-enhance.js";
 import { resolveWorkspace } from "../config.js";
 import { TraceAnalyzer } from "./analyzer.js";
 import { createNatsTraceSource } from "./nats-trace-source.js";
+import { SignalPatternRegistry } from "./signals/lang/index.js";
+import type { SignalPatternSet } from "./signals/lang/index.js";
 
 /** State shared across hook registrations for cleanup. */
 export type TraceAnalyzerHookState = {
@@ -27,31 +29,54 @@ export type TraceAnalyzerHookState = {
 /**
  * Create a TraceAnalyzer instance from config.
  */
-function createAnalyzer(
+/**
+ * Resolve language codes from CortexConfig patterns.language.
+ * Mirrors the resolveLanguageCodes logic from src/patterns.ts.
+ */
+function resolveLanguageCodes(language: string | string[]): string[] {
+  if (language === "both") return ["en", "de"];
+  if (language === "all") return ["en", "de", "fr", "es", "pt", "it", "zh", "ja", "ko", "ru"];
+  if (typeof language === "string") return [language];
+  if (Array.isArray(language)) return language;
+  return ["en", "de"];
+}
+
+async function createAnalyzer(
   config: CortexConfig,
   workspace: string,
   logger: PluginLogger,
-): TraceAnalyzer {
+): Promise<TraceAnalyzer> {
+  // Load signal patterns for configured languages
+  const langCodes = resolveLanguageCodes(config.patterns.language);
+  const signalRegistry = new SignalPatternRegistry();
+  await signalRegistry.load(langCodes);
+  const signalPatterns: SignalPatternSet = signalRegistry.getPatterns();
+
+  logger.info(
+    `[trace-analyzer] Loaded signal patterns for: ${signalRegistry.getLoadedLanguages().join(", ")}`,
+  );
+
   return new TraceAnalyzer({
     config: config.traceAnalyzer,
     logger,
     workspace,
     topLevelLlm: config.llm as LlmConfig,
     createSource: () => createNatsTraceSource(config.traceAnalyzer.nats, logger),
+    signalPatterns,
   });
 }
 
 /**
  * Ensure the analyzer is initialized. Lazy to avoid work if never called.
  */
-function ensureAnalyzer(
+async function ensureAnalyzer(
   state: TraceAnalyzerHookState,
   config: CortexConfig,
   workspace: string,
   logger: PluginLogger,
-): TraceAnalyzer {
+): Promise<TraceAnalyzer> {
   if (!state.analyzer) {
-    state.analyzer = createAnalyzer(config, workspace, logger);
+    state.analyzer = await createAnalyzer(config, workspace, logger);
   }
   return state.analyzer;
 }
@@ -78,7 +103,7 @@ export function registerTraceAnalyzerHooks(
       const full = args?.full === true || args?.full === "true";
 
       try {
-        const analyzer = ensureAnalyzer(state, config, workspace, logger);
+        const analyzer = await ensureAnalyzer(state, config, workspace, logger);
         const report = await analyzer.run({ full });
 
         return {
@@ -105,7 +130,7 @@ export function registerTraceAnalyzerHooks(
     handler: async () => {
       const logger = api.logger;
       try {
-        const analyzer = ensureAnalyzer(state, config, workspace, logger);
+        const analyzer = await ensureAnalyzer(state, config, workspace, logger);
         const status = await analyzer.getStatus();
 
         return {
@@ -130,12 +155,13 @@ export function registerTraceAnalyzerHooks(
       const logger = api.logger;
       logger.info("[trace-analyzer] Running scheduled analysis...");
 
-      const analyzer = ensureAnalyzer(state, config, workspace, logger);
-      analyzer.run().catch(err => {
-        logger.warn(
-          `[trace-analyzer] Scheduled analysis failed: ${err instanceof Error ? err.message : String(err)}`,
-        );
-      });
+      ensureAnalyzer(state, config, workspace, logger)
+        .then(analyzer => analyzer.run())
+        .catch(err => {
+          logger.warn(
+            `[trace-analyzer] Scheduled analysis failed: ${err instanceof Error ? err.message : String(err)}`,
+          );
+        });
     }, intervalMs);
 
     // Prevent the timer from keeping Node alive

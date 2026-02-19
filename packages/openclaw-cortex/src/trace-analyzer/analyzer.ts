@@ -27,7 +27,8 @@ import type { Finding } from "./signals/types.js";
 import type { AnalysisReport, ProcessingState } from "./report.js";
 import type { GeneratedOutput } from "./output-generator.js";
 import { reconstructChains } from "./chain-reconstructor.js";
-import { detectAllSignals, createRepeatFailState } from "./signals/index.js";
+import { detectAllSignals, createRepeatFailState, SignalPatternRegistry } from "./signals/index.js";
+import type { SignalPatternSet } from "./signals/index.js";
 import { classifyFindings } from "./classifier.js";
 import { generateOutputs } from "./output-generator.js";
 import { assembleReport } from "./report.js";
@@ -92,6 +93,8 @@ export class TraceAnalyzer {
   private readonly workspace: string;
   private readonly logger: PluginLogger;
   private readonly createSource: (() => Promise<TraceSource | null>) | null;
+  /** Pre-loaded signal patterns (if provided). */
+  private signalPatterns: SignalPatternSet | undefined;
 
   constructor(params: {
     config: TraceAnalyzerConfig;
@@ -99,12 +102,15 @@ export class TraceAnalyzer {
     workspace: string;
     topLevelLlm: LlmConfig;
     createSource?: () => Promise<TraceSource | null>;
+    /** Pre-loaded signal patterns. If not provided, falls back to EN+DE. */
+    signalPatterns?: SignalPatternSet;
   }) {
     this.config = params.config;
     this.logger = params.logger;
     this.workspace = params.workspace;
     this.topLevelLlm = params.topLevelLlm;
     this.createSource = params.createSource ?? null;
+    this.signalPatterns = params.signalPatterns;
   }
 
   /**
@@ -188,7 +194,7 @@ export class TraceAnalyzer {
 
     // 4. Stage 1 — Structural detection
     const repeatFailState = createRepeatFailState();
-    let findings = detectAllSignals(chains, this.config.signals, repeatFailState);
+    let findings = detectAllSignals(chains, this.config.signals, repeatFailState, this.signalPatterns);
 
     // 5. Limit findings by severity priority
     if (findings.length > this.config.output.maxFindings) {

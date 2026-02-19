@@ -50,7 +50,12 @@ export { detectHallucinations } from "./signals/hallucination.js";
 export { detectUnverifiedClaims } from "./signals/unverified-claim.js";
 
 // Signal registry
-export { detectAllSignals } from "./signals/index.js";
+export { detectAllSignals, SignalPatternRegistry } from "./signals/index.js";
+export type { SignalPatternSet } from "./signals/index.js";
+
+// Signal language packs (Phase 5)
+export type { SignalLanguagePack } from "./signals/lang/types.js";
+export { BUILTIN_SIGNAL_LANGUAGES } from "./signals/lang/registry.js";
 
 // Redaction (Phase 3)
 export { redactText, redactChain } from "./redactor.js";

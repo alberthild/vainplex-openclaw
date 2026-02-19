@@ -9,48 +9,18 @@
 
 import type { ConversationChain } from "../chain-reconstructor.js";
 import type { FailureSignal } from "./types.js";
+import type { SignalPatternSet } from "./lang/registry.js";
 
-/**
- * Correction patterns — bilingual DE/EN.
- * Matches user messages that indicate the agent was wrong.
- */
-const CORRECTION_PATTERNS: RegExp[] = [
-  // German
-  /\b(?:falsch|das ist falsch|so nicht|das stimmt nicht|du hast dich geirrt)\b/i,
-  /\b(?:stopp|vergiss das|das war falsch|korrektur|nochmal|das meine ich nicht)\b/i,
-  // English
-  /\b(?:wrong|that's not right|incorrect|no that's|you're wrong|that's wrong|fix that|undo)\b/i,
-  /\b(?:actually no|wait no|not what i asked|not what i meant)\b/i,
-  // Short negations (only counted as correction when NOT answering a question)
-  /^(?:nein|no|stop|halt|nicht das)\b/i,
-];
-
-/**
- * Question patterns — detect if the agent was asking a question.
- * If so, a short negative response is NOT a correction.
- */
-const QUESTION_PATTERNS: RegExp[] = [
-  /\?\s*$/m,
-  /\b(?:soll ich|shall i|should i|möchtest du|do you want|willst du|darf ich)\b/i,
-  /\b(?:ist das ok|is that ok|okay so|passt das|right\?|oder\?)\b/i,
-];
-
-/**
- * Short negative — user response that is just a brief "no".
- * Only suppressed when agent asked a question.
- */
-const SHORT_NEGATIVE = /^\s*(?:nein|no|nope|stop|halt|nö)\s*[.!]?\s*$/i;
-
-function isQuestion(text: string): boolean {
-  return QUESTION_PATTERNS.some(p => p.test(text));
+function isQuestion(text: string, patterns: SignalPatternSet): boolean {
+  return patterns.question.indicators.some(p => p.test(text));
 }
 
-function isShortNegative(text: string): boolean {
-  return SHORT_NEGATIVE.test(text);
+function isShortNegative(text: string, patterns: SignalPatternSet): boolean {
+  return patterns.correction.shortNegatives.some(p => p.test(text));
 }
 
-function matchesCorrection(text: string): boolean {
-  return CORRECTION_PATTERNS.some(p => p.test(text));
+function matchesCorrection(text: string, patterns: SignalPatternSet): boolean {
+  return patterns.correction.indicators.some(p => p.test(text));
 }
 
 function truncate(text: string, maxLen: number): string {
@@ -63,7 +33,7 @@ function truncate(text: string, maxLen: number): string {
  * Pattern: msg.out (agent assertion) → msg.in (user correction)
  * Exclusion: agent asked a question + user gave short negative → valid answer, not correction.
  */
-export function detectCorrections(chain: ConversationChain): FailureSignal[] {
+export function detectCorrections(chain: ConversationChain, patterns: SignalPatternSet): FailureSignal[] {
   const signals: FailureSignal[] = [];
   const { events } = chain;
 
@@ -79,11 +49,11 @@ export function detectCorrections(chain: ConversationChain): FailureSignal[] {
 
     if (!userText) continue;
 
-    if (!matchesCorrection(userText)) continue;
+    if (!matchesCorrection(userText, patterns)) continue;
 
     // Exclusion: if agent asked a question and user gave a short negative,
     // it's a valid answer, not a correction.
-    if (isQuestion(agentText) && isShortNegative(userText)) continue;
+    if (isQuestion(agentText, patterns) && isShortNegative(userText, patterns)) continue;
 
     signals.push({
       signal: "SIG-CORRECTION",

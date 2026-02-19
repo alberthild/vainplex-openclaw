@@ -2,6 +2,12 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { detectHallucinations } from "../../../src/trace-analyzer/signals/hallucination.js";
 import type { NormalizedEvent, AnalyzerEventType, NormalizedPayload } from "../../../src/trace-analyzer/events.js";
 import type { ConversationChain } from "../../../src/trace-analyzer/chain-reconstructor.js";
+import { SignalPatternRegistry } from "../../../src/trace-analyzer/signals/lang/index.js";
+import type { SignalPatternSet } from "../../../src/trace-analyzer/signals/lang/index.js";
+
+const registry = new SignalPatternRegistry();
+registry.loadSync(["en", "de"]);
+const patterns: SignalPatternSet = registry.getPatterns();
 
 // ---- Test helpers ----
 
@@ -71,7 +77,7 @@ describe("SIG-HALLUCINATION detector", () => {
       makeEvent("msg.out", { content: "Done ✅ — app deployed to production." }),
     ]);
 
-    const signals = detectHallucinations(chain);
+    const signals = detectHallucinations(chain, patterns);
     expect(signals.length).toBe(1);
     expect(signals[0].signal).toBe("SIG-HALLUCINATION");
   });
@@ -84,7 +90,7 @@ describe("SIG-HALLUCINATION detector", () => {
       makeEvent("msg.out", { content: "Erledigt, nginx läuft wieder." }),
     ]);
 
-    const signals = detectHallucinations(chain);
+    const signals = detectHallucinations(chain, patterns);
     expect(signals.length).toBe(1);
   });
 
@@ -96,7 +102,7 @@ describe("SIG-HALLUCINATION detector", () => {
       makeEvent("msg.out", { content: "Successfully deployed the new version." }),
     ]);
 
-    const signals = detectHallucinations(chain);
+    const signals = detectHallucinations(chain, patterns);
     expect(signals.length).toBe(1);
   });
 
@@ -114,7 +120,7 @@ describe("SIG-HALLUCINATION detector", () => {
       makeEvent("msg.out", { content: "Task 2 completed successfully." }),
     ]);
 
-    const signals = detectHallucinations(chain);
+    const signals = detectHallucinations(chain, patterns);
     // Only the second msg.out should be flagged
     expect(signals.length).toBe(1);
     expect(signals[0].evidence.agentClaim).toContain("Task 2");
@@ -130,7 +136,7 @@ describe("SIG-HALLUCINATION detector", () => {
       makeEvent("msg.out", { content: "Done — deployed successfully." }),
     ]);
 
-    const signals = detectHallucinations(chain);
+    const signals = detectHallucinations(chain, patterns);
     expect(signals.length).toBe(0);
   });
 
@@ -142,7 +148,7 @@ describe("SIG-HALLUCINATION detector", () => {
       makeEvent("msg.out", { content: "Is it done? I'm not sure the command worked." }),
     ]);
 
-    const signals = detectHallucinations(chain);
+    const signals = detectHallucinations(chain, patterns);
     expect(signals.length).toBe(0);
   });
 
@@ -154,7 +160,7 @@ describe("SIG-HALLUCINATION detector", () => {
       makeEvent("msg.out", { content: "Done, I've checked the time." }),
     ]);
 
-    const signals = detectHallucinations(chain);
+    const signals = detectHallucinations(chain, patterns);
     expect(signals.length).toBe(0);
   });
 
@@ -164,7 +170,7 @@ describe("SIG-HALLUCINATION detector", () => {
       makeEvent("msg.out", { content: "Hi there! Finished setting up." }),
     ]);
 
-    const signals = detectHallucinations(chain);
+    const signals = detectHallucinations(chain, patterns);
     expect(signals.length).toBe(0);
   });
 
@@ -178,7 +184,7 @@ describe("SIG-HALLUCINATION detector", () => {
       makeEvent("msg.out", { content: "Fixed the bug ✓" }),
     ]);
 
-    const signals = detectHallucinations(chain);
+    const signals = detectHallucinations(chain, patterns);
     expect(signals.length).toBe(1);
     expect(signals[0].severity).toBe("critical");
   });

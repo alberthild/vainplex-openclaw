@@ -9,45 +9,18 @@
 
 import type { ConversationChain } from "../chain-reconstructor.js";
 import type { FailureSignal } from "./types.js";
+import type { SignalPatternSet } from "./lang/registry.js";
 
-/**
- * Completion claim patterns — agent says the task is done.
- * Bilingual DE/EN.
- */
-const COMPLETION_CLAIMS: RegExp[] = [
-  // German
-  /\b(?:erledigt|erfolg(?:reich)?|fertig|gemacht|deployed|gefixt|gelöst|abgeschlossen)\b/i,
-  /\bhabe ich (?:jetzt |nun )?(?:gemacht|erledigt|deployed|gefixt)/i,
-  // English
-  /\b(?:done|completed|fixed|resolved|deployed|finished)\b/i,
-  /\bi(?:'ve| have) (?:just |now )?(?:done|completed|deployed|fixed|resolved)\b/i,
-  /\bit(?:'s| is| has been) (?:now )?(?:done|deployed|fixed|live|running)\b/i,
-  // Symbols
-  /[✅✓☑]/,
-];
-
-/**
- * Question patterns — exclude questions like "Is it done?"
- */
-const QUESTION_EXCLUSION: RegExp[] = [
-  /\?\s*$/m,
-  /\b(?:shall i|should i|soll ich|is it|ist es)\b/i,
-];
-
-/**
- * "Success" words that might appear in a tool result we should
- * NOT match as completion — these are for the tool result check.
- */
 function isToolError(payload: { toolError?: string; toolIsError?: boolean }): boolean {
   return Boolean(payload.toolError) || payload.toolIsError === true;
 }
 
-function matchesCompletion(text: string): boolean {
-  return COMPLETION_CLAIMS.some(p => p.test(text));
+function matchesCompletion(text: string, patterns: SignalPatternSet): boolean {
+  return patterns.completion.claims.some(p => p.test(text));
 }
 
-function isQuestion(text: string): boolean {
-  return QUESTION_EXCLUSION.some(p => p.test(text));
+function isQuestion(text: string, patterns: SignalPatternSet): boolean {
+  return patterns.question.indicators.some(p => p.test(text));
 }
 
 function truncate(text: string, maxLen: number): string {
@@ -60,7 +33,7 @@ function truncate(text: string, maxLen: number): string {
  * Pattern: agent claims completion in msg.out, but the last tool.result
  * before that msg.out was an error.
  */
-export function detectHallucinations(chain: ConversationChain): FailureSignal[] {
+export function detectHallucinations(chain: ConversationChain, patterns: SignalPatternSet): FailureSignal[] {
   const signals: FailureSignal[] = [];
   const { events } = chain;
 
@@ -71,10 +44,10 @@ export function detectHallucinations(chain: ConversationChain): FailureSignal[] 
     if (!content) continue;
 
     // Must claim completion
-    if (!matchesCompletion(content)) continue;
+    if (!matchesCompletion(content, patterns)) continue;
 
     // Exclude questions
-    if (isQuestion(content)) continue;
+    if (isQuestion(content, patterns)) continue;
 
     // Find the last tool.result before this msg.out
     let lastToolResultIdx = -1;

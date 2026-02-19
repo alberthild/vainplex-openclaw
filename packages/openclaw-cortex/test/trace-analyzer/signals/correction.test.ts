@@ -2,6 +2,13 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { detectCorrections } from "../../../src/trace-analyzer/signals/correction.js";
 import type { NormalizedEvent, AnalyzerEventType, NormalizedPayload } from "../../../src/trace-analyzer/events.js";
 import type { ConversationChain } from "../../../src/trace-analyzer/chain-reconstructor.js";
+import { SignalPatternRegistry } from "../../../src/trace-analyzer/signals/lang/index.js";
+import type { SignalPatternSet } from "../../../src/trace-analyzer/signals/lang/index.js";
+
+// Default EN+DE patterns for backward-compat tests
+const registry = new SignalPatternRegistry();
+registry.loadSync(["en", "de"]);
+const patterns: SignalPatternSet = registry.getPatterns();
 
 // ---- Test helpers ----
 
@@ -70,7 +77,7 @@ describe("SIG-CORRECTION detector", () => {
       makeEvent("msg.in", { content: "Nein, das ist falsch." }),
     ]);
 
-    const signals = detectCorrections(chain);
+    const signals = detectCorrections(chain, patterns);
     expect(signals.length).toBe(1);
     expect(signals[0].signal).toBe("SIG-CORRECTION");
   });
@@ -82,7 +89,7 @@ describe("SIG-CORRECTION detector", () => {
       makeEvent("msg.in", { content: "That's not right, it's Paris." }),
     ]);
 
-    const signals = detectCorrections(chain);
+    const signals = detectCorrections(chain, patterns);
     expect(signals.length).toBe(1);
     expect(signals[0].signal).toBe("SIG-CORRECTION");
   });
@@ -94,7 +101,7 @@ describe("SIG-CORRECTION detector", () => {
       makeEvent("msg.in", { content: "Du hast dich geirrt, da sind viele Fehler." }),
     ]);
 
-    const signals = detectCorrections(chain);
+    const signals = detectCorrections(chain, patterns);
     expect(signals.length).toBe(1);
   });
 
@@ -105,7 +112,7 @@ describe("SIG-CORRECTION detector", () => {
       makeEvent("msg.in", { content: "Wrong — I said staging, not production!" }),
     ]);
 
-    const signals = detectCorrections(chain);
+    const signals = detectCorrections(chain, patterns);
     expect(signals.length).toBe(1);
   });
 
@@ -118,7 +125,7 @@ describe("SIG-CORRECTION detector", () => {
       makeEvent("msg.in", { content: "nein" }),
     ]);
 
-    const signals = detectCorrections(chain);
+    const signals = detectCorrections(chain, patterns);
     expect(signals.length).toBe(0);
   });
 
@@ -130,7 +137,7 @@ describe("SIG-CORRECTION detector", () => {
       makeEvent("msg.out", { content: "Done, app is deployed." }),
     ]);
 
-    const signals = detectCorrections(chain);
+    const signals = detectCorrections(chain, patterns);
     expect(signals.length).toBe(0);
   });
 
@@ -141,7 +148,7 @@ describe("SIG-CORRECTION detector", () => {
       makeEvent("msg.in", { content: "no" }),
     ]);
 
-    const signals = detectCorrections(chain);
+    const signals = detectCorrections(chain, patterns);
     expect(signals.length).toBe(0);
   });
 
@@ -156,7 +163,7 @@ describe("SIG-CORRECTION detector", () => {
       makeEvent("msg.in", { content: "Still wrong, fix that." }),
     ]);
 
-    const signals = detectCorrections(chain);
+    const signals = detectCorrections(chain, patterns);
     expect(signals.length).toBe(2);
   });
 
@@ -168,7 +175,7 @@ describe("SIG-CORRECTION detector", () => {
       makeEvent("msg.in", { content: "That's wrong." }),
     ]);
 
-    const signals = detectCorrections(chain);
+    const signals = detectCorrections(chain, patterns);
     expect(signals.length).toBe(0);
   });
 
@@ -180,7 +187,7 @@ describe("SIG-CORRECTION detector", () => {
       makeEvent("msg.in", { content: "" }),
     ]);
 
-    const signals = detectCorrections(chain);
+    const signals = detectCorrections(chain, patterns);
     expect(signals.length).toBe(0);
   });
 
@@ -191,7 +198,7 @@ describe("SIG-CORRECTION detector", () => {
       makeEvent("msg.in", { content: "nein, das meine ich nicht — ich wollte X" }),
     ]);
 
-    const signals = detectCorrections(chain);
+    const signals = detectCorrections(chain, patterns);
     expect(signals.length).toBe(1);
   });
 
@@ -204,7 +211,7 @@ describe("SIG-CORRECTION detector", () => {
       makeEvent("msg.in", { content: "Falsch, es gibt Fehler!" }),
     ]);
 
-    const signals = detectCorrections(chain);
+    const signals = detectCorrections(chain, patterns);
     expect(signals.length).toBe(1);
     expect(signals[0].severity).toBe("medium");
   });

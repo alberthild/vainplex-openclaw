@@ -2,6 +2,12 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { detectUnverifiedClaims } from "../../../src/trace-analyzer/signals/unverified-claim.js";
 import type { NormalizedEvent, AnalyzerEventType, NormalizedPayload } from "../../../src/trace-analyzer/events.js";
 import type { ConversationChain } from "../../../src/trace-analyzer/chain-reconstructor.js";
+import { SignalPatternRegistry } from "../../../src/trace-analyzer/signals/lang/index.js";
+import type { SignalPatternSet } from "../../../src/trace-analyzer/signals/lang/index.js";
+
+const registry = new SignalPatternRegistry();
+registry.loadSync(["en", "de"]);
+const patterns: SignalPatternSet = registry.getPatterns();
 
 // ---- Test helpers ----
 
@@ -69,7 +75,7 @@ describe("SIG-UNVERIFIED-CLAIM detector", () => {
       makeEvent("msg.out", { content: "disk usage is at 45% on the main drive." }),
     ]);
 
-    const signals = detectUnverifiedClaims(chain);
+    const signals = detectUnverifiedClaims(chain, patterns);
     expect(signals.length).toBe(1);
     expect(signals[0].signal).toBe("SIG-UNVERIFIED-CLAIM");
   });
@@ -80,7 +86,7 @@ describe("SIG-UNVERIFIED-CLAIM detector", () => {
       makeEvent("msg.out", { content: "The service is running fine." }),
     ]);
 
-    const signals = detectUnverifiedClaims(chain);
+    const signals = detectUnverifiedClaims(chain, patterns);
     expect(signals.length).toBe(1);
   });
 
@@ -90,7 +96,7 @@ describe("SIG-UNVERIFIED-CLAIM detector", () => {
       makeEvent("msg.out", { content: "there are 5 errors in the log file." }),
     ]);
 
-    const signals = detectUnverifiedClaims(chain);
+    const signals = detectUnverifiedClaims(chain, patterns);
     expect(signals.length).toBe(1);
   });
 
@@ -104,7 +110,7 @@ describe("SIG-UNVERIFIED-CLAIM detector", () => {
       makeEvent("msg.out", { content: "disk usage is at 45% on the main drive." }),
     ]);
 
-    const signals = detectUnverifiedClaims(chain);
+    const signals = detectUnverifiedClaims(chain, patterns);
     expect(signals.length).toBe(0);
   });
 
@@ -114,7 +120,7 @@ describe("SIG-UNVERIFIED-CLAIM detector", () => {
       makeEvent("msg.out", { content: "I think memory is at 80%, but let me check." }),
     ]);
 
-    const signals = detectUnverifiedClaims(chain);
+    const signals = detectUnverifiedClaims(chain, patterns);
     expect(signals.length).toBe(0);
   });
 
@@ -128,7 +134,7 @@ describe("SIG-UNVERIFIED-CLAIM detector", () => {
       makeEvent("msg.out", { content: "The service is running and there are 3 errors." }),
     ]);
 
-    const signals = detectUnverifiedClaims(chain);
+    const signals = detectUnverifiedClaims(chain, patterns);
     expect(signals.length).toBe(0);
   });
 
@@ -140,7 +146,7 @@ describe("SIG-UNVERIFIED-CLAIM detector", () => {
       makeEvent("msg.out", { content: "Deployment script executed." }),
     ]);
 
-    const signals = detectUnverifiedClaims(chain);
+    const signals = detectUnverifiedClaims(chain, patterns);
     expect(signals.length).toBe(0);
   });
 
@@ -150,7 +156,7 @@ describe("SIG-UNVERIFIED-CLAIM detector", () => {
       makeEvent("msg.out", { content: "Here's an example:\n```\ndisk usage is at 90%\n```\nThat's what it would look like." }),
     ]);
 
-    const signals = detectUnverifiedClaims(chain);
+    const signals = detectUnverifiedClaims(chain, patterns);
     expect(signals.length).toBe(0);
   });
 
@@ -162,7 +168,7 @@ describe("SIG-UNVERIFIED-CLAIM detector", () => {
       makeEvent("msg.out", { content: "The service is running fine." }),
     ]);
 
-    const signals = detectUnverifiedClaims(chain);
+    const signals = detectUnverifiedClaims(chain, patterns);
     expect(signals.length).toBe(1);
     expect(signals[0].severity).toBe("medium");
   });

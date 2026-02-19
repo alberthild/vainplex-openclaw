@@ -2,6 +2,12 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { detectDissatisfied } from "../../../src/trace-analyzer/signals/dissatisfied.js";
 import type { NormalizedEvent, AnalyzerEventType, NormalizedPayload } from "../../../src/trace-analyzer/events.js";
 import type { ConversationChain } from "../../../src/trace-analyzer/chain-reconstructor.js";
+import { SignalPatternRegistry } from "../../../src/trace-analyzer/signals/lang/index.js";
+import type { SignalPatternSet } from "../../../src/trace-analyzer/signals/lang/index.js";
+
+const registry = new SignalPatternRegistry();
+registry.loadSync(["en", "de"]);
+const patterns: SignalPatternSet = registry.getPatterns();
 
 // ---- Test helpers ----
 
@@ -70,7 +76,7 @@ describe("SIG-DISSATISFIED detector", () => {
       makeEvent("msg.in", { content: "vergiss es" }),
     ]);
 
-    const signals = detectDissatisfied(chain);
+    const signals = detectDissatisfied(chain, patterns);
     expect(signals.length).toBe(1);
     expect(signals[0].signal).toBe("SIG-DISSATISFIED");
   });
@@ -82,7 +88,7 @@ describe("SIG-DISSATISFIED detector", () => {
       makeEvent("msg.in", { content: "forget it, I'll handle this manually" }),
     ]);
 
-    const signals = detectDissatisfied(chain);
+    const signals = detectDissatisfied(chain, patterns);
     expect(signals.length).toBe(1);
   });
 
@@ -93,7 +99,7 @@ describe("SIG-DISSATISFIED detector", () => {
       makeEvent("msg.in", { content: "ich mach's selbst" }),
     ]);
 
-    const signals = detectDissatisfied(chain);
+    const signals = detectDissatisfied(chain, patterns);
     expect(signals.length).toBe(1);
   });
 
@@ -104,7 +110,7 @@ describe("SIG-DISSATISFIED detector", () => {
       makeEvent("msg.in", { content: "this is useless" }),
     ]);
 
-    const signals = detectDissatisfied(chain);
+    const signals = detectDissatisfied(chain, patterns);
     expect(signals.length).toBe(1);
   });
 
@@ -117,7 +123,7 @@ describe("SIG-DISSATISFIED detector", () => {
       makeEvent("msg.in", { content: "danke, passt!" }),
     ]);
 
-    const signals = detectDissatisfied(chain);
+    const signals = detectDissatisfied(chain, patterns);
     expect(signals.length).toBe(0);
   });
 
@@ -133,7 +139,7 @@ describe("SIG-DISSATISFIED detector", () => {
       makeEvent("msg.in", { content: "danke" }),
     ]);
 
-    const signals = detectDissatisfied(chain);
+    const signals = detectDissatisfied(chain, patterns);
     expect(signals.length).toBe(0);
   });
 
@@ -147,7 +153,7 @@ describe("SIG-DISSATISFIED detector", () => {
       makeEvent("msg.out", { content: "Sorry, let me try a different approach." }),
     ]);
 
-    const signals = detectDissatisfied(chain);
+    const signals = detectDissatisfied(chain, patterns);
     expect(signals.length).toBe(0);
   });
 
@@ -158,7 +164,7 @@ describe("SIG-DISSATISFIED detector", () => {
       makeEvent("msg.in", { content: "thanks, great job!" }),
     ]);
 
-    const signals = detectDissatisfied(chain);
+    const signals = detectDissatisfied(chain, patterns);
     expect(signals.length).toBe(0);
   });
 
@@ -170,7 +176,7 @@ describe("SIG-DISSATISFIED detector", () => {
       makeEvent("msg.out", { content: "Anyone there?" }),
     ]);
 
-    const signals = detectDissatisfied(chain);
+    const signals = detectDissatisfied(chain, patterns);
     expect(signals.length).toBe(0);
   });
 
@@ -183,7 +189,7 @@ describe("SIG-DISSATISFIED detector", () => {
       makeEvent("msg.in", { content: "forget it" }),
     ]);
 
-    const signals = detectDissatisfied(chain);
+    const signals = detectDissatisfied(chain, patterns);
     expect(signals.length).toBe(1);
     expect(signals[0].severity).toBe("high");
   });
