@@ -51,3 +51,24 @@ export { detectUnverifiedClaims } from "./signals/unverified-claim.js";
 
 // Signal registry
 export { detectAllSignals } from "./signals/index.js";
+
+// Redaction (Phase 3)
+export { redactText, redactChain } from "./redactor.js";
+
+// Classifier (Phase 3)
+export { classifyFindings, resolveAnalyzerLlmConfig, formatChainAsTranscript } from "./classifier.js";
+
+// Output generator (Phase 3)
+export type { GeneratedOutput } from "./output-generator.js";
+export { generateOutputs } from "./output-generator.js";
+
+// Report (Phase 3)
+export type {
+  AnalysisReport,
+  RunStats,
+  SignalStats,
+  RuleEffectiveness,
+  ProcessingState,
+  AssembleReportParams,
+} from "./report.js";
+export { assembleReport } from "./report.js";
