@@ -10,6 +10,7 @@ import { DecisionTracker } from "./decision-tracker.js";
 import { BootContextGenerator } from "./boot-context.js";
 import { PreCompaction } from "./pre-compaction.js";
 import { LlmEnhancer, resolveLlmConfig } from "./llm-enhance.js";
+import { registerTraceAnalyzerHooks, cleanupTraceAnalyzerHooks, type TraceAnalyzerHookState } from "./trace-analyzer/index.js";
 
 /**
  * Extract message content from a hook event using the fallback chain.
@@ -137,7 +138,20 @@ export function registerCortexHooks(api: OpenClawPluginApi, config: CortexConfig
   registerSessionHooks(api, config, state);
   registerCompactionHooks(api, config, state);
 
+  // Trace Analyzer — conditional registration (R-010, R-013, R-028)
+  if (config.traceAnalyzer?.enabled) {
+    const taState: TraceAnalyzerHookState = { timer: null, analyzer: null };
+    registerTraceAnalyzerHooks(api, config, taState);
+
+    // Register cleanup as a service so it runs on plugin stop
+    api.registerService({
+      id: "trace-analyzer",
+      start: async () => { /* noop — analyzer is lazy */ },
+      stop: async () => { cleanupTraceAnalyzerHooks(taState); },
+    });
+  }
+
   api.logger.info(
-    `[cortex] Hooks registered — threads:${config.threadTracker.enabled} decisions:${config.decisionTracker.enabled} boot:${config.bootContext.enabled} compaction:${config.preCompaction.enabled} llm:${config.llm.enabled}${config.llm.enabled ? ` (${config.llm.model}@${config.llm.endpoint})` : ""}`,
+    `[cortex] Hooks registered — threads:${config.threadTracker.enabled} decisions:${config.decisionTracker.enabled} boot:${config.bootContext.enabled} compaction:${config.preCompaction.enabled} llm:${config.llm.enabled}${config.llm.enabled ? ` (${config.llm.model}@${config.llm.endpoint})` : ""} trace:${config.traceAnalyzer?.enabled ?? false}`,
   );
 }

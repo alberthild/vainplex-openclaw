@@ -72,3 +72,11 @@ export type {
   AssembleReportParams,
 } from "./report.js";
 export { assembleReport } from "./report.js";
+
+// Analyzer (Phase 4)
+export { TraceAnalyzer } from "./analyzer.js";
+export type { TraceAnalyzerRunOpts, TraceAnalyzerStatus } from "./analyzer.js";
+
+// Hook registration (Phase 4)
+export { registerTraceAnalyzerHooks, cleanupTraceAnalyzerHooks } from "./hooks.js";
+export type { TraceAnalyzerHookState } from "./hooks.js";
