@@ -71,7 +71,9 @@ function resolveCredentialGuard(
             conditions: [
               { type: "tool", params: { file_path: { matches: "\\.(env|pem|key)$" } } },
               { type: "tool", params: { path: { matches: "\\.(env|pem|key)$" } } },
-              { type: "tool", params: { command: { matches: "(cat|less|head|tail).*\\.(env|pem|key)" } } },
+              { type: "tool", params: { command: { matches: "(cat|less|head|tail|cp|mv|grep|find|scp|rsync|docker\\s+cp).*\\.(env|pem|key)" } } },
+              { type: "tool", params: { command: { matches: "(cp|mv|scp|rsync|docker\\s+cp).*(credentials|secrets|\\.env|\\.pem|\\.key)" } } },
+              { type: "tool", params: { command: { matches: "(grep|find).*(password|token|secret|credential)" } } },
               { type: "tool", params: { file_path: { contains: "credentials" } } },
               { type: "tool", params: { path: { contains: "credentials" } } },
               { type: "tool", params: { file_path: { contains: "secrets" } } },
