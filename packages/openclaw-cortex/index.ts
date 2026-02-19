@@ -1,5 +1,6 @@
 import { registerCortexHooks } from "./src/hooks.js";
-import { resolveConfig, resolveWorkspace } from "./src/config.js";
+import { resolveWorkspace } from "./src/config.js";
+import { loadConfig } from "./src/config-loader.js";
 import { loadJson, rebootDir } from "./src/storage.js";
 import type { OpenClawPluginApi, ThreadsData } from "./src/types.js";
 
@@ -11,7 +12,7 @@ const plugin = {
   version: "0.1.0",
 
   register(api: OpenClawPluginApi) {
-    const config = resolveConfig(api.pluginConfig);
+    const { config } = loadConfig(api.pluginConfig, api.logger);
 
     if (!config.enabled) {
       api.logger.info("[cortex] Disabled via config");
