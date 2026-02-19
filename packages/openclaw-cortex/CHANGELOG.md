@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] - 2026-02-19
+
+### Fixed
+- Export Trace Analyzer public API from package entry point (`index.ts`)
+- Add `traceAnalyzer` schema to `openclaw.plugin.json` with full config definition
+- Add `"all"` to `patterns.language` enum in plugin schema
+- Update README with full Trace Analyzer documentation (pipeline, signals, config, API)
+- Fix test count in README (516 → 850)
+- Update Plugin Suite table across all 4 READMEs (cortex@0.4.0, governance@0.3.2)
+- Fix package.json homepage to monorepo path, add trace-analyzer keywords
+- Add `traceAnalyzer: { enabled: false }` default to external config
+- Remove node_modules from production extensions (63MB + 76MB freed)
+
 ## [0.4.0] - 2026-02-19
 
 ### Added
