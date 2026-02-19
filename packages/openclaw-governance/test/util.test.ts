@@ -9,6 +9,7 @@ import {
   isSubAgent,
   nowUs,
   parseTimeToMinutes,
+  resolveAgentId,
   scoreToTier,
   sha256,
   tierOrdinal,
@@ -175,5 +176,65 @@ describe("tierOrdinal", () => {
     expect(tierOrdinal("standard")).toBe(2);
     expect(tierOrdinal("trusted")).toBe(3);
     expect(tierOrdinal("privileged")).toBe(4);
+  });
+});
+
+describe("resolveAgentId", () => {
+  it("should return agentId when provided", () => {
+    expect(resolveAgentId({ agentId: "atlas" })).toBe("atlas");
+  });
+
+  it("should parse from sessionKey", () => {
+    expect(resolveAgentId({ sessionKey: "agent:forge:abc" })).toBe("forge");
+  });
+
+  it("should parse subagent from sessionKey", () => {
+    expect(resolveAgentId({ sessionKey: "agent:main:subagent:forge:abc" })).toBe("forge");
+  });
+
+  it("should return 'unresolved' when both undefined", () => {
+    expect(resolveAgentId({})).toBe("unresolved");
+  });
+
+  it("should return 'unresolved' for UUID sessionKey", () => {
+    expect(resolveAgentId({ sessionKey: "78b1f33b-e9a4-4eae-8341-7c57bbc69843" })).toBe("unresolved");
+  });
+
+  it("should parse from sessionId as fallback", () => {
+    expect(resolveAgentId({ sessionId: "agent:leuko:session123" })).toBe("leuko");
+  });
+
+  it("should use event metadata as last resort", () => {
+    expect(resolveAgentId({}, { metadata: { agentId: "forge" } })).toBe("forge");
+  });
+
+  it("should log warning when unresolved", () => {
+    const warnings: string[] = [];
+    resolveAgentId({}, undefined, { warn: (m) => warnings.push(m) });
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain("Could not resolve agentId");
+  });
+
+  it("should not log warning when resolved", () => {
+    const warnings: string[] = [];
+    resolveAgentId({ agentId: "atlas" }, undefined, { warn: (m) => warnings.push(m) });
+    expect(warnings).toHaveLength(0);
+  });
+
+  it("should prefer agentId over sessionKey", () => {
+    expect(resolveAgentId({ agentId: "atlas", sessionKey: "agent:forge" })).toBe("atlas");
+  });
+
+  it("should prefer sessionKey over sessionId", () => {
+    expect(resolveAgentId({ sessionKey: "agent:forge", sessionId: "agent:leuko" })).toBe("forge");
+  });
+
+  it("should prefer sessionId over event metadata", () => {
+    expect(resolveAgentId({ sessionId: "agent:leuko" }, { metadata: { agentId: "other" } })).toBe("leuko");
+  });
+
+  it("should handle empty string agentId", () => {
+    // Empty string is falsy, should fall through
+    expect(resolveAgentId({ agentId: "", sessionKey: "agent:forge" })).toBe("forge");
   });
 });

@@ -338,4 +338,70 @@ describe("registerGovernanceHooks", () => {
     const stopHandler = hooks.find((h) => h.name === "gateway_stop")?.handler;
     await stopHandler!({ reason: "shutdown" });
   });
+
+  // ── Bug 1: agentId resolution in hooks ──
+
+  it("should resolve agentId from sessionKey when agentId is missing (Bug 1)", async () => {
+    const { api, hooks } = createMockApi();
+    const config = makeConfig();
+    const engine = new GovernanceEngine(config, logger, WORKSPACE);
+    await engine.start();
+    registerGovernanceHooks(api, engine, config);
+
+    const handler = hooks.find((h) => h.name === "before_tool_call")?.handler;
+
+    // Only sessionKey, no agentId
+    const result = await handler!(
+      { toolName: "read", params: { path: "/tmp/test" } },
+      { sessionKey: "agent:forge:session123", toolName: "read" },
+    );
+
+    // Should resolve "forge" from sessionKey and not crash
+    expect(result).toBeUndefined(); // allowed
+
+    await engine.stop();
+  });
+
+  it("should handle missing agentId AND sessionKey without crash (Bug 1)", async () => {
+    const { api, hooks } = createMockApi();
+    const config = makeConfig();
+    const engine = new GovernanceEngine(config, logger, WORKSPACE);
+    await engine.start();
+    registerGovernanceHooks(api, engine, config);
+
+    const handler = hooks.find((h) => h.name === "before_tool_call")?.handler;
+
+    // No agentId, no sessionKey
+    const result = await handler!(
+      { toolName: "read", params: {} },
+      { toolName: "read" },
+    );
+
+    // Should use "unresolved" and not crash
+    expect(result).toBeUndefined();
+
+    await engine.stop();
+  });
+
+  it("should handle after_tool_call with only sessionKey (Bug 1)", async () => {
+    const { api, hooks } = createMockApi();
+    const config = makeConfig();
+    const engine = new GovernanceEngine(config, logger, WORKSPACE);
+    await engine.start();
+    registerGovernanceHooks(api, engine, config);
+
+    const handler = hooks.find((h) => h.name === "after_tool_call")?.handler;
+
+    // Only sessionKey, no agentId
+    handler!(
+      { toolName: "exec", params: {}, durationMs: 100 },
+      { sessionKey: "agent:forge:xyz", toolName: "exec" },
+    );
+
+    // Trust should update for "forge"
+    const trust = engine.getTrust("forge");
+    expect("signals" in trust && trust.signals.successCount).toBe(1);
+
+    await engine.stop();
+  });
 });

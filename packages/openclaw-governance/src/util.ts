@@ -88,7 +88,8 @@ export function nowUs(): number {
   return Math.round(performance.now() * 1000);
 }
 
-/** Extract agent ID from session key or explicit agentId */
+/** Extract agent ID from session key or explicit agentId
+ * @deprecated Use `resolveAgentId()` for multi-fallback resolution */
 export function extractAgentId(
   sessionKey?: string,
   agentId?: string,
@@ -103,6 +104,71 @@ export function extractAgentId(
     return parts[3] ?? "unknown";
   }
   return parts[1] ?? "unknown";
+}
+
+/**
+ * Parse agent name from a session key string.
+ * Returns null if the key doesn't contain a parseable agent name.
+ *
+ * Patterns:
+ *   "agent:NAME" → NAME
+ *   "agent:NAME:subagent:CHILD:..." → CHILD
+ *   UUID or unparseable → null
+ */
+function parseAgentFromSessionKey(key: string): string | null {
+  const parts = key.split(":");
+  if (parts.length >= 2 && parts[0] === "agent") {
+    if (parts.length >= 4 && parts[2] === "subagent") {
+      return parts[3] || null;
+    }
+    return parts[1] || null;
+  }
+  return null;
+}
+
+/**
+ * Resolve agent ID from hook context with multi-source fallback.
+ * Returns "unresolved" (not "unknown") when all sources fail.
+ *
+ * Priority:
+ *   1. hookCtx.agentId (explicit)
+ *   2. hookCtx.sessionKey → parse agent name
+ *   3. hookCtx.sessionId → parse agent hint
+ *   4. event metadata → event.metadata.agentId
+ *   5. "unresolved" + log warning
+ */
+export function resolveAgentId(
+  hookCtx: { agentId?: string; sessionKey?: string; sessionId?: string },
+  event?: { metadata?: Record<string, unknown> },
+  logger?: { warn: (msg: string) => void },
+): string {
+  // 1. Explicit agentId
+  if (hookCtx.agentId) return hookCtx.agentId;
+
+  // 2. Parse from sessionKey
+  if (hookCtx.sessionKey) {
+    const parsed = parseAgentFromSessionKey(hookCtx.sessionKey);
+    if (parsed) return parsed;
+  }
+
+  // 3. Parse from sessionId
+  if (hookCtx.sessionId) {
+    const parsed = parseAgentFromSessionKey(hookCtx.sessionId);
+    if (parsed) return parsed;
+  }
+
+  // 4. Check event metadata
+  if (event?.metadata?.agentId && typeof event.metadata.agentId === "string") {
+    return event.metadata.agentId;
+  }
+
+  // 5. Fallback
+  logger?.warn(
+    `[governance] Could not resolve agentId from context: ` +
+    `sessionKey=${hookCtx.sessionKey ?? "none"}, ` +
+    `sessionId=${hookCtx.sessionId ?? "none"}`,
+  );
+  return "unresolved";
 }
 
 /** Check if a session key indicates a sub-agent */

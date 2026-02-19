@@ -12,17 +12,19 @@ import type {
   HookToolContext,
   OpenClawPluginApi,
   PluginCommand,
+  PluginLogger,
 } from "./types.js";
 import type { GovernanceEngine } from "./engine.js";
-import { extractAgentId, getCurrentTime } from "./util.js";
+import { getCurrentTime, resolveAgentId } from "./util.js";
 
 function buildToolEvalContext(
   event: HookBeforeToolCallEvent,
   hookCtx: HookToolContext,
   config: GovernanceConfig,
   engine: GovernanceEngine,
+  logger: PluginLogger,
 ) {
-  const agentId = extractAgentId(hookCtx.sessionKey, hookCtx.agentId);
+  const agentId = resolveAgentId(hookCtx, undefined, logger);
   const trust = engine.getTrust(agentId);
   const trustData = "score" in trust
     ? { score: trust.score, tier: trust.tier }
@@ -45,8 +47,13 @@ function buildMessageEvalContext(
   hookCtx: HookMessageContext,
   config: GovernanceConfig,
   engine: GovernanceEngine,
+  logger: PluginLogger,
 ) {
-  const agentId = "main"; // message context doesn't always have agentId
+  const agentId = resolveAgentId(
+    hookCtx as { agentId?: string; sessionKey?: string; sessionId?: string },
+    event as { metadata?: Record<string, unknown> },
+    logger,
+  );
   const trust = engine.getTrust(agentId);
   const trustData = "score" in trust
     ? { score: trust.score, tier: trust.tier }
@@ -69,6 +76,7 @@ function buildMessageEvalContext(
 function handleBeforeToolCall(
   engine: GovernanceEngine,
   config: GovernanceConfig,
+  logger: PluginLogger,
 ) {
   return async (
     event: unknown,
@@ -77,7 +85,7 @@ function handleBeforeToolCall(
     try {
       const ev = event as HookBeforeToolCallEvent;
       const ctx = hookCtx as HookToolContext;
-      const evalCtx = buildToolEvalContext(ev, ctx, config, engine);
+      const evalCtx = buildToolEvalContext(ev, ctx, config, engine, logger);
       const verdict = await engine.evaluate(evalCtx);
 
       if (verdict.action === "deny") {
@@ -100,6 +108,7 @@ function handleBeforeToolCall(
 function handleMessageSending(
   engine: GovernanceEngine,
   config: GovernanceConfig,
+  logger: PluginLogger,
 ) {
   return async (
     event: unknown,
@@ -108,7 +117,7 @@ function handleMessageSending(
     try {
       const ev = event as HookMessageSendingEvent;
       const ctx = hookCtx as HookMessageContext;
-      const evalCtx = buildMessageEvalContext(ev, ctx, config, engine);
+      const evalCtx = buildMessageEvalContext(ev, ctx, config, engine, logger);
       const verdict = await engine.evaluate(evalCtx);
 
       if (verdict.action === "deny") {
@@ -121,12 +130,12 @@ function handleMessageSending(
   };
 }
 
-function handleAfterToolCall(engine: GovernanceEngine) {
+function handleAfterToolCall(engine: GovernanceEngine, logger: PluginLogger) {
   return (event: unknown, hookCtx: unknown): void => {
     try {
       const ev = event as HookAfterToolCallEvent;
       const ctx = hookCtx as HookToolContext;
-      const agentId = extractAgentId(ctx.sessionKey, ctx.agentId);
+      const agentId = resolveAgentId(ctx, undefined, logger);
       const success = !ev.error;
 
       engine.recordOutcome(agentId, ev.toolName, success);
@@ -153,6 +162,7 @@ function handleAfterToolCall(engine: GovernanceEngine) {
 function handleBeforeAgentStart(
   engine: GovernanceEngine,
   _config: GovernanceConfig,
+  logger: PluginLogger,
 ) {
   return (
     _event: unknown,
@@ -160,7 +170,7 @@ function handleBeforeAgentStart(
   ): HookBeforeAgentStartResult | undefined => {
     try {
       const ctx = hookCtx as HookAgentContext;
-      const agentId = extractAgentId(ctx.sessionKey, ctx.agentId);
+      const agentId = resolveAgentId(ctx, undefined, logger);
       const trust = engine.getTrust(agentId);
 
       if (!("score" in trust)) return undefined;
@@ -181,11 +191,11 @@ function handleBeforeAgentStart(
   };
 }
 
-function handleSessionStart(engine: GovernanceEngine) {
+function handleSessionStart(engine: GovernanceEngine, logger: PluginLogger) {
   return (_event: unknown, hookCtx: unknown): void => {
     try {
       const ctx = hookCtx as HookSessionContext;
-      const agentId = extractAgentId(undefined, ctx.agentId);
+      const agentId = resolveAgentId(ctx, undefined, logger);
       // Ensure trust state is initialized for this agent
       engine.getTrust(agentId);
     } catch {
@@ -243,24 +253,26 @@ export function registerGovernanceHooks(
   engine: GovernanceEngine,
   config: GovernanceConfig,
 ): void {
+  const logger = api.logger;
+
   // Primary enforcement
-  api.on("before_tool_call", handleBeforeToolCall(engine, config), {
+  api.on("before_tool_call", handleBeforeToolCall(engine, config, logger), {
     priority: 1000,
   });
-  api.on("message_sending", handleMessageSending(engine, config), {
+  api.on("message_sending", handleMessageSending(engine, config, logger), {
     priority: 1000,
   });
 
   // Trust feedback
-  api.on("after_tool_call", handleAfterToolCall(engine), { priority: 900 });
+  api.on("after_tool_call", handleAfterToolCall(engine, logger), { priority: 900 });
 
   // Context injection
-  api.on("before_agent_start", handleBeforeAgentStart(engine, config), {
+  api.on("before_agent_start", handleBeforeAgentStart(engine, config, logger), {
     priority: 5,
   });
 
   // Lifecycle
-  api.on("session_start", handleSessionStart(engine), { priority: 1 });
+  api.on("session_start", handleSessionStart(engine, logger), { priority: 1 });
   api.on("gateway_start", handleGatewayStart(engine), { priority: 1 });
   api.on("gateway_stop", handleGatewayStop(engine), { priority: 999 });
 
