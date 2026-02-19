@@ -40,6 +40,8 @@ export class GovernanceEngine {
   private readonly stats: EvaluationStats;
   private workspace: string;
 
+  private knownAgentIds: readonly string[] = [];
+
   constructor(
     config: GovernanceConfig,
     logger: PluginLogger,
@@ -80,9 +82,22 @@ export class GovernanceEngine {
     };
   }
 
-  async start(): Promise<void> {
+  /**
+   * Provide the list of known agent IDs from OpenClaw config.
+   * Call this before start() so trust sync can register all agents.
+   */
+  setKnownAgents(agentIds: readonly string[]): void {
+    this.knownAgentIds = agentIds;
+  }
 
+  async start(): Promise<void> {
     this.trustManager.load();
+
+    // Sync trust entries with known agents
+    if (this.knownAgentIds.length > 0) {
+      this.syncAgentTrust();
+    }
+
     this.auditTrail.load();
     this.frequencyTracker.clear();
 
@@ -93,6 +108,46 @@ export class GovernanceEngine {
     this.logger.info(
       `[governance] Engine started: ${policyCount} policies loaded`,
     );
+  }
+
+  /**
+   * Ensure every known agent has a trust entry.
+   * New agents get the configured default (or wildcard).
+   * Removed agents are kept (historical data) but logged.
+   */
+  private syncAgentTrust(): void {
+    const store = this.trustManager.getStore();
+    const knownSet = new Set(this.knownAgentIds);
+    const storeAgents = new Set(Object.keys(store.agents));
+
+    // Register new agents
+    const added: string[] = [];
+    for (const agentId of this.knownAgentIds) {
+      if (!storeAgents.has(agentId)) {
+        // getAgentTrust auto-creates with resolveDefault()
+        this.trustManager.getAgentTrust(agentId);
+        added.push(agentId);
+      }
+    }
+
+    // Detect removed agents (keep data, just log)
+    const removed: string[] = [];
+    for (const agentId of storeAgents) {
+      if (!knownSet.has(agentId) && agentId !== "unresolved") {
+        removed.push(agentId);
+      }
+    }
+
+    if (added.length > 0) {
+      this.logger.info(
+        `[governance] Auto-registered ${added.length} new agent(s): ${added.join(", ")}`,
+      );
+    }
+    if (removed.length > 0) {
+      this.logger.info(
+        `[governance] ${removed.length} agent(s) no longer in config (trust data kept): ${removed.join(", ")}`,
+      );
+    }
   }
 
   async stop(): Promise<void> {

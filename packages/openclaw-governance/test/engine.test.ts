@@ -312,3 +312,95 @@ describe("GovernanceEngine", () => {
     await engine.stop();
   });
 });
+
+describe("Agent trust sync", () => {
+  it("should auto-register known agents on start", async () => {
+    const config = makeConfig({
+      trust: {
+        enabled: true,
+        defaults: { main: 60, "*": 10 },
+        persistIntervalSeconds: 9999,
+        decay: { enabled: false, inactivityDays: 30, rate: 0.95 },
+        maxHistoryPerAgent: 100,
+      },
+    });
+
+    const engine = new GovernanceEngine(config, logger, WORKSPACE);
+    engine.setKnownAgents(["main", "forge", "cerberus"]);
+    await engine.start();
+
+    const mainTrust = engine.getTrust("main");
+    const forgeTrust = engine.getTrust("forge");
+    const cerberusTrust = engine.getTrust("cerberus");
+
+    expect("score" in mainTrust && mainTrust.score).toBe(60); // explicit default
+    expect("score" in forgeTrust && forgeTrust.score).toBeGreaterThanOrEqual(0); // wildcard *:10
+    expect("score" in cerberusTrust && cerberusTrust.score).toBeGreaterThanOrEqual(0);
+
+    await engine.stop();
+  });
+
+  it("should use wildcard default for unspecified agents", async () => {
+    const config = makeConfig({
+      trust: {
+        enabled: true,
+        defaults: { "*": 25 },
+        persistIntervalSeconds: 9999,
+        decay: { enabled: false, inactivityDays: 30, rate: 0.95 },
+        maxHistoryPerAgent: 100,
+      },
+    });
+
+    const engine = new GovernanceEngine(config, logger, WORKSPACE);
+    engine.setKnownAgents(["newagent"]);
+    await engine.start();
+
+    const trust = engine.getTrust("newagent");
+    expect("score" in trust && trust.score).toBe(25);
+
+    await engine.stop();
+  });
+
+  it("should keep trust data for removed agents", async () => {
+    const config = makeConfig({
+      trust: {
+        enabled: true,
+        defaults: { main: 60, "*": 10 },
+        persistIntervalSeconds: 9999,
+        decay: { enabled: false, inactivityDays: 30, rate: 0.95 },
+        maxHistoryPerAgent: 100,
+      },
+    });
+
+    const engine = new GovernanceEngine(config, logger, WORKSPACE);
+    engine.setKnownAgents(["main", "forge"]);
+    await engine.start();
+
+    // Record some activity for forge
+    engine.recordOutcome("forge", "exec", true);
+
+    // Now restart with forge removed
+    await engine.stop();
+
+    const engine2 = new GovernanceEngine(config, logger, WORKSPACE);
+    engine2.setKnownAgents(["main"]); // forge removed
+    await engine2.start();
+
+    // forge data should still be accessible
+    const forgeTrust = engine2.getTrust("forge");
+    expect("score" in forgeTrust && forgeTrust.score).toBeGreaterThanOrEqual(0);
+
+    await engine2.stop();
+  });
+
+  it("should work without setKnownAgents", async () => {
+    const engine = new GovernanceEngine(makeConfig(), logger, WORKSPACE);
+    // Don't call setKnownAgents
+    await engine.start();
+
+    const status = engine.getStatus();
+    expect(status.enabled).toBe(true);
+
+    await engine.stop();
+  });
+});

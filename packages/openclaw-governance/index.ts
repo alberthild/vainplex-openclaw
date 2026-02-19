@@ -5,6 +5,30 @@ import { registerGovernanceHooks } from "./src/hooks.js";
 
 type GovParams = { agentId?: string } | undefined;
 
+/**
+ * Extract agent IDs from the OpenClaw config.
+ * Handles both { agents: { list: [{id: "main"}, ...] } } and
+ * { agents: { list: ["main", ...] } } formats.
+ */
+function extractAgentIds(openclawConfig: Record<string, unknown>): string[] {
+  const agents = openclawConfig["agents"];
+  if (!agents || typeof agents !== "object") return [];
+
+  const list = (agents as Record<string, unknown>)["list"];
+  if (!Array.isArray(list)) return [];
+
+  return list
+    .map((entry: unknown) => {
+      if (typeof entry === "string") return entry;
+      if (entry && typeof entry === "object" && "id" in entry) {
+        const id = (entry as Record<string, unknown>)["id"];
+        return typeof id === "string" ? id : null;
+      }
+      return null;
+    })
+    .filter((id): id is string => id !== null);
+}
+
 const plugin = {
   id: "openclaw-governance",
   name: "OpenClaw Governance",
@@ -27,6 +51,12 @@ const plugin = {
     }
 
     const engine = new GovernanceEngine(config, api.logger);
+
+    // Sync agent list from OpenClaw config → deterministic trust registration
+    const agentIds = extractAgentIds(api.config);
+    if (agentIds.length > 0) {
+      engine.setKnownAgents(agentIds);
+    }
 
     api.registerService({
       id: "governance-engine",
