@@ -4,6 +4,9 @@ import { loadConfig } from "./src/config-loader.js";
 import { loadJson, rebootDir } from "./src/storage.js";
 import type { OpenClawPluginApi, ThreadsData } from "./src/types.js";
 
+// ---- Trace Analyzer public API re-export ----
+export * from "./src/trace-analyzer/index.js";
+
 const plugin = {
   id: "openclaw-cortex",
   name: "OpenClaw Cortex",

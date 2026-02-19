@@ -309,9 +309,9 @@ All plugins live in one monorepo: [alberthild/vainplex-openclaw](https://github.
 | # | Plugin | Version | Description |
 |---|--------|---------|-------------|
 | 1 | [@vainplex/nats-eventstore](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-nats-eventstore) | 0.2.1 | NATS JetStream event persistence + audit trail |
-| 2 | [@vainplex/openclaw-cortex](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-cortex) | 0.3.1 | Conversation intelligence — threads, decisions, boot context, 10 languages |
+| 2 | [@vainplex/openclaw-cortex](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-cortex) | 0.4.0 | Conversation intelligence — threads, decisions, boot context, trace analysis, 10 languages |
 | 3 | [@vainplex/openclaw-knowledge-engine](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-knowledge-engine) | 0.1.3 | Real-time fact extraction from conversations |
-| 4 | **@vainplex/openclaw-governance** | **0.3.1** | Policy-as-code — trust scoring, audit trail, production safeguards (this plugin) |
+| 4 | **@vainplex/openclaw-governance** | **0.3.2** | Policy-as-code — trust scoring, audit trail, production safeguards (this plugin) |
 
 ## License
 

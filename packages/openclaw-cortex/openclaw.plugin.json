@@ -146,10 +146,11 @@
             "enum": [
               "en",
               "de",
-              "both"
+              "both",
+              "all"
             ],
             "default": "both",
-            "description": "Language for regex pattern matching: English, German, or both"
+            "description": "Language for regex pattern matching: English, German, both, or all 10 languages"
           }
         }
       },
@@ -191,6 +192,187 @@
             "maximum": 20,
             "default": 3,
             "description": "Number of messages to buffer before calling the LLM"
+          }
+        }
+      },
+      "traceAnalyzer": {
+        "type": "object",
+        "additionalProperties": false,
+        "description": "Trace Analyzer — 3-stage pipeline for detecting failure signals in NATS event streams",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "default": false,
+            "description": "Master switch for trace analysis"
+          },
+          "nats": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "url": {
+                "type": "string",
+                "default": "nats://localhost:4222",
+                "description": "NATS server URL"
+              },
+              "stream": {
+                "type": "string",
+                "default": "openclaw-events",
+                "description": "JetStream stream name"
+              },
+              "subjectPrefix": {
+                "type": "string",
+                "default": "openclaw.events",
+                "description": "NATS subject prefix"
+              },
+              "credentials": {
+                "type": "string",
+                "description": "Optional NATS credentials file path"
+              },
+              "user": {
+                "type": "string",
+                "description": "Optional NATS user"
+              },
+              "password": {
+                "type": "string",
+                "description": "Optional NATS password"
+              }
+            }
+          },
+          "schedule": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "enabled": {
+                "type": "boolean",
+                "default": false,
+                "description": "Enable scheduled analysis runs"
+              },
+              "intervalHours": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 168,
+                "default": 24,
+                "description": "Hours between scheduled runs"
+              }
+            }
+          },
+          "chainGapMinutes": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 120,
+            "default": 30,
+            "description": "Inactivity gap in minutes for chain boundary detection"
+          },
+          "signals": {
+            "type": "object",
+            "description": "Per-signal toggles and severity overrides",
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "enabled": {
+                  "type": "boolean"
+                },
+                "severity": {
+                  "type": "string",
+                  "enum": ["low", "medium", "high", "critical"]
+                }
+              }
+            }
+          },
+          "llm": {
+            "type": "object",
+            "additionalProperties": false,
+            "description": "LLM config for trace analysis finding classification",
+            "properties": {
+              "enabled": {
+                "type": "boolean",
+                "default": false,
+                "description": "Enable LLM-powered finding classification"
+              },
+              "endpoint": {
+                "type": "string",
+                "description": "OpenAI-compatible API endpoint"
+              },
+              "model": {
+                "type": "string",
+                "description": "Model identifier"
+              },
+              "apiKey": {
+                "type": "string",
+                "description": "API key (optional)"
+              },
+              "timeoutMs": {
+                "type": "integer",
+                "minimum": 1000,
+                "maximum": 120000,
+                "description": "Timeout per LLM call in milliseconds"
+              },
+              "triage": {
+                "type": "object",
+                "additionalProperties": false,
+                "description": "Optional fast/local triage model for pre-filtering",
+                "properties": {
+                  "endpoint": {
+                    "type": "string"
+                  },
+                  "model": {
+                    "type": "string"
+                  },
+                  "apiKey": {
+                    "type": "string"
+                  },
+                  "timeoutMs": {
+                    "type": "integer",
+                    "minimum": 1000,
+                    "maximum": 60000
+                  }
+                }
+              }
+            }
+          },
+          "output": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "maxFindings": {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1000,
+                "default": 200,
+                "description": "Maximum findings in a single report"
+              },
+              "reportPath": {
+                "type": "string",
+                "description": "Custom report output path"
+              }
+            }
+          },
+          "redactPatterns": {
+            "type": "array",
+            "items": { "type": "string" },
+            "default": [],
+            "description": "Regex patterns for PII redaction before LLM/disk writes"
+          },
+          "incrementalContextWindow": {
+            "type": "integer",
+            "minimum": 50,
+            "maximum": 5000,
+            "default": 500,
+            "description": "Context window size for incremental processing"
+          },
+          "fetchBatchSize": {
+            "type": "integer",
+            "minimum": 10,
+            "maximum": 5000,
+            "default": 500,
+            "description": "NATS consumer batch size for fetching events"
+          },
+          "maxEventsPerRun": {
+            "type": "integer",
+            "minimum": 100,
+            "maximum": 1000000,
+            "default": 100000,
+            "description": "Maximum events to process per run"
           }
         }
       }

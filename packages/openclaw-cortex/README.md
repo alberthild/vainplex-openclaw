@@ -1,6 +1,6 @@
 # @vainplex/openclaw-cortex
 
-> Conversation intelligence layer for [OpenClaw](https://github.com/openclaw/openclaw) — automated thread tracking, decision extraction, boot context generation, and pre-compaction snapshots.
+> Conversation intelligence layer for [OpenClaw](https://github.com/openclaw/openclaw) — automated thread tracking, decision extraction, boot context generation, pre-compaction snapshots, and trace analysis.
 
 [![npm](https://img.shields.io/npm/v/@vainplex/openclaw-cortex)](https://www.npmjs.com/package/@vainplex/openclaw-cortex)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -14,6 +14,7 @@
 - **🚀 Generates boot context** — assembles a dense `BOOTSTRAP.md` at session start so the agent has continuity
 - **📸 Pre-compaction snapshots** — saves thread state + hot snapshot before memory compaction
 - **📖 Structured narratives** — generates 24h activity summaries from threads + decisions
+- **🔍 Trace Analyzer** — 3-stage pipeline that detects failure signals, classifies findings with LLM triage, and generates PII-redacted reports
 
 Works **alongside** `memory-core` (OpenClaw's built-in memory) — doesn't replace it.
 
@@ -393,11 +394,108 @@ The LLM sees a conversation snippet (configurable batch size) and returns:
 - Hook errors → caught and logged, never crashes the gateway
 - LLM timeout/error → falls back to regex-only, no data loss
 
+## Trace Analyzer (v0.4.0)
+
+The Trace Analyzer is a **3-stage pipeline** that processes NATS event streams to detect failure patterns in AI agent conversations. It reconstructs conversation chains, runs signal detection, classifies findings with an optional LLM triage step, applies PII redaction, and generates structured reports.
+
+### 3-Stage Pipeline
+
+```
+Stage 1: Ingest + Reconstruct
+  NATS events → normalize → chain reconstruction (gap-based splitting)
+
+Stage 2: Signal Detection + Classification
+  chains → 7 signal detectors (multi-language) → LLM triage (optional) → classified findings
+
+Stage 3: Redaction + Output
+  findings → PII redaction → report assembly → Markdown/JSON output
+```
+
+### 7 Signal Detectors
+
+| Signal ID | Detects | Default |
+|-----------|---------|---------|
+| `SIG-CORRECTION` | User correcting the agent after a wrong response | ✅ enabled |
+| `SIG-TOOL-FAIL` | Tool/function call failures and error responses | ✅ enabled |
+| `SIG-DOOM-LOOP` | Agent stuck in repetitive retry loops | ✅ enabled |
+| `SIG-DISSATISFIED` | User expressing frustration or dissatisfaction | ✅ enabled |
+| `SIG-REPEAT-FAIL` | Same failure pattern recurring across sessions | ✅ enabled |
+| `SIG-HALLUCINATION` | Agent making claims contradicted by tool output | ✅ enabled |
+| `SIG-UNVERIFIED-CLAIM` | Agent stating facts without tool verification | ❌ disabled |
+
+Each detector supports **multi-language signal patterns** — the same 10 languages as the core pattern engine (EN, DE, FR, ES, PT, IT, ZH, JA, KO, RU).
+
+### Configuration
+
+Add a `traceAnalyzer` section to your external config (`~/.openclaw/plugins/openclaw-cortex/config.json`):
+
+```json
+{
+  "traceAnalyzer": {
+    "enabled": true,
+    "nats": {
+      "url": "nats://localhost:4222",
+      "stream": "openclaw-events",
+      "subjectPrefix": "openclaw.events"
+    },
+    "schedule": {
+      "enabled": true,
+      "intervalHours": 24
+    },
+    "signals": {
+      "SIG-UNVERIFIED-CLAIM": { "enabled": true, "severity": "medium" }
+    },
+    "llm": {
+      "enabled": true,
+      "endpoint": "http://localhost:11434/v1",
+      "model": "mistral:7b"
+    },
+    "output": {
+      "maxFindings": 200,
+      "reportPath": "./reports/trace-analysis.md"
+    },
+    "redactPatterns": ["\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Z|a-z]{2,}\\b"]
+  }
+}
+```
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `enabled` | `false` | Master switch for trace analysis |
+| `nats.url` | `nats://localhost:4222` | NATS server URL |
+| `nats.stream` | `openclaw-events` | JetStream stream name |
+| `schedule.enabled` | `false` | Enable scheduled analysis runs |
+| `schedule.intervalHours` | `24` | Hours between runs |
+| `chainGapMinutes` | `30` | Inactivity gap for chain boundary detection |
+| `llm.enabled` | `false` | Enable LLM-powered finding classification |
+| `llm.triage` | — | Optional fast/local model for pre-filtering |
+| `output.maxFindings` | `200` | Maximum findings per report |
+| `output.reportPath` | — | Custom report output path |
+| `redactPatterns` | `[]` | Regex patterns for PII redaction |
+
+### Programmatic API
+
+The trace analyzer is fully exported for programmatic use:
+
+```typescript
+import {
+  TraceAnalyzer,
+  createNatsTraceSource,
+  reconstructChains,
+  detectAllSignals,
+  classifyFindings,
+  redactChain,
+  assembleReport,
+  generateOutputs,
+  resolveTraceAnalyzerConfig,
+} from "@vainplex/openclaw-cortex";
+```
+
 ## Development
 
 ```bash
 npm install
-npm test            # 516 tests
+npm test            # 850 tests
 npm run typecheck   # TypeScript strict mode
 npm run build       # Compile to dist/
 ```
@@ -409,7 +507,7 @@ npm run build       # Compile to dist/
 - LLM enhancement: async, batched, fire-and-forget (never blocks hooks)
 - Atomic file writes via `.tmp` + rename
 - Noise filter prevents garbage threads from polluting state
-- Tested with 516 unit + integration tests
+- Tested with 850 unit + integration tests
 
 ## Architecture
 
@@ -426,6 +524,6 @@ All plugins live in one monorepo: [alberthild/vainplex-openclaw](https://github.
 | # | Plugin | Version | Description |
 |---|--------|---------|-------------|
 | 1 | [@vainplex/nats-eventstore](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-nats-eventstore) | 0.2.1 | NATS JetStream event persistence + audit trail |
-| 2 | **@vainplex/openclaw-cortex** | **0.3.1** | Conversation intelligence — threads, decisions, boot context, 10 languages (this plugin) |
+| 2 | **@vainplex/openclaw-cortex** | **0.4.0** | Conversation intelligence — threads, decisions, boot context, trace analysis, 10 languages (this plugin) |
 | 3 | [@vainplex/openclaw-knowledge-engine](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-knowledge-engine) | 0.1.3 | Real-time fact extraction from conversations |
-| 4 | [@vainplex/openclaw-governance](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-governance) | 0.3.1 | Policy-as-code — trust scoring, audit trail, production safeguards |
+| 4 | [@vainplex/openclaw-governance](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-governance) | 0.3.2 | Policy-as-code — trust scoring, audit trail, production safeguards |
