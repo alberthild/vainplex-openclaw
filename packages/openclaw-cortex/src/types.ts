@@ -243,7 +243,16 @@ export type CortexConfig = {
     enabled: boolean;
   };
   patterns: {
-    language: "en" | "de" | "both";
+    language: string | string[];
+    custom?: {
+      decision?: string[];
+      close?: string[];
+      wait?: string[];
+      topic?: string[];
+      topicBlacklist?: string[];
+      highImpactKeywords?: string[];
+      mode?: "extend" | "override";
+    };
   };
   llm: {
     enabled: boolean;

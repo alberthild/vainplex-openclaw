@@ -54,9 +54,34 @@ function str(value: unknown, fallback: string): string {
   return typeof value === "string" ? value : fallback;
 }
 
-function lang(value: unknown): "en" | "de" | "both" {
+function lang(value: unknown): string | string[] {
   if (value === "en" || value === "de" || value === "both") return value;
+  if (value === "all") return "all";
+  if (typeof value === "string") return value;
+  if (Array.isArray(value) && value.every(v => typeof v === "string")) {
+    return value as string[];
+  }
   return "both";
+}
+
+function resolveCustomPatterns(
+  value: unknown,
+): CortexConfig["patterns"]["custom"] | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const raw = value as Record<string, unknown>;
+  const strArr = (v: unknown): string[] | undefined => {
+    if (!Array.isArray(v)) return undefined;
+    return v.filter((s): s is string => typeof s === "string");
+  };
+  return {
+    decision: strArr(raw.decision),
+    close: strArr(raw.close),
+    wait: strArr(raw.wait),
+    topic: strArr(raw.topic),
+    topicBlacklist: strArr(raw.topicBlacklist),
+    highImpactKeywords: strArr(raw.highImpactKeywords),
+    mode: raw.mode === "override" ? "override" : "extend",
+  };
 }
 
 export function resolveConfig(pluginConfig?: Record<string, unknown>): CortexConfig {
@@ -99,6 +124,7 @@ export function resolveConfig(pluginConfig?: Record<string, unknown>): CortexCon
     },
     patterns: {
       language: lang(pt.language),
+      custom: resolveCustomPatterns(pt.custom),
     },
     llm: {
       enabled: bool(lm.enabled, DEFAULTS.llm.enabled),
