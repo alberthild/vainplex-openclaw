@@ -104,9 +104,9 @@ function resolveProductionSafeguard(
   return {
     id: "builtin-production-safeguard",
     name: "Production Safeguard",
-    version: "1.1.0",
+    version: "1.2.0",
     description: "Restricts production-impacting operations (trusted+ agents exempt)",
-    scope: { hooks: ["before_tool_call"] },
+    scope: { hooks: ["before_tool_call"], excludeAgents: ["unresolved"] },
     priority: 150,
     controls: ["A.8.31", "A.8.32", "A.8.9"],
     rules: [
