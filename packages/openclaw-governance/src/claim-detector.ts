@@ -11,7 +11,7 @@
  * All detectors are synchronous regex-based (<1ms).
  */
 
-import type { Claim, ClaimType, BuiltinDetectorId } from "./types.js";
+import type { Claim, BuiltinDetectorId } from "./types.js";
 
 /** A single detector function: extracts claims from text */
 type DetectorFn = (text: string) => Claim[];

@@ -9,7 +9,7 @@ const plugin = {
   id: "openclaw-governance",
   name: "OpenClaw Governance",
   description: "Contextual, learning, cross-agent governance for AI agents",
-  version: "0.1.0",
+  version: "0.2.0",
 
   register(api: OpenClawPluginApi) {
     const config = resolveConfig(

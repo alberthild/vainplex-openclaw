@@ -17,7 +17,6 @@
  */
 
 import type {
-  BuiltinDetectorId,
   Claim,
   FactCheckResult,
   OutputValidationConfig,
@@ -156,7 +155,7 @@ export class OutputValidator {
     contradictions: FactCheckResult[],
     trustScore: number,
   ): { action: OutputVerdict; reason: string } {
-    const { flagAbove, blockBelow } = this.config.contradictionThresholds;
+    const { blockBelow } = this.config.contradictionThresholds;
 
     const summaries = contradictions.map((c) => {
       const claimed = c.claim.value;
@@ -172,7 +171,7 @@ export class OutputValidator {
       };
     }
 
-    // Trust >= blockBelow → flag (whether above flagAbove or between)
+    // Trust >= blockBelow → flag
     return {
       action: "flag",
       reason: `Contradiction detected (trust ${trustScore}): ${detail}`,
