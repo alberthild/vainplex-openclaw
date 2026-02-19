@@ -208,11 +208,11 @@ describe("resolveAgentId", () => {
     expect(resolveAgentId({}, { metadata: { agentId: "forge" } })).toBe("forge");
   });
 
-  it("should log warning when unresolved", () => {
-    const warnings: string[] = [];
-    resolveAgentId({}, undefined, { warn: (m) => warnings.push(m) });
-    expect(warnings).toHaveLength(1);
-    expect(warnings[0]).toContain("Could not resolve agentId");
+  it("should log debug when unresolved", () => {
+    const debugs: string[] = [];
+    resolveAgentId({}, undefined, { warn: () => {}, debug: (m) => debugs.push(m) });
+    expect(debugs).toHaveLength(1);
+    expect(debugs[0]).toContain("Could not resolve agentId");
   });
 
   it("should not log warning when resolved", () => {

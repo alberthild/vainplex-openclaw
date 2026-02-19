@@ -140,7 +140,7 @@ function parseAgentFromSessionKey(key: string): string | null {
 export function resolveAgentId(
   hookCtx: { agentId?: string; sessionKey?: string; sessionId?: string },
   event?: { metadata?: Record<string, unknown> },
-  logger?: { warn: (msg: string) => void },
+  logger?: { warn: (msg: string) => void; debug?: (msg: string) => void },
 ): string {
   // 1. Explicit agentId
   if (hookCtx.agentId) return hookCtx.agentId;
@@ -162,8 +162,8 @@ export function resolveAgentId(
     return event.metadata.agentId;
   }
 
-  // 5. Fallback
-  logger?.warn(
+  // 5. Fallback — debug, not warn (fires often for system/internal hooks)
+  logger?.debug?.(
     `[governance] Could not resolve agentId from context: ` +
     `sessionKey=${hookCtx.sessionKey ?? "none"}, ` +
     `sessionId=${hookCtx.sessionId ?? "none"}`,
