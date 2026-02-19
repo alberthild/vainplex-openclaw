@@ -1,4 +1,4 @@
-import type { BuiltinPoliciesConfig, Policy } from "./types.js";
+import type { BuiltinPoliciesConfig, Condition, Policy } from "./types.js";
 
 function resolveNightMode(
   config: BuiltinPoliciesConfig["nightMode"],
@@ -88,6 +88,14 @@ function resolveCredentialGuard(
   };
 }
 
+function productionOpsConditions(): Condition[] {
+  return [
+    { type: "tool", name: "exec", params: { command: { matches: "(docker push|docker-compose.*prod|systemctl.*(restart|stop|enable|disable))" } } },
+    { type: "tool", name: "exec", params: { command: { matches: "git push.*(origin|upstream).*(main|master|prod)" } } },
+    { type: "tool", name: "gateway", params: { action: { matches: "(restart|config\\.apply|update\\.run)" } } },
+  ];
+}
+
 function resolveProductionSafeguard(
   enabled: boolean | undefined,
 ): Policy | null {
@@ -96,27 +104,34 @@ function resolveProductionSafeguard(
   return {
     id: "builtin-production-safeguard",
     name: "Production Safeguard",
-    version: "1.0.0",
-    description: "Restricts production-impacting operations",
+    version: "1.1.0",
+    description: "Restricts production-impacting operations (trusted+ agents exempt)",
     scope: { hooks: ["before_tool_call"] },
     priority: 150,
     controls: ["A.8.31", "A.8.32", "A.8.9"],
     rules: [
       {
+        id: "allow-production-ops-trusted",
+        description: "Trusted and privileged agents may perform production operations",
+        conditions: [
+          { type: "agent", trustTier: ["trusted", "privileged"] },
+          { type: "any", conditions: productionOpsConditions() },
+        ],
+        effect: { action: "allow" },
+      },
+      {
         id: "block-production-ops",
+        description: "Block production operations for standard/restricted/untrusted agents",
         conditions: [
           {
-            type: "any",
-            conditions: [
-              { type: "tool", name: "exec", params: { command: { matches: "(docker push|docker-compose.*prod|systemctl.*(restart|stop|enable|disable))" } } },
-              { type: "tool", name: "exec", params: { command: { matches: "git push.*(origin|upstream).*(main|master|prod)" } } },
-              { type: "tool", name: "gateway", params: { action: { matches: "(restart|config\\.apply|update\\.run)" } } },
-            ],
+            type: "not",
+            condition: { type: "agent", trustTier: ["trusted", "privileged"] },
           },
+          { type: "any", conditions: productionOpsConditions() },
         ],
         effect: {
           action: "deny",
-          reason: "Production Safeguard: This operation requires explicit approval",
+          reason: "Production Safeguard: This operation requires explicit approval (trusted+ agents only)",
         },
       },
     ],
