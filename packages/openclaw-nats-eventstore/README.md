@@ -270,14 +270,14 @@ npm run typecheck
 
 ## Part of the Vainplex Plugin Suite
 
-| # | Plugin | Status | Description |
-|---|--------|--------|-------------|
-| 1 | **@vainplex/nats-eventstore** | ✅ Published | NATS JetStream event persistence (this plugin) |
-| 2 | [@vainplex/openclaw-cortex](https://github.com/alberthild/openclaw-cortex) | ✅ Published | Conversation intelligence — threads, decisions, boot context |
-| 3 | [@vainplex/openclaw-knowledge-engine](https://github.com/alberthild/openclaw-knowledge-engine) | ✅ Published | Real-time knowledge extraction |
-| 4 | @vainplex/openclaw-governance | 📋 Planned | Policy enforcement + guardrails |
-| 5 | @vainplex/openclaw-memory-engine | 📋 Planned | Unified memory layer |
-| 6 | @vainplex/openclaw-health-monitor | 📋 Planned | System health + auto-healing |
+All plugins live in one monorepo: [alberthild/vainplex-openclaw](https://github.com/alberthild/vainplex-openclaw)
+
+| # | Plugin | Version | Description |
+|---|--------|---------|-------------|
+| 1 | **@vainplex/nats-eventstore** | **0.2.1** | NATS JetStream event persistence + audit trail (this plugin) |
+| 2 | [@vainplex/openclaw-cortex](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-cortex) | 0.3.1 | Conversation intelligence — threads, decisions, boot context, 10 languages |
+| 3 | [@vainplex/openclaw-knowledge-engine](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-knowledge-engine) | 0.1.3 | Real-time fact extraction from conversations |
+| 4 | [@vainplex/openclaw-governance](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-governance) | 0.3.1 | Policy-as-code — trust scoring, audit trail, production safeguards |
 
 ## License
 

@@ -26,9 +26,9 @@ We built these plugins because we needed them. Not as a product exercise — as 
 
 ## Numbers
 
-- **7,611 lines** of TypeScript source
-- **8,381 lines** of tests
-- **700 tests** across 44 test files
+- **10,234 lines** of TypeScript source
+- **12,687 lines** of tests
+- **1,070 tests** across 61 test files
 - **0** runtime dependencies (except NATS client for EventStore)
 - **0** `any` types — strict TypeScript throughout
 - **5 plugins** in production since February 2026

@@ -32,7 +32,8 @@ The LLM runs **on top of regex** — it enhances, never replaces. If the LLM is 
 Try the interactive demo — it simulates a real bilingual dev conversation and shows every Cortex feature in action:
 
 ```bash
-git clone https://github.com/alberthild/openclaw-cortex.git
+git clone https://github.com/alberthild/vainplex-openclaw.git
+cd vainplex-openclaw/packages/openclaw-cortex
 cd openclaw-cortex && npm install
 npx tsx demo/demo.ts
 ```
@@ -200,7 +201,8 @@ Or clone directly:
 
 ```bash
 cd ~/.openclaw/extensions
-git clone https://github.com/alberthild/openclaw-cortex.git
+git clone https://github.com/alberthild/vainplex-openclaw.git
+cd vainplex-openclaw/packages/openclaw-cortex
 cd openclaw-cortex && npm install && npm run build
 ```
 
@@ -222,35 +224,33 @@ Then create `~/.openclaw/plugins/openclaw-cortex/config.json`:
 
 ```json
 {
-      "patterns": {
-        "language": "all"
-      },
-      "threadTracker": {
-        "enabled": true,
-        "pruneDays": 7,
-        "maxThreads": 50
-      },
-      "decisionTracker": {
-        "enabled": true,
-        "maxDecisions": 100,
-        "dedupeWindowHours": 24
-      },
-      "bootContext": {
-        "enabled": true,
-        "maxChars": 16000,
-        "onSessionStart": true,
-        "maxThreadsInBoot": 7,
-        "maxDecisionsInBoot": 10,
-        "decisionRecencyDays": 14
-      },
-      "preCompaction": {
-        "enabled": true,
-        "maxSnapshotMessages": 15
-      },
-      "narrative": {
-        "enabled": true
-      }
-    }
+  "patterns": {
+    "language": "all"
+  },
+  "threadTracker": {
+    "enabled": true,
+    "pruneDays": 7,
+    "maxThreads": 50
+  },
+  "decisionTracker": {
+    "enabled": true,
+    "maxDecisions": 100,
+    "dedupeWindowHours": 24
+  },
+  "bootContext": {
+    "enabled": true,
+    "maxChars": 16000,
+    "onSessionStart": true,
+    "maxThreadsInBoot": 7,
+    "maxDecisionsInBoot": 10,
+    "decisionRecencyDays": 14
+  },
+  "preCompaction": {
+    "enabled": true,
+    "maxSnapshotMessages": 15
+  },
+  "narrative": {
+    "enabled": true
   }
 }
 ```
@@ -421,14 +421,11 @@ MIT — see [LICENSE](LICENSE)
 
 ## Part of the Vainplex Plugin Suite
 
-| # | Plugin | Status | Description |
-|---|--------|--------|-------------|
-| 1 | [@vainplex/nats-eventstore](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-nats-eventstore) | ✅ Published | NATS JetStream event persistence |
-| 2 | **@vainplex/openclaw-cortex** | ✅ Published | Conversation intelligence — threads, decisions, boot context, 10 languages (this plugin) |
-| 3 | [@vainplex/openclaw-knowledge-engine](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-knowledge-engine) | ✅ Published | Real-time knowledge extraction |
-| 4 | [@vainplex/openclaw-governance](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-governance) | ✅ Published | Policy-as-code engine — trust scoring, audit trail, production safeguards |
-| 5 | @vainplex/openclaw-health-monitor | 📋 Planned | System health + auto-healing |
+All plugins live in one monorepo: [alberthild/vainplex-openclaw](https://github.com/alberthild/vainplex-openclaw)
 
-## License
-
-MIT — see [LICENSE](LICENSE)
+| # | Plugin | Version | Description |
+|---|--------|---------|-------------|
+| 1 | [@vainplex/nats-eventstore](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-nats-eventstore) | 0.2.1 | NATS JetStream event persistence + audit trail |
+| 2 | **@vainplex/openclaw-cortex** | **0.3.1** | Conversation intelligence — threads, decisions, boot context, 10 languages (this plugin) |
+| 3 | [@vainplex/openclaw-knowledge-engine](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-knowledge-engine) | 0.1.3 | Real-time fact extraction from conversations |
+| 4 | [@vainplex/openclaw-governance](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-governance) | 0.3.1 | Policy-as-code — trust scoring, audit trail, production safeguards |
