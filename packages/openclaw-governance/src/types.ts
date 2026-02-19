@@ -512,6 +512,82 @@ export type EvaluationStats = {
   avgEvaluationUs: number;
 };
 
+// ── Output Validation (v0.2.0) ──
+
+export type ClaimType =
+  | "system_state"
+  | "entity_name"
+  | "existence"
+  | "operational_status"
+  | "self_referential";
+
+export type BuiltinDetectorId =
+  | "system_state"
+  | "entity_name"
+  | "existence"
+  | "operational_status"
+  | "self_referential";
+
+export type Claim = {
+  type: ClaimType;
+  subject: string;
+  predicate: string;
+  value: string;
+  source: string;
+  offset: number;
+};
+
+export type Fact = {
+  subject: string;
+  predicate: string;
+  value: string;
+  source?: string;
+  updatedAt?: number;
+};
+
+export type FactCheckResult = {
+  claim: Claim;
+  fact: Fact | null;
+  status: "verified" | "contradicted" | "unverified";
+};
+
+export type OutputVerdict = "pass" | "flag" | "block";
+
+export type OutputValidationResult = {
+  verdict: OutputVerdict;
+  claims: Claim[];
+  factCheckResults: FactCheckResult[];
+  contradictions: FactCheckResult[];
+  reason: string;
+  evaluationUs: number;
+};
+
+export type UnverifiedClaimPolicy = "ignore" | "flag" | "block";
+
+export type OutputValidationConfig = {
+  enabled: boolean;
+  enabledDetectors: BuiltinDetectorId[];
+  factRegistries: FactRegistryConfig[];
+  unverifiedClaimPolicy: UnverifiedClaimPolicy;
+  selfReferentialPolicy: UnverifiedClaimPolicy;
+  contradictionThresholds: {
+    /** Trust score at or above which contradictions result in "flag" (default: 60) */
+    flagAbove: number;
+    /** Trust score below which contradictions result in "block" (default: 40) */
+    blockBelow: number;
+  };
+};
+
+export type FactRegistryConfig = {
+  id: string;
+  facts: Fact[];
+};
+
+export type AuditOutputVerdict =
+  | "output_pass"
+  | "output_flag"
+  | "output_block";
+
 // ── Audit Filter / Stats ──
 
 export type AuditFilter = {
