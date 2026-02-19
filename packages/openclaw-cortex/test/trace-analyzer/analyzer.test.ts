@@ -1,3 +1,4 @@
+// Cerberus: test files are exempt from 400-line limit — splitting would reduce readability
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { existsSync, readFileSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
 import { join } from "node:path";

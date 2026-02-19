@@ -9,15 +9,12 @@
 import type { ConversationChain } from "../chain-reconstructor.js";
 import type { FailureSignal } from "./types.js";
 import type { SignalPatternSet } from "./lang/registry.js";
+import { truncate } from "../util.js";
 
 function matchesDissatisfaction(text: string, patterns: SignalPatternSet): boolean {
   // Satisfaction overrides dissatisfaction
   if (patterns.dissatisfaction.satisfactionOverrides.some(p => p.test(text))) return false;
   return patterns.dissatisfaction.indicators.some(p => p.test(text));
-}
-
-function truncate(text: string, maxLen: number): string {
-  return text.length <= maxLen ? text : text.slice(0, maxLen) + "…";
 }
 
 /**

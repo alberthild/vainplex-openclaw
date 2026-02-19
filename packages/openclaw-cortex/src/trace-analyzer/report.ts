@@ -101,6 +101,19 @@ export type AssembleReportParams = {
 };
 
 /**
+ * Build the top-N agents list from a count map, sorted by count descending.
+ */
+function buildTopAgents(
+  agentCounts: Map<string, number>,
+  limit = 5,
+): Array<{ agent: string; count: number }> {
+  return [...agentCounts.entries()]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, limit)
+    .map(([agent, count]) => ({ agent, count }));
+}
+
+/**
  * Compute per-signal statistics from findings.
  */
 function computeSignalStats(findings: Finding[]): SignalStats[] {
@@ -129,16 +142,11 @@ function computeSignalStats(findings: Finding[]): SignalStats[] {
 
   const result: SignalStats[] = [];
   for (const [signal, entry] of statsMap) {
-    const topAgents = [...entry.agentCounts.entries()]
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 5)
-      .map(([agent, count]) => ({ agent, count }));
-
     result.push({
       signal,
       count: entry.count,
       bySeverity: entry.bySeverity,
-      topAgents,
+      topAgents: buildTopAgents(entry.agentCounts),
     });
   }
 
@@ -168,6 +176,25 @@ function computeTimeRange(chains: ConversationChain[]): { startMs: number; endMs
 }
 
 /**
+ * Build the processing state for incremental runs.
+ */
+function buildProcessingState(
+  chains: ConversationChain[],
+  eventsProcessed: number,
+  findingsCount: number,
+  previousState?: Partial<ProcessingState>,
+): ProcessingState {
+  const lastEvent = chains.reduce((max, c) => (c.endTs > max ? c.endTs : max), 0);
+  return {
+    lastProcessedTs: lastEvent || (previousState?.lastProcessedTs ?? 0),
+    lastProcessedSeq: previousState?.lastProcessedSeq ?? 0,
+    totalEventsProcessed: (previousState?.totalEventsProcessed ?? 0) + eventsProcessed,
+    totalFindings: (previousState?.totalFindings ?? 0) + findingsCount,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+/**
  * Assemble the final AnalysisReport from all pipeline outputs.
  */
 export function assembleReport(params: AssembleReportParams): AnalysisReport {
@@ -184,17 +211,7 @@ export function assembleReport(params: AssembleReportParams): AnalysisReport {
 
   const signalStats = computeSignalStats(findings);
   const timeRange = computeTimeRange(chains);
-
-  // Compute processing state for incremental runs
-  const lastEvent = chains.reduce((max, c) => (c.endTs > max ? c.endTs : max), 0);
-
-  const processingState: ProcessingState = {
-    lastProcessedTs: lastEvent || (previousState?.lastProcessedTs ?? 0),
-    lastProcessedSeq: previousState?.lastProcessedSeq ?? 0,
-    totalEventsProcessed: (previousState?.totalEventsProcessed ?? 0) + eventsProcessed,
-    totalFindings: (previousState?.totalFindings ?? 0) + findings.length,
-    updatedAt: new Date().toISOString(),
-  };
+  const processingState = buildProcessingState(chains, eventsProcessed, findings.length, previousState);
 
   return {
     version: 1,

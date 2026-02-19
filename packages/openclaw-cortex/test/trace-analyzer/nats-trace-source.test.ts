@@ -69,7 +69,7 @@ describe("NatsTraceSource — normalization (unit tests via normalizeEvent)", ()
       session: "main",
       type: "msg.in",
       payload: {
-        from: "matrix:@albert:vainplex.dev",
+        from: "matrix:@testuser:example.com",
         content: "und nu?",
         timestamp: 1771504212206,
         channel: "matrix",
@@ -80,7 +80,7 @@ describe("NatsTraceSource — normalization (unit tests via normalizeEvent)", ()
     expect(event).not.toBeNull();
     expect(event!.type).toBe("msg.in");
     expect(event!.payload.content).toBe("und nu?");
-    expect(event!.payload.from).toBe("matrix:@albert:vainplex.dev");
+    expect(event!.payload.from).toBe("matrix:@testuser:example.com");
     expect(event!.payload.channel).toBe("matrix");
     expect(event!.seq).toBe(584);
   });

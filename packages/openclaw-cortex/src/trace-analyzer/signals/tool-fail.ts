@@ -8,13 +8,7 @@
 
 import type { ConversationChain } from "../chain-reconstructor.js";
 import type { FailureSignal } from "./types.js";
-
-/**
- * Check if a tool result event represents an error.
- */
-function isToolError(payload: { toolError?: string; toolIsError?: boolean }): boolean {
-  return Boolean(payload.toolError) || payload.toolIsError === true;
-}
+import { truncate, isToolError } from "../util.js";
 
 /**
  * Rough param similarity check.
@@ -53,10 +47,6 @@ function paramsSimilar(
   const intersection = [...aEntries].filter(x => bEntries.has(x)).length;
   const union = new Set([...aEntries, ...bEntries]).size;
   return union === 0 ? true : intersection / union > 0.7;
-}
-
-function truncate(text: string, maxLen: number): string {
-  return text.length <= maxLen ? text : text.slice(0, maxLen) + "…";
 }
 
 /**

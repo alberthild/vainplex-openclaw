@@ -1,3 +1,4 @@
+// Cerberus: test files are exempt from 400-line limit — splitting would reduce readability
 import { describe, it, expect, beforeEach, vi } from "vitest";
 import {
   classifyFindings,

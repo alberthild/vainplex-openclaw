@@ -8,6 +8,7 @@
 
 import { randomUUID } from "node:crypto";
 import type { ConversationChain } from "../chain-reconstructor.js";
+import type { PluginLogger } from "../../types.js";
 import type { TraceAnalyzerConfig, SignalId } from "../config.js";
 import type { FailureSignal, Finding } from "./types.js";
 import { detectCorrections } from "./correction.js";
@@ -35,6 +36,14 @@ function getDefaultPatterns(): SignalPatternSet {
   return _defaultPatterns;
 }
 
+/** Minimal no-op logger for backward compatibility when no logger is provided. */
+const NOOP_LOGGER: PluginLogger = {
+  info: () => {},
+  warn: () => {},
+  error: () => {},
+  debug: () => {},
+};
+
 /**
  * Run all enabled signal detectors across all chains.
  * Returns Finding[] (unclassified — classification is null).
@@ -45,16 +54,19 @@ function getDefaultPatterns(): SignalPatternSet {
  *   If not provided, a fresh state is created (no cross-session correlation).
  * @param signalPatterns — Optional merged signal patterns from SignalPatternRegistry.
  *   If not provided, falls back to EN+DE (backward compat).
+ * @param logger — Optional logger for reporting detector errors.
  */
 export function detectAllSignals(
   chains: ConversationChain[],
   signalConfig: TraceAnalyzerConfig["signals"],
   repeatFailState?: RepeatFailState,
   signalPatterns?: SignalPatternSet,
+  logger?: PluginLogger,
 ): Finding[] {
   const findings: Finding[] = [];
   const rfState = repeatFailState ?? createRepeatFailState();
   const patterns = signalPatterns ?? getDefaultPatterns();
+  const log = logger ?? NOOP_LOGGER;
 
   for (const chain of chains) {
     // ---- Language-sensitive detectors (receive patterns) ----
@@ -67,7 +79,7 @@ export function detectAllSignals(
           if (correctionConfig?.severity) signal.severity = correctionConfig.severity;
           findings.push(makeFinding(chain, signal));
         }
-      } catch { /* skip */ }
+      } catch (err) { log.warn(`[trace-analyzer] SIG-CORRECTION detector error: ${err instanceof Error ? err.message : String(err)}`); }
     }
 
     const dissatisfiedConfig = signalConfig["SIG-DISSATISFIED"];
@@ -78,7 +90,7 @@ export function detectAllSignals(
           if (dissatisfiedConfig?.severity) signal.severity = dissatisfiedConfig.severity;
           findings.push(makeFinding(chain, signal));
         }
-      } catch { /* skip */ }
+      } catch (err) { log.warn(`[trace-analyzer] SIG-DISSATISFIED detector error: ${err instanceof Error ? err.message : String(err)}`); }
     }
 
     const hallucinationConfig = signalConfig["SIG-HALLUCINATION"];
@@ -89,7 +101,7 @@ export function detectAllSignals(
           if (hallucinationConfig?.severity) signal.severity = hallucinationConfig.severity;
           findings.push(makeFinding(chain, signal));
         }
-      } catch { /* skip */ }
+      } catch (err) { log.warn(`[trace-analyzer] SIG-HALLUCINATION detector error: ${err instanceof Error ? err.message : String(err)}`); }
     }
 
     const unverifiedConfig = signalConfig["SIG-UNVERIFIED-CLAIM"];
@@ -100,7 +112,7 @@ export function detectAllSignals(
           if (unverifiedConfig?.severity) signal.severity = unverifiedConfig.severity;
           findings.push(makeFinding(chain, signal));
         }
-      } catch { /* skip */ }
+      } catch (err) { log.warn(`[trace-analyzer] SIG-UNVERIFIED-CLAIM detector error: ${err instanceof Error ? err.message : String(err)}`); }
     }
 
     // ---- Language-independent detectors (no patterns needed) ----
@@ -113,7 +125,7 @@ export function detectAllSignals(
           if (toolFailConfig?.severity) signal.severity = toolFailConfig.severity;
           findings.push(makeFinding(chain, signal));
         }
-      } catch { /* skip */ }
+      } catch (err) { log.warn(`[trace-analyzer] SIG-TOOL-FAIL detector error: ${err instanceof Error ? err.message : String(err)}`); }
     }
 
     const doomLoopConfig = signalConfig["SIG-DOOM-LOOP"];
@@ -124,7 +136,7 @@ export function detectAllSignals(
           if (doomLoopConfig?.severity) signal.severity = doomLoopConfig.severity;
           findings.push(makeFinding(chain, signal));
         }
-      } catch { /* skip */ }
+      } catch (err) { log.warn(`[trace-analyzer] SIG-DOOM-LOOP detector error: ${err instanceof Error ? err.message : String(err)}`); }
     }
 
     // Cross-session detector: SIG-REPEAT-FAIL
@@ -136,7 +148,7 @@ export function detectAllSignals(
           if (repeatConfig?.severity) signal.severity = repeatConfig.severity;
           findings.push(makeFinding(chain, signal));
         }
-      } catch { /* skip */ }
+      } catch (err) { log.warn(`[trace-analyzer] SIG-REPEAT-FAIL detector error: ${err instanceof Error ? err.message : String(err)}`); }
     }
   }
 

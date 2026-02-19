@@ -10,21 +10,10 @@
 import type { ConversationChain } from "../chain-reconstructor.js";
 import type { FailureSignal } from "./types.js";
 import type { SignalPatternSet } from "./lang/registry.js";
-
-function isToolError(payload: { toolError?: string; toolIsError?: boolean }): boolean {
-  return Boolean(payload.toolError) || payload.toolIsError === true;
-}
+import { truncate, isToolError, isQuestion } from "../util.js";
 
 function matchesCompletion(text: string, patterns: SignalPatternSet): boolean {
   return patterns.completion.claims.some(p => p.test(text));
-}
-
-function isQuestion(text: string, patterns: SignalPatternSet): boolean {
-  return patterns.question.indicators.some(p => p.test(text));
-}
-
-function truncate(text: string, maxLen: number): string {
-  return text.length <= maxLen ? text : text.slice(0, maxLen) + "…";
 }
 
 /**

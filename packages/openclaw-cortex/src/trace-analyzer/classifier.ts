@@ -14,6 +14,7 @@ import type { TraceAnalyzerConfig, TriageLlmConfig } from "./config.js";
 import type { ConversationChain } from "./chain-reconstructor.js";
 import type { Finding, FindingClassification } from "./signals/types.js";
 import { redactChain } from "./redactor.js";
+import { truncate } from "./util.js";
 
 // ---- LLM Config Resolution (R-018, R-031) ----
 
@@ -78,10 +79,6 @@ Respond ONLY with valid JSON:
 {"rootCause": "...", "actionType": "soul_rule|governance_policy|cortex_pattern|manual_review", "actionText": "...", "confidence": 0.85}`;
 
 // ---- Chain-to-Transcript Formatter ----
-
-function truncate(text: string, maxLen: number): string {
-  return text.length <= maxLen ? text : text.slice(0, maxLen) + "…";
-}
 
 export function formatChainAsTranscript(chain: ConversationChain): string {
   const lines: string[] = [];

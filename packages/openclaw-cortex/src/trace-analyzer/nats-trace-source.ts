@@ -70,6 +70,12 @@ export async function createNatsTraceSource(
   let nats: NatsModule;
   try {
     // Dynamic import — optional peer dependency (R-004)
+    // We use `new Function()` here to prevent bundlers (esbuild, webpack, rollup)
+    // from statically resolving this import. The `nats` package is an optional
+    // peer dependency: if it's not installed, this should fail gracefully at
+    // runtime rather than causing a build-time error. A plain `import("nats")`
+    // would be rewritten by bundlers into a static require, breaking builds
+    // when nats is absent.
     // eslint-disable-next-line @typescript-eslint/no-require-imports
     nats = await (new Function("specifier", "return import(specifier)")("nats") as Promise<NatsModule>);
   } catch {
@@ -119,59 +125,75 @@ class NatsTraceSourceImpl implements TraceSource {
     opts?: FetchOpts,
   ): AsyncIterable<NormalizedEvent> {
     const sc = this.natsModule.StringCodec();
-
-    const consumer = await this.js.consumers.get(this.config.stream);
     const batchSize = opts?.batchSize ?? 500;
-
-    const messages = await consumer.consume({
-      max_messages: batchSize,
-      idle_heartbeat: 5_000,
-    });
-
     let yieldedCount = 0;
+    let exhausted = false;
 
-    try {
-      for await (const msg of messages) {
-        const rawStr = sc.decode(msg.data);
-        let raw: Record<string, unknown>;
-        try {
-          raw = JSON.parse(rawStr) as Record<string, unknown>;
-        } catch {
+    // Paginate: loop fetching batches until the endMs cutoff is reached or
+    // the stream is exhausted. Each consume() call fetches up to batchSize
+    // messages; we keep requesting new batches until done.
+    while (!exhausted) {
+      const consumer = await this.js.consumers.get(this.config.stream);
+      const messages = await consumer.consume({
+        max_messages: batchSize,
+        idle_heartbeat: 5_000,
+      });
+
+      let batchCount = 0;
+      let pastEnd = false;
+
+      try {
+        for await (const msg of messages) {
+          batchCount++;
+          const rawStr = sc.decode(msg.data);
+          let raw: Record<string, unknown>;
+          try {
+            raw = JSON.parse(rawStr) as Record<string, unknown>;
+          } catch {
+            msg.ack();
+            continue;
+          }
+
+          const event = normalizeEvent(raw, msg.seq);
+          if (!event) { msg.ack(); continue; }
+
+          // Time range filter
+          if (event.ts < startMs) { msg.ack(); continue; }
+          if (event.ts > endMs) {
+            msg.ack();
+            messages.stop();
+            pastEnd = true;
+            break;
+          }
+
+          // Event type filter
+          if (opts?.eventTypes && !opts.eventTypes.includes(event.type)) {
+            msg.ack();
+            continue;
+          }
+
+          // Agent filter
+          if (opts?.agents && !opts.agents.includes(event.agent)) {
+            msg.ack();
+            continue;
+          }
+
           msg.ack();
-          continue;
+          yieldedCount++;
+          yield event;
         }
-
-        const event = normalizeEvent(raw, msg.seq);
-        if (!event) { msg.ack(); continue; }
-
-        // Time range filter
-        if (event.ts < startMs) { msg.ack(); continue; }
-        if (event.ts > endMs) {
-          msg.ack();
-          messages.stop();
-          break;
-        }
-
-        // Event type filter
-        if (opts?.eventTypes && !opts.eventTypes.includes(event.type)) {
-          msg.ack();
-          continue;
-        }
-
-        // Agent filter
-        if (opts?.agents && !opts.agents.includes(event.agent)) {
-          msg.ack();
-          continue;
-        }
-
-        msg.ack();
-        yieldedCount++;
-        yield event;
+      } catch (err) {
+        this.logger.warn(
+          `[trace-analyzer] Error during NATS fetch: ${err instanceof Error ? err.message : String(err)}`,
+        );
+        break;
       }
-    } catch (err) {
-      this.logger.warn(
-        `[trace-analyzer] Error during NATS fetch: ${err instanceof Error ? err.message : String(err)}`,
-      );
+
+      // If we went past endMs or the batch returned fewer messages than
+      // requested, the stream is exhausted for our time range.
+      if (pastEnd || batchCount < batchSize) {
+        exhausted = true;
+      }
     }
 
     this.logger.info(`[trace-analyzer] Fetched ${yieldedCount} events in time range`);

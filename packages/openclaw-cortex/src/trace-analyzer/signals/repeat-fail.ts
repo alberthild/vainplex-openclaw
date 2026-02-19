@@ -10,6 +10,7 @@
 import { createHash } from "node:crypto";
 import type { ConversationChain } from "../chain-reconstructor.js";
 import type { FailureSignal } from "./types.js";
+import { truncate } from "../util.js";
 
 /** Persistent state for cross-session correlation. */
 export type RepeatFailState = {
@@ -83,10 +84,6 @@ function evictOldest(state: RepeatFailState): void {
   for (let i = 0; i < toRemove; i++) {
     state.fingerprints.delete(entries[i][0]);
   }
-}
-
-function truncate(text: string, maxLen: number): string {
-  return text.length <= maxLen ? text : text.slice(0, maxLen) + "…";
 }
 
 /**

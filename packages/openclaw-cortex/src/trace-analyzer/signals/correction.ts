@@ -10,10 +10,7 @@
 import type { ConversationChain } from "../chain-reconstructor.js";
 import type { FailureSignal } from "./types.js";
 import type { SignalPatternSet } from "./lang/registry.js";
-
-function isQuestion(text: string, patterns: SignalPatternSet): boolean {
-  return patterns.question.indicators.some(p => p.test(text));
-}
+import { truncate, isQuestion } from "../util.js";
 
 function isShortNegative(text: string, patterns: SignalPatternSet): boolean {
   return patterns.correction.shortNegatives.some(p => p.test(text));
@@ -21,10 +18,6 @@ function isShortNegative(text: string, patterns: SignalPatternSet): boolean {
 
 function matchesCorrection(text: string, patterns: SignalPatternSet): boolean {
   return patterns.correction.indicators.some(p => p.test(text));
-}
-
-function truncate(text: string, maxLen: number): string {
-  return text.length <= maxLen ? text : text.slice(0, maxLen) + "…";
 }
 
 /**

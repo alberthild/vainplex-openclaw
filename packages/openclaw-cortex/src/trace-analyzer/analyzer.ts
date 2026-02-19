@@ -194,7 +194,7 @@ export class TraceAnalyzer {
 
     // 4. Stage 1 — Structural detection
     const repeatFailState = createRepeatFailState();
-    let findings = detectAllSignals(chains, this.config.signals, repeatFailState, this.signalPatterns);
+    let findings = detectAllSignals(chains, this.config.signals, repeatFailState, this.signalPatterns, this.logger);
 
     // 5. Limit findings by severity priority
     if (findings.length > this.config.output.maxFindings) {

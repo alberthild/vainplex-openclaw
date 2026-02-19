@@ -10,6 +10,7 @@
 import type { ConversationChain } from "../chain-reconstructor.js";
 import type { FailureSignal } from "./types.js";
 import type { SignalPatternSet } from "./lang/registry.js";
+import { truncate } from "../util.js";
 
 /**
  * Code block detection — claims inside code blocks are analysis output.
@@ -20,10 +21,6 @@ function isInsideCodeBlock(text: string, matchIndex: number): boolean {
   const fenceCount = (before.match(/```/g) || []).length;
   // Odd count means we're inside a code block
   return fenceCount % 2 === 1;
-}
-
-function truncate(str: string, maxLen: number): string {
-  return str.length <= maxLen ? str : str.slice(0, maxLen) + "…";
 }
 
 /**
@@ -45,6 +42,22 @@ function findFactualClaim(text: string, patterns: SignalPatternSet): string | nu
 }
 
 /**
+ * Scan backward from `fromIdx` to check whether a tool.call exists
+ * between the preceding msg.in and the current event.
+ * Returns true if a tool.call was found in that range.
+ */
+function hasToolCallInPrecedingTurn(
+  events: ConversationChain["events"],
+  fromIdx: number,
+): boolean {
+  for (let j = fromIdx - 1; j >= 0; j--) {
+    if (events[j].type === "msg.in") break; // Reached user request
+    if (events[j].type === "tool.call") return true;
+  }
+  return false;
+}
+
+/**
  * Detect unverified claims about system state.
  *
  * Pattern: agent msg.out contains factual system state claim,
@@ -63,17 +76,7 @@ export function detectUnverifiedClaims(chain: ConversationChain, patterns: Signa
     const claim = findFactualClaim(content, patterns);
     if (!claim) continue;
 
-    // Scan backward: was there any tool.call between preceding msg.in and this msg.out?
-    let hasToolCall = false;
-    for (let j = i - 1; j >= 0; j--) {
-      if (events[j].type === "msg.in") break; // Reached user request
-      if (events[j].type === "tool.call") {
-        hasToolCall = true;
-        break;
-      }
-    }
-
-    if (hasToolCall) continue;
+    if (hasToolCallInPrecedingTurn(events, i)) continue;
 
     const startIdx = Math.max(0, i - 2);
 

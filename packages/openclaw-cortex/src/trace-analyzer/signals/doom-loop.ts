@@ -9,6 +9,7 @@
 
 import type { ConversationChain } from "../chain-reconstructor.js";
 import type { FailureSignal } from "./types.js";
+import { truncate } from "../util.js";
 
 /** A tool attempt: call + result pair with their indices. */
 type ToolAttempt = {
@@ -132,10 +133,6 @@ export function paramSimilarity(
   }
 
   return jaccardSimilarity(a, b);
-}
-
-function truncate(text: string, maxLen: number): string {
-  return text.length <= maxLen ? text : text.slice(0, maxLen) + "…";
 }
 
 /**
