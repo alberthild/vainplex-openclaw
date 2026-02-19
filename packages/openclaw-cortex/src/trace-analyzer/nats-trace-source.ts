@@ -49,8 +49,14 @@ interface JetStreamMsg {
 
 interface JetStreamManager {
   streams: {
-    info(name: string): Promise<{ state: { last_seq: number; messages: number } }>;
+    info(name: string): Promise<{ state: { first_seq: number; last_seq: number; messages: number } }>;
+    getMessage(name: string, query: { seq: number }): Promise<StoredMsg>;
   };
+}
+
+interface StoredMsg {
+  seq: number;
+  data: Uint8Array;
 }
 
 interface NatsModule {
@@ -152,37 +158,85 @@ class NatsTraceSourceImpl implements TraceSource {
     opts?: FetchOpts,
   ): AsyncIterable<NormalizedEvent> {
     const sc = this.natsModule.StringCodec();
-    const batchSize = opts?.batchSize ?? 500;
+    const info = await this.jsm.streams.info(this.config.stream);
+    const firstSeq = info.state.first_seq;
+    const lastSeq = info.state.last_seq;
+
+    // Binary search for approximate start sequence to avoid scanning from seq 1.
+    const startSeq = await this.findStartSequence(sc, firstSeq, lastSeq, startMs);
+    this.logger.info(
+      `[trace-analyzer] Scanning seq ${startSeq}–${lastSeq} (skipped ${startSeq - firstSeq} of ${lastSeq - firstSeq + 1} events)`,
+    );
+
     let yieldedCount = 0;
-    let exhausted = false;
+    let missCount = 0;
+    const maxConsecutiveMisses = 50;
 
-    while (!exhausted) {
-      const consumer = await this.js.consumers.get(this.config.stream);
-      const messages = await consumer.consume({ max_messages: batchSize, idle_heartbeat: 5_000 });
-      let batchCount = 0;
-      let pastEnd = false;
-
+    for (let seq = startSeq; seq <= lastSeq; seq++) {
+      let raw: Record<string, unknown>;
       try {
-        for await (const msg of messages) {
-          batchCount++;
-          const result = processMessage(msg, sc, startMs, endMs, opts);
-          msg.ack();
-          if (result === "skip") continue;
-          if (result === "past-end") { messages.stop(); pastEnd = true; break; }
-          yieldedCount++;
-          yield result.event;
-        }
-      } catch (err) {
-        this.logger.warn(
-          `[trace-analyzer] Error during NATS fetch: ${err instanceof Error ? err.message : String(err)}`,
-        );
-        break;
+        const stored = await this.jsm.streams.getMessage(this.config.stream, { seq });
+        raw = JSON.parse(sc.decode(stored.data)) as Record<string, unknown>;
+        missCount = 0;
+      } catch {
+        missCount++;
+        if (missCount > maxConsecutiveMisses) break;
+        continue;
       }
 
-      if (pastEnd || batchCount < batchSize) exhausted = true;
+      const event = normalizeEvent(raw, seq);
+      if (!event) continue;
+      if (event.ts < startMs) continue;
+      if (event.ts > endMs) break;
+      if (opts?.eventTypes && !opts.eventTypes.includes(event.type)) continue;
+      if (opts?.agents && !opts.agents.includes(event.agent)) continue;
+
+      yieldedCount++;
+      yield event;
     }
 
     this.logger.info(`[trace-analyzer] Fetched ${yieldedCount} events in time range`);
+  }
+
+  /**
+   * Binary search for the first sequence whose timestamp is >= targetMs.
+   * Falls back to firstSeq if all events are after targetMs.
+   */
+  private async findStartSequence(
+    sc: { decode(data: Uint8Array): string },
+    firstSeq: number,
+    lastSeq: number,
+    targetMs: number,
+  ): Promise<number> {
+    let lo = firstSeq;
+    let hi = lastSeq;
+
+    while (lo < hi) {
+      const mid = Math.floor((lo + hi) / 2);
+      const ts = await this.getEventTimestamp(sc, mid);
+      if (ts === null || ts < targetMs) {
+        lo = mid + 1;
+      } else {
+        hi = mid;
+      }
+    }
+
+    return lo;
+  }
+
+  /** Read the timestamp of a single event by sequence, returning null on failure. */
+  private async getEventTimestamp(
+    sc: { decode(data: Uint8Array): string },
+    seq: number,
+  ): Promise<number | null> {
+    try {
+      const stored = await this.jsm.streams.getMessage(this.config.stream, { seq });
+      const raw = JSON.parse(sc.decode(stored.data)) as Record<string, unknown>;
+      const ts = (raw.ts ?? raw.timestamp) as number | undefined;
+      return typeof ts === "number" ? ts : null;
+    } catch {
+      return null;
+    }
   }
 
   async *fetchByAgent(

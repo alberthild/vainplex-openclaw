@@ -436,7 +436,9 @@ Add a `traceAnalyzer` section to your external config (`~/.openclaw/plugins/open
     "nats": {
       "url": "nats://localhost:4222",
       "stream": "openclaw-events",
-      "subjectPrefix": "openclaw.events"
+      "subjectPrefix": "openclaw.events",
+      "user": "your-nats-user",
+      "password": "your-nats-password"
     },
     "schedule": {
       "enabled": true,
@@ -464,6 +466,8 @@ Add a `traceAnalyzer` section to your external config (`~/.openclaw/plugins/open
 | `enabled` | `false` | Master switch for trace analysis |
 | `nats.url` | `nats://localhost:4222` | NATS server URL |
 | `nats.stream` | `openclaw-events` | JetStream stream name |
+| `nats.user` | — | NATS username (required if auth enabled) |
+| `nats.password` | — | NATS password (required if auth enabled) |
 | `schedule.enabled` | `false` | Enable scheduled analysis runs |
 | `schedule.intervalHours` | `24` | Hours between runs |
 | `chainGapMinutes` | `30` | Inactivity gap for chain boundary detection |
