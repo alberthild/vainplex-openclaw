@@ -1,1 +1,5 @@
-node_modules/\ndist/\n.DS_Store\ncoverage/
+node_modules/
+dist/
+.DS_Store
+coverage/
+*.tgz
