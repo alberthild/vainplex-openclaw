@@ -15,6 +15,7 @@ function resolveNightMode(
     description: `Restricts non-critical operations between ${after} and ${before}`,
     scope: { hooks: ["before_tool_call", "message_sending"] },
     priority: 100,
+    controls: ["A.7.1", "A.6.2"],
     rules: [
       {
         id: "allow-critical-at-night",
@@ -59,6 +60,7 @@ function resolveCredentialGuard(
     description: "Prevents access to credential files and secrets",
     scope: { hooks: ["before_tool_call"] },
     priority: 200,
+    controls: ["A.8.11", "A.8.4", "A.5.33"],
     rules: [
       {
         id: "block-credential-read",
@@ -98,6 +100,7 @@ function resolveProductionSafeguard(
     description: "Restricts production-impacting operations",
     scope: { hooks: ["before_tool_call"] },
     priority: 150,
+    controls: ["A.8.31", "A.8.32", "A.8.9"],
     rules: [
       {
         id: "block-production-ops",
@@ -135,6 +138,7 @@ function resolveRateLimiter(
     description: `Limits agents to ${maxPerMinute} tool calls per minute`,
     scope: { hooks: ["before_tool_call"] },
     priority: 50,
+    controls: ["A.8.6"],
     rules: [
       {
         id: "rate-limit-exceeded",

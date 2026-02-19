@@ -130,7 +130,7 @@ export class PolicyEvaluator {
         continue;
       }
       if (evaluateConditions(rule.conditions, ctx, deps, this.evaluators)) {
-        return { policyId: policy.id, ruleId: rule.id, effect: rule.effect };
+        return { policyId: policy.id, ruleId: rule.id, effect: rule.effect, controls: policy.controls ?? [] };
       }
     }
     return null;

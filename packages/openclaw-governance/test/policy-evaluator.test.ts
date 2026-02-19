@@ -266,4 +266,67 @@ describe("PolicyEvaluator", () => {
     expect(result.matches).toHaveLength(1);
     expect(result.matches[0]?.ruleId).toBe("r1");
   });
+
+  // ── Bug 4: Controls propagation ──
+
+  it("should propagate policy controls into MatchedPolicy (Bug 4)", () => {
+    const pe = new PolicyEvaluator(evaluators);
+    const policy: Policy = {
+      id: "p1",
+      name: "Policy with controls",
+      version: "1.0.0",
+      scope: {},
+      controls: ["A.8.11", "A.8.4"],
+      rules: [
+        {
+          id: "r1",
+          conditions: [{ type: "tool", name: "exec" }],
+          effect: { action: "deny", reason: "Denied" },
+        },
+      ],
+    };
+    const result = pe.evaluate(makeCtx(), [policy], risk);
+    expect(result.matches).toHaveLength(1);
+    expect(result.matches[0]?.controls).toEqual(["A.8.11", "A.8.4"]);
+  });
+
+  it("should default to empty controls when policy has no controls (Bug 4)", () => {
+    const pe = new PolicyEvaluator(evaluators);
+    const policy: Policy = {
+      id: "p1",
+      name: "Policy without controls",
+      version: "1.0.0",
+      scope: {},
+      rules: [
+        {
+          id: "r1",
+          conditions: [{ type: "tool", name: "exec" }],
+          effect: { action: "deny", reason: "Denied" },
+        },
+      ],
+    };
+    const result = pe.evaluate(makeCtx(), [policy], risk);
+    expect(result.matches).toHaveLength(1);
+    expect(result.matches[0]?.controls).toEqual([]);
+  });
+
+  it("should propagate custom SOC 2 controls (Bug 4)", () => {
+    const pe = new PolicyEvaluator(evaluators);
+    const policy: Policy = {
+      id: "soc2-policy",
+      name: "SOC 2 Policy",
+      version: "1.0.0",
+      scope: {},
+      controls: ["SOC2-CC6.1", "SOC2-CC7.2"],
+      rules: [
+        {
+          id: "r1",
+          conditions: [{ type: "tool", name: "exec" }],
+          effect: { action: "audit" },
+        },
+      ],
+    };
+    const result = pe.evaluate(makeCtx(), [policy], risk);
+    expect(result.matches[0]?.controls).toEqual(["SOC2-CC6.1", "SOC2-CC7.2"]);
+  });
 });

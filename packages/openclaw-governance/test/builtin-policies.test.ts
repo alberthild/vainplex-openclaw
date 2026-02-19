@@ -81,4 +81,30 @@ describe("getBuiltinPolicies", () => {
     });
     expect(policies).toHaveLength(0);
   });
+
+  // ── Bug 4: Controls on builtin policies ──
+
+  it("should set Night Mode controls (Bug 4)", () => {
+    const policies = getBuiltinPolicies({ nightMode: true });
+    const nm = policies.find((p) => p.id === "builtin-night-mode")!;
+    expect(nm.controls).toEqual(["A.7.1", "A.6.2"]);
+  });
+
+  it("should set Credential Guard controls (Bug 4)", () => {
+    const policies = getBuiltinPolicies({ credentialGuard: true });
+    const cg = policies.find((p) => p.id === "builtin-credential-guard")!;
+    expect(cg.controls).toEqual(["A.8.11", "A.8.4", "A.5.33"]);
+  });
+
+  it("should set Production Safeguard controls (Bug 4)", () => {
+    const policies = getBuiltinPolicies({ productionSafeguard: true });
+    const ps = policies.find((p) => p.id === "builtin-production-safeguard")!;
+    expect(ps.controls).toEqual(["A.8.31", "A.8.32", "A.8.9"]);
+  });
+
+  it("should set Rate Limiter controls (Bug 4)", () => {
+    const policies = getBuiltinPolicies({ rateLimiter: true });
+    const rl = policies.find((p) => p.id === "builtin-rate-limiter")!;
+    expect(rl.controls).toEqual(["A.8.6"]);
+  });
 });
