@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.4] - 2026-02-19
+
+### Fixed
+- **LLM Classifier focused window**: Sends only 20 events around the finding instead of entire chain (was 52k chars → ~2k chars). Dramatically improves LLM accuracy and speed.
+- **Null-safe LLM config**: `resolveAnalyzerLlmConfig` handles undefined override gracefully
+- **Stage 2 verified working**: Qwen 2.5 7B on GPU produces accurate root cause analysis and rule suggestions
+
 ## [0.4.3] - 2026-02-19
 
 ### Fixed

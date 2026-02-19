@@ -34,7 +34,7 @@ export function resolveAnalyzerLlmConfig(
   topLevel: LlmConfig,
   override: TraceAnalyzerConfig["llm"],
 ): ResolvedLlmConfig {
-  if (!override.enabled) {
+  if (!override?.enabled) {
     return { enabled: false, endpoint: "", model: "", apiKey: "", timeoutMs: 15000 };
   }
   return {
@@ -278,13 +278,26 @@ Evidence: ${JSON.stringify(finding.signal.evidence, null, 2)}`;
 
 // ---- Deep Analysis ----
 
+/** Extract a focused window of events around the finding's event range. */
+function extractRelevantWindow(chain: ConversationChain, finding: Finding, windowSize = 10): ConversationChain {
+  const range = finding.signal.eventRange;
+  const start = Math.max(0, range.start - windowSize);
+  const end = Math.min(chain.events.length, range.end + windowSize);
+  return {
+    ...chain,
+    events: chain.events.slice(start, end),
+  };
+}
+
 async function deepAnalyze(
   finding: Finding,
   chain: ConversationChain,
   config: ResolvedLlmConfig,
   logger: PluginLogger,
 ): Promise<FindingClassification | null> {
-  const transcript = formatChainAsTranscript(chain);
+  // Use focused window around the finding instead of full chain
+  const focused = extractRelevantWindow(chain, finding);
+  const transcript = formatChainAsTranscript(focused);
 
   const userPrompt = `## Failure Signal
 Type: ${finding.signal.signal}
@@ -294,7 +307,7 @@ Summary: ${finding.signal.summary}
 ## Evidence
 ${JSON.stringify(finding.signal.evidence, null, 2)}
 
-## Full Conversation Chain (${chain.events.length} events, ${chain.agent}@${chain.session})
+## Conversation Context (${focused.events.length} events around failure, agent: ${chain.agent})
 ${transcript}`;
 
   const raw = await callLlmChat(
