@@ -144,6 +144,14 @@ export class GovernanceEngine {
       trust: enrichedCtx.trust, evaluationUs: elapsedUs,
     };
 
+    // Trust learning from governance denial
+    if (verdict.action === "deny" && this.config.trust.enabled) {
+      this.trustManager.recordViolation(
+        enrichedCtx.agentId,
+        `Policy denial: ${verdict.reason}`,
+      );
+    }
+
     this.recordAudit(enrichedCtx, verdict, risk, elapsedUs);
     return verdict;
   }
@@ -168,6 +176,7 @@ export class GovernanceEngine {
     };
     this.auditTrail.record(
       verdict.action as AuditVerdict,
+      verdict.reason,
       auditCtx, verdict.trust,
       { level: risk.level, score: risk.score },
       verdict.matchedPolicies, elapsedUs,
@@ -185,10 +194,14 @@ export class GovernanceEngine {
       `[governance] Evaluation error: ${e instanceof Error ? e.message : String(e)}`,
     );
     const fallback = this.config.failMode === "closed" ? "deny" : "allow";
+    const reason = fallback === "deny"
+      ? "Governance engine error (fail-closed)"
+      : "Governance engine error (fail-open)";
 
     if (this.config.audit.enabled) {
       this.auditTrail.record(
         "error_fallback",
+        reason,
         { hook: ctx.hook, agentId: ctx.agentId, sessionKey: ctx.sessionKey, toolName: ctx.toolName },
         ctx.trust, { level: "critical", score: 100 }, [], elapsedUs,
       );
@@ -196,9 +209,7 @@ export class GovernanceEngine {
 
     return {
       action: fallback,
-      reason: fallback === "deny"
-        ? "Governance engine error (fail-closed)"
-        : "Governance engine error (fail-open)",
+      reason,
       risk: { level: "critical", score: 100, factors: [] },
       matchedPolicies: [],
       trust: ctx.trust,

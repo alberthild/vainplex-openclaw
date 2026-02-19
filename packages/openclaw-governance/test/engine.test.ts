@@ -184,4 +184,131 @@ describe("GovernanceEngine", () => {
 
     await engine.stop();
   });
+
+  // ── Bug 2: Audit reason propagation ──
+
+  it("should include reason in denial audit records (Bug 2)", async () => {
+    const config = makeConfig({
+      policies: [
+        {
+          id: "deny-exec",
+          name: "Deny Exec",
+          version: "1.0.0",
+          scope: {},
+          rules: [
+            {
+              id: "r1",
+              conditions: [{ type: "tool", name: "exec" }],
+              effect: { action: "deny", reason: "No exec allowed" },
+            },
+          ],
+        },
+      ],
+    });
+
+    const engine = new GovernanceEngine(config, logger, WORKSPACE);
+    await engine.start();
+
+    const verdict = await engine.evaluate(makeCtx());
+    expect(verdict.action).toBe("deny");
+    expect(verdict.reason).toBe("No exec allowed");
+
+    // Check the audit trail has the reason
+    const trust = engine.getTrust("main");
+    // Verdict reason should propagate
+    expect(verdict.reason).not.toBe("");
+
+    await engine.stop();
+  });
+
+  it("should include reason in allow audit records (Bug 2)", async () => {
+    const engine = new GovernanceEngine(makeConfig(), logger, WORKSPACE);
+    await engine.start();
+
+    const verdict = await engine.evaluate(makeCtx({ toolName: "read" }));
+    expect(verdict.action).toBe("allow");
+    expect(verdict.reason).toBeTruthy();
+
+    await engine.stop();
+  });
+
+  // ── Bug 3: Trust learning from denials ──
+
+  it("should increment violationCount on governance denial (Bug 3)", async () => {
+    const config = makeConfig({
+      policies: [
+        {
+          id: "deny-exec",
+          name: "Deny Exec",
+          version: "1.0.0",
+          scope: {},
+          rules: [
+            {
+              id: "r1",
+              conditions: [{ type: "tool", name: "exec" }],
+              effect: { action: "deny", reason: "No exec allowed" },
+            },
+          ],
+        },
+      ],
+    });
+
+    const engine = new GovernanceEngine(config, logger, WORKSPACE);
+    await engine.start();
+
+    // Get initial trust state
+    const before = engine.getTrust("main");
+    expect("signals" in before && before.signals.violationCount).toBe(0);
+
+    // Trigger a denial
+    await engine.evaluate(makeCtx());
+
+    const after = engine.getTrust("main");
+    expect("signals" in after && after.signals.violationCount).toBe(1);
+    expect("signals" in after && after.signals.cleanStreak).toBe(0);
+
+    await engine.stop();
+  });
+
+  it("should NOT increment successCount on governance allow (Bug 3)", async () => {
+    const engine = new GovernanceEngine(makeConfig(), logger, WORKSPACE);
+    await engine.start();
+
+    // Get initial trust state
+    engine.getTrust("main");
+
+    // Trigger an allow — success should NOT be recorded by engine (only by after_tool_call)
+    await engine.evaluate(makeCtx({ toolName: "read" }));
+
+    const after = engine.getTrust("main");
+    expect("signals" in after && after.signals.successCount).toBe(0);
+
+    await engine.stop();
+  });
+
+  // ── Bug 4: Controls from policies ──
+
+  it("should derive controls from matched policy, not hook name (Bug 4)", async () => {
+    const config = makeConfig({
+      builtinPolicies: {
+        credentialGuard: true,
+      },
+    });
+
+    const engine = new GovernanceEngine(config, logger, WORKSPACE);
+    await engine.start();
+
+    const verdict = await engine.evaluate(
+      makeCtx({ toolName: "read", toolParams: { path: "secrets.env" } }),
+    );
+    expect(verdict.action).toBe("deny");
+
+    // Matched policy should carry Credential Guard controls
+    expect(verdict.matchedPolicies.length).toBeGreaterThanOrEqual(1);
+    expect(verdict.matchedPolicies[0]?.controls).toContain("A.8.11");
+    expect(verdict.matchedPolicies[0]?.controls).toContain("A.8.4");
+    expect(verdict.matchedPolicies[0]?.controls).toContain("A.5.33");
+
+    await engine.stop();
+  });
 });

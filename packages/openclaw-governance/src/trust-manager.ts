@@ -88,6 +88,8 @@ export class TrustManager {
         const parsed = JSON.parse(raw) as TrustStore;
         this.store = parsed;
         this.applyDecay();
+        this.migrateUnknownAgent();
+        this.refreshAgeDays();
         this.logger.info(
           `[governance] Trust store loaded: ${Object.keys(this.store.agents).length} agents`,
         );
@@ -97,6 +99,33 @@ export class TrustManager {
         );
       }
     }
+  }
+
+  /** Recalculate ageDays for all agents based on current date */
+  private refreshAgeDays(): void {
+    const now = Date.now();
+    for (const agent of Object.values(this.store.agents)) {
+      const created = new Date(agent.created).getTime();
+      if (!Number.isNaN(created)) {
+        agent.signals.ageDays = Math.floor((now - created) / (1000 * 60 * 60 * 24));
+      }
+    }
+  }
+
+  /** One-time migration: remove misattributed "unknown" agent entry */
+  private migrateUnknownAgent(): void {
+    const unknown = this.store.agents["unknown"];
+    if (!unknown) return;
+
+    this.logger.warn(
+      `[governance] Trust migration: "unknown" agent has ` +
+      `${unknown.signals.successCount} successes, ` +
+      `${unknown.signals.violationCount} violations — ` +
+      `resetting (signals were misattributed due to agentId resolution bug)`,
+    );
+
+    delete this.store.agents["unknown"];
+    this.dirty = true;
   }
 
   private applyDecay(): void {

@@ -238,4 +238,109 @@ describe("TrustManager", () => {
     expect(store.version).toBe(1);
     expect(store.agents.main).toBeDefined();
   });
+
+  // ── Bug 3: ageDays refresh on load ──
+
+  it("should calculate ageDays on load (Bug 3)", () => {
+    const created = new Date();
+    created.setDate(created.getDate() - 3); // 3 days ago
+
+    const filePath = join(WORKSPACE, "governance", "trust.json");
+    writeFileSync(
+      filePath,
+      JSON.stringify({
+        version: 1,
+        updated: new Date().toISOString(),
+        agents: {
+          aged: {
+            agentId: "aged",
+            score: 50,
+            tier: "standard",
+            signals: { successCount: 10, violationCount: 0, ageDays: 0, cleanStreak: 5, manualAdjustment: 0 },
+            history: [],
+            lastEvaluation: new Date().toISOString(),
+            created: created.toISOString(),
+          },
+        },
+      }),
+    );
+
+    const tm = new TrustManager(makeConfig(), WORKSPACE, logger);
+    tm.load();
+    const agent = tm.getAgentTrust("aged");
+    expect(agent.signals.ageDays).toBe(3);
+  });
+
+  // ── Bug 3: migrate "unknown" agent ──
+
+  it("should remove 'unknown' agent on load (Bug 3)", () => {
+    const filePath = join(WORKSPACE, "governance", "trust.json");
+    writeFileSync(
+      filePath,
+      JSON.stringify({
+        version: 1,
+        updated: new Date().toISOString(),
+        agents: {
+          unknown: {
+            agentId: "unknown",
+            score: 20,
+            tier: "restricted",
+            signals: { successCount: 340, violationCount: 32, ageDays: 2, cleanStreak: 6, manualAdjustment: 0 },
+            history: [],
+            lastEvaluation: new Date().toISOString(),
+            created: new Date().toISOString(),
+          },
+          main: {
+            agentId: "main",
+            score: 60,
+            tier: "trusted",
+            signals: { successCount: 0, violationCount: 0, ageDays: 0, cleanStreak: 0, manualAdjustment: 0 },
+            history: [],
+            lastEvaluation: new Date().toISOString(),
+            created: new Date().toISOString(),
+          },
+        },
+      }),
+    );
+
+    const tm = new TrustManager(makeConfig(), WORKSPACE, logger);
+    tm.load();
+    const store = tm.getStore();
+
+    // "unknown" should be removed
+    expect(store.agents["unknown"]).toBeUndefined();
+    // "main" should still be there
+    expect(store.agents["main"]).toBeDefined();
+  });
+
+  it("should log warning when migrating 'unknown' agent (Bug 3)", () => {
+    const warnings: string[] = [];
+    const warnLogger: PluginLogger = { info: () => {}, warn: (m) => warnings.push(m), error: () => {} };
+
+    const filePath = join(WORKSPACE, "governance", "trust.json");
+    writeFileSync(
+      filePath,
+      JSON.stringify({
+        version: 1,
+        updated: new Date().toISOString(),
+        agents: {
+          unknown: {
+            agentId: "unknown",
+            score: 20,
+            tier: "restricted",
+            signals: { successCount: 340, violationCount: 32, ageDays: 2, cleanStreak: 6, manualAdjustment: 0 },
+            history: [],
+            lastEvaluation: new Date().toISOString(),
+            created: new Date().toISOString(),
+          },
+        },
+      }),
+    );
+
+    const tm = new TrustManager(makeConfig(), WORKSPACE, warnLogger);
+    tm.load();
+
+    expect(warnings.some((w) => w.includes("Trust migration"))).toBe(true);
+    expect(warnings.some((w) => w.includes("340 successes"))).toBe(true);
+  });
 });
