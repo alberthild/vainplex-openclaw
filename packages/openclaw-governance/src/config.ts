@@ -1,8 +1,10 @@
 import type {
   AuditConfig,
+  BuiltinDetectorId,
   BuiltinPoliciesConfig,
   FailMode,
   GovernanceConfig,
+  OutputValidationConfig,
   PerformanceConfig,
   Policy,
   TimeWindow,
@@ -66,6 +68,57 @@ function resolveAudit(raw: unknown): AuditConfig {
   };
 }
 
+const ALL_DETECTOR_IDS: BuiltinDetectorId[] = [
+  "system_state",
+  "entity_name",
+  "existence",
+  "operational_status",
+  "self_referential",
+];
+
+function resolveOutputValidation(raw: unknown): OutputValidationConfig {
+  const r = isRecord(raw) ? raw : {};
+  const thresholds = isRecord(r["contradictionThresholds"])
+    ? r["contradictionThresholds"]
+    : {};
+
+  const rawDetectors = Array.isArray(r["enabledDetectors"])
+    ? (r["enabledDetectors"] as string[]).filter(
+        (d): d is BuiltinDetectorId =>
+          ALL_DETECTOR_IDS.includes(d as BuiltinDetectorId),
+      )
+    : ALL_DETECTOR_IDS;
+
+  const uvPolicy = r["unverifiedClaimPolicy"];
+  const srPolicy = r["selfReferentialPolicy"];
+
+  return {
+    enabled: typeof r["enabled"] === "boolean" ? r["enabled"] : false,
+    enabledDetectors: rawDetectors,
+    factRegistries: Array.isArray(r["factRegistries"])
+      ? (r["factRegistries"] as OutputValidationConfig["factRegistries"])
+      : [],
+    unverifiedClaimPolicy:
+      uvPolicy === "flag" || uvPolicy === "block" || uvPolicy === "ignore"
+        ? uvPolicy
+        : "ignore",
+    selfReferentialPolicy:
+      srPolicy === "flag" || srPolicy === "block" || srPolicy === "ignore"
+        ? srPolicy
+        : "ignore",
+    contradictionThresholds: {
+      flagAbove:
+        typeof thresholds["flagAbove"] === "number"
+          ? thresholds["flagAbove"]
+          : 60,
+      blockBelow:
+        typeof thresholds["blockBelow"] === "number"
+          ? thresholds["blockBelow"]
+          : 40,
+    },
+  };
+}
+
 function resolvePerformance(raw: unknown): PerformanceConfig {
   const r = isRecord(raw) ? raw : {};
   return {
@@ -114,5 +167,6 @@ export function resolveConfig(
       ? (r["builtinPolicies"] as BuiltinPoliciesConfig)
       : {},
     performance: resolvePerformance(r["performance"]),
+    outputValidation: resolveOutputValidation(r["outputValidation"]),
   };
 }

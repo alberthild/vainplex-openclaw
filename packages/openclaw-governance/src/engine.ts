@@ -7,6 +7,7 @@ import type {
   EvaluationStats,
   GovernanceConfig,
   GovernanceStatus,
+  OutputValidationResult,
   PluginLogger,
   PolicyIndex,
   RiskAssessment,
@@ -21,6 +22,7 @@ import { RiskAssessor } from "./risk-assessor.js";
 import { TrustManager } from "./trust-manager.js";
 import { CrossAgentManager } from "./cross-agent.js";
 import { AuditTrail } from "./audit-trail.js";
+import { OutputValidator } from "./output-validator.js";
 import { FrequencyTrackerImpl } from "./frequency-tracker.js";
 import { nowUs } from "./util.js";
 
@@ -33,6 +35,7 @@ export class GovernanceEngine {
   private readonly trustManager: TrustManager;
   private readonly crossAgentManager: CrossAgentManager;
   private readonly auditTrail: AuditTrail;
+  private readonly outputValidator: OutputValidator;
   private readonly frequencyTracker: FrequencyTrackerImpl;
   private readonly stats: EvaluationStats;
   private workspace: string;
@@ -57,6 +60,7 @@ export class GovernanceEngine {
     );
     this.crossAgentManager = new CrossAgentManager(this.trustManager, logger);
     this.auditTrail = new AuditTrail(config.audit, this.workspace, logger);
+    this.outputValidator = new OutputValidator(config.outputValidation, logger);
     this.frequencyTracker = new FrequencyTrackerImpl(
       config.performance.frequencyBufferSize,
     );
@@ -215,6 +219,47 @@ export class GovernanceEngine {
       trust: ctx.trust,
       evaluationUs: elapsedUs,
     };
+  }
+
+  /**
+   * Validate agent output text against fact registries.
+   * Synchronous. Used by before_message_write and message_sending hooks.
+   */
+  validateOutput(text: string, agentId: string): OutputValidationResult {
+    if (!this.config.outputValidation.enabled) {
+      return {
+        verdict: "pass",
+        claims: [],
+        factCheckResults: [],
+        contradictions: [],
+        reason: "Output validation disabled",
+        evaluationUs: 0,
+      };
+    }
+
+    const trust = this.trustManager.getAgentTrust(agentId);
+    const result = this.outputValidator.validate(text, trust.score);
+
+    // Record audit for output validation
+    if (this.config.audit.enabled) {
+      const auditVerdict = `output_${result.verdict}` as "output_pass" | "output_flag" | "output_block";
+      this.auditTrail.record(
+        auditVerdict,
+        result.reason,
+        {
+          hook: "output_validation",
+          agentId,
+          sessionKey: `agent:${agentId}`,
+          messageContent: text.length > 200 ? text.substring(0, 200) + "..." : text,
+        },
+        { score: trust.score, tier: trust.tier },
+        { level: "low", score: 0 },
+        [],
+        result.evaluationUs,
+      );
+    }
+
+    return result;
   }
 
   recordOutcome(

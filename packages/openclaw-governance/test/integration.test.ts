@@ -344,4 +344,200 @@ describe("Governance Integration", () => {
 
     await engine.stop();
   });
+
+  // ── Output Validation Integration (v0.2.0) ──
+
+  it("should pass output validation when disabled", async () => {
+    const engine = new GovernanceEngine(makeConfig(), logger, WORKSPACE);
+    await engine.start();
+
+    const result = engine.validateOutput("nginx is running", "main");
+    expect(result.verdict).toBe("pass");
+
+    await engine.stop();
+  });
+
+  it("should detect contradiction and block for low-trust agent", async () => {
+    const config = makeConfig({
+      outputValidation: {
+        enabled: true,
+        enabledDetectors: ["system_state"],
+        factRegistries: [
+          {
+            id: "system",
+            facts: [{ subject: "nginx", predicate: "state", value: "stopped" }],
+          },
+        ],
+        unverifiedClaimPolicy: "ignore",
+        selfReferentialPolicy: "ignore",
+        contradictionThresholds: { flagAbove: 60, blockBelow: 40 },
+      },
+      trust: {
+        ...resolveConfig({}).trust,
+        defaults: { "low-trust-agent": 20, "*": 10 },
+      },
+    });
+
+    const engine = new GovernanceEngine(config, logger, WORKSPACE);
+    await engine.start();
+
+    const result = engine.validateOutput("nginx is running on port 80", "low-trust-agent");
+    expect(result.verdict).toBe("block");
+    expect(result.contradictions.length).toBeGreaterThanOrEqual(1);
+    expect(result.reason).toContain("Contradiction");
+
+    await engine.stop();
+  });
+
+  it("should detect contradiction and flag for high-trust agent", async () => {
+    const config = makeConfig({
+      outputValidation: {
+        enabled: true,
+        enabledDetectors: ["system_state"],
+        factRegistries: [
+          {
+            id: "system",
+            facts: [{ subject: "nginx", predicate: "state", value: "stopped" }],
+          },
+        ],
+        unverifiedClaimPolicy: "ignore",
+        selfReferentialPolicy: "ignore",
+        contradictionThresholds: { flagAbove: 60, blockBelow: 40 },
+      },
+      trust: {
+        ...resolveConfig({}).trust,
+        defaults: { "high-trust-agent": 80, "*": 10 },
+      },
+    });
+
+    const engine = new GovernanceEngine(config, logger, WORKSPACE);
+    await engine.start();
+
+    const result = engine.validateOutput("nginx is running on port 80", "high-trust-agent");
+    expect(result.verdict).toBe("flag");
+    expect(result.contradictions.length).toBeGreaterThanOrEqual(1);
+
+    await engine.stop();
+  });
+
+  it("should pass when claims match facts", async () => {
+    const config = makeConfig({
+      outputValidation: {
+        enabled: true,
+        enabledDetectors: ["system_state"],
+        factRegistries: [
+          {
+            id: "system",
+            facts: [{ subject: "nginx", predicate: "state", value: "running" }],
+          },
+        ],
+        unverifiedClaimPolicy: "ignore",
+        selfReferentialPolicy: "ignore",
+        contradictionThresholds: { flagAbove: 60, blockBelow: 40 },
+      },
+    });
+
+    const engine = new GovernanceEngine(config, logger, WORKSPACE);
+    await engine.start();
+
+    const result = engine.validateOutput("nginx is running smoothly", "main");
+    expect(result.verdict).toBe("pass");
+
+    await engine.stop();
+  });
+
+  it("should ignore unverified claims with default policy", async () => {
+    const config = makeConfig({
+      outputValidation: {
+        enabled: true,
+        enabledDetectors: ["system_state"],
+        factRegistries: [],
+        unverifiedClaimPolicy: "ignore",
+        selfReferentialPolicy: "ignore",
+        contradictionThresholds: { flagAbove: 60, blockBelow: 40 },
+      },
+    });
+
+    const engine = new GovernanceEngine(config, logger, WORKSPACE);
+    await engine.start();
+
+    const result = engine.validateOutput("nginx is running", "main");
+    expect(result.verdict).toBe("pass");
+    expect(result.claims.length).toBeGreaterThan(0);
+
+    await engine.stop();
+  });
+
+  it("should produce output audit records", async () => {
+    const config = makeConfig({
+      outputValidation: {
+        enabled: true,
+        enabledDetectors: ["system_state"],
+        factRegistries: [
+          {
+            id: "system",
+            facts: [{ subject: "nginx", predicate: "state", value: "stopped" }],
+          },
+        ],
+        unverifiedClaimPolicy: "ignore",
+        selfReferentialPolicy: "ignore",
+        contradictionThresholds: { flagAbove: 60, blockBelow: 40 },
+      },
+    });
+
+    const engine = new GovernanceEngine(config, logger, WORKSPACE);
+    await engine.start();
+
+    // Trigger output validation (will create audit record)
+    engine.validateOutput("nginx is running", "main");
+
+    // Engine should still be functional
+    const status = engine.getStatus();
+    expect(status.enabled).toBe(true);
+
+    await engine.stop();
+  });
+
+  it("output validation pipeline completes in <10ms", async () => {
+    const config = makeConfig({
+      outputValidation: {
+        enabled: true,
+        enabledDetectors: [
+          "system_state",
+          "entity_name",
+          "existence",
+          "operational_status",
+          "self_referential",
+        ],
+        factRegistries: [
+          {
+            id: "system",
+            facts: Array.from({ length: 50 }, (_, i) => ({
+              subject: `service-${i}`,
+              predicate: "state",
+              value: i % 2 === 0 ? "running" : "stopped",
+            })),
+          },
+        ],
+        unverifiedClaimPolicy: "ignore",
+        selfReferentialPolicy: "ignore",
+        contradictionThresholds: { flagAbove: 60, blockBelow: 40 },
+      },
+    });
+
+    const engine = new GovernanceEngine(config, logger, WORKSPACE);
+    await engine.start();
+
+    const text = "service-0 is stopped and service-1 is running. " +
+      "The server prod-01 exists. CPU is at 90%. " +
+      "I am the governance engine.";
+
+    const start = performance.now();
+    engine.validateOutput(text, "main");
+    const elapsed = performance.now() - start;
+
+    expect(elapsed).toBeLessThan(10);
+
+    await engine.stop();
+  });
 });

@@ -351,7 +351,13 @@ export type Verdict = {
 
 // ── Audit ──
 
-export type AuditVerdict = "allow" | "deny" | "error_fallback";
+export type AuditVerdict =
+  | "allow"
+  | "deny"
+  | "error_fallback"
+  | "output_pass"
+  | "output_flag"
+  | "output_block";
 
 export type AuditContext = {
   hook: string;
@@ -450,6 +456,7 @@ export type GovernanceConfig = {
   toolRiskOverrides: Record<string, number>;
   builtinPolicies: BuiltinPoliciesConfig;
   performance: PerformanceConfig;
+  outputValidation: OutputValidationConfig;
 };
 
 // ── Policy Index (internal) ──

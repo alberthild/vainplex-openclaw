@@ -161,4 +161,55 @@ describe("resolveConfig", () => {
     });
     expect(cfg.policies).toHaveLength(1);
   });
+
+  // ── Output Validation Config (v0.2.0) ──
+
+  it("should apply output validation defaults", () => {
+    const cfg = resolveConfig(undefined);
+    expect(cfg.outputValidation.enabled).toBe(false);
+    expect(cfg.outputValidation.unverifiedClaimPolicy).toBe("ignore");
+    expect(cfg.outputValidation.selfReferentialPolicy).toBe("ignore");
+    expect(cfg.outputValidation.enabledDetectors).toHaveLength(5);
+    expect(cfg.outputValidation.factRegistries).toEqual([]);
+    expect(cfg.outputValidation.contradictionThresholds.flagAbove).toBe(60);
+    expect(cfg.outputValidation.contradictionThresholds.blockBelow).toBe(40);
+  });
+
+  it("should resolve custom output validation config", () => {
+    const cfg = resolveConfig({
+      outputValidation: {
+        enabled: true,
+        enabledDetectors: ["system_state", "existence"],
+        unverifiedClaimPolicy: "flag",
+        selfReferentialPolicy: "block",
+        factRegistries: [
+          { id: "sys", facts: [{ subject: "nginx", predicate: "state", value: "running" }] },
+        ],
+        contradictionThresholds: { flagAbove: 70, blockBelow: 30 },
+      },
+    });
+    expect(cfg.outputValidation.enabled).toBe(true);
+    expect(cfg.outputValidation.enabledDetectors).toEqual(["system_state", "existence"]);
+    expect(cfg.outputValidation.unverifiedClaimPolicy).toBe("flag");
+    expect(cfg.outputValidation.selfReferentialPolicy).toBe("block");
+    expect(cfg.outputValidation.factRegistries).toHaveLength(1);
+    expect(cfg.outputValidation.contradictionThresholds.flagAbove).toBe(70);
+    expect(cfg.outputValidation.contradictionThresholds.blockBelow).toBe(30);
+  });
+
+  it("should filter invalid detector IDs", () => {
+    const cfg = resolveConfig({
+      outputValidation: {
+        enabledDetectors: ["system_state", "invalid_detector", "existence"],
+      },
+    });
+    expect(cfg.outputValidation.enabledDetectors).toEqual(["system_state", "existence"]);
+  });
+
+  it("should default invalid unverifiedClaimPolicy to ignore", () => {
+    const cfg = resolveConfig({
+      outputValidation: { unverifiedClaimPolicy: "invalid" as "ignore" },
+    });
+    expect(cfg.outputValidation.unverifiedClaimPolicy).toBe("ignore");
+  });
 });

@@ -118,13 +118,81 @@ function handleMessageSending(
       const ev = event as HookMessageSendingEvent;
       const ctx = hookCtx as HookMessageContext;
       const evalCtx = buildMessageEvalContext(ev, ctx, config, engine, logger);
-      const verdict = await engine.evaluate(evalCtx);
 
+      // Policy evaluation
+      const verdict = await engine.evaluate(evalCtx);
       if (verdict.action === "deny") {
         return { cancel: true };
       }
+
+      // Output validation (if enabled)
+      if (config.outputValidation.enabled && ev.content) {
+        const ovResult = engine.validateOutput(ev.content, evalCtx.agentId);
+        if (ovResult.verdict === "block") {
+          logger.warn(
+            `[governance] Output blocked for ${evalCtx.agentId}: ${ovResult.reason}`,
+          );
+          return { cancel: true };
+        }
+        if (ovResult.verdict === "flag") {
+          logger.warn(
+            `[governance] Output flagged for ${evalCtx.agentId}: ${ovResult.reason}`,
+          );
+        }
+      }
+
       return undefined;
     } catch {
+      return undefined;
+    }
+  };
+}
+
+/**
+ * Hook: before_message_write (synchronous)
+ * Validates agent output before it's written to conversation.
+ * Returns { block: true } if output should be blocked.
+ */
+function handleBeforeMessageWrite(
+  engine: GovernanceEngine,
+  config: GovernanceConfig,
+  logger: PluginLogger,
+) {
+  return (
+    event: unknown,
+    hookCtx: unknown,
+  ): { block?: boolean; blockReason?: string } | undefined => {
+    try {
+      if (!config.outputValidation.enabled) return undefined;
+
+      const ev = event as { content?: string };
+      const ctx = hookCtx as { agentId?: string; sessionKey?: string };
+      if (!ev.content) return undefined;
+
+      const agentId = resolveAgentId(
+        ctx as { agentId?: string; sessionKey?: string; sessionId?: string },
+        undefined,
+        logger,
+      );
+
+      const result = engine.validateOutput(ev.content, agentId);
+
+      if (result.verdict === "block") {
+        logger.warn(
+          `[governance] Output write blocked for ${agentId}: ${result.reason}`,
+        );
+        return { block: true, blockReason: result.reason };
+      }
+
+      if (result.verdict === "flag") {
+        logger.warn(
+          `[governance] Output write flagged for ${agentId}: ${result.reason}`,
+        );
+      }
+
+      return undefined;
+    } catch {
+      // Don't break message writing on output validation errors
       return undefined;
     }
   };
@@ -260,6 +328,11 @@ export function registerGovernanceHooks(
     priority: 1000,
   });
   api.on("message_sending", handleMessageSending(engine, config, logger), {
+    priority: 1000,
+  });
+
+  // Output validation (synchronous, before message write)
+  api.on("before_message_write", handleBeforeMessageWrite(engine, config, logger), {
     priority: 1000,
   });
 
