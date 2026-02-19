@@ -214,6 +214,8 @@ export type NarrativeSections = {
 // Config Types
 // ============================================================
 
+import type { TraceAnalyzerConfig } from "./trace-analyzer/config.js";
+
 export type CortexConfig = {
   enabled: boolean;
   workspace: string;
@@ -262,6 +264,7 @@ export type CortexConfig = {
     timeoutMs: number;
     batchSize: number;
   };
+  traceAnalyzer: TraceAnalyzerConfig;
 };
 
 // ============================================================

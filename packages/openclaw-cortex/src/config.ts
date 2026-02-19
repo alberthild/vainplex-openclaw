@@ -1,4 +1,5 @@
 import type { CortexConfig } from "./types.js";
+import { TRACE_ANALYZER_DEFAULTS, resolveTraceAnalyzerConfig } from "./trace-analyzer/config.js";
 
 export const DEFAULTS: CortexConfig = {
   enabled: true,
@@ -39,6 +40,7 @@ export const DEFAULTS: CortexConfig = {
     timeoutMs: 15000,
     batchSize: 3,
   },
+  traceAnalyzer: TRACE_ANALYZER_DEFAULTS,
 };
 
 function bool(value: unknown, fallback: boolean): boolean {
@@ -134,6 +136,9 @@ export function resolveConfig(pluginConfig?: Record<string, unknown>): CortexCon
       timeoutMs: int(lm.timeoutMs, DEFAULTS.llm.timeoutMs),
       batchSize: int(lm.batchSize, DEFAULTS.llm.batchSize),
     },
+    traceAnalyzer: resolveTraceAnalyzerConfig(
+      (raw.traceAnalyzer ?? undefined) as Record<string, unknown> | undefined,
+    ),
   };
 }
 
