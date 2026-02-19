@@ -269,6 +269,7 @@ export type Policy = {
   rules: Rule[];
   enabled?: boolean;
   priority?: number;
+  controls?: string[];
 };
 
 // ── Cross-Agent Governance (USP3) ──
@@ -336,6 +337,7 @@ export type MatchedPolicy = {
   policyId: string;
   ruleId: string;
   effect: RuleEffect;
+  controls: string[];
 };
 
 export type Verdict = {
@@ -368,6 +370,7 @@ export type AuditRecord = {
   timestamp: number;
   timestampIso: string;
   verdict: AuditVerdict;
+  reason: string;
   context: AuditContext;
   trust: { score: number; tier: TrustTier };
   risk: { level: RiskLevel; score: number };

@@ -2,7 +2,7 @@ import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import { existsSync, mkdirSync, rmSync, readdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { AuditTrail } from "../src/audit-trail.js";
-import type { AuditContext, PluginLogger } from "../src/types.js";
+import type { AuditContext, MatchedPolicy, PluginLogger } from "../src/types.js";
 
 const WORKSPACE = "/tmp/governance-test-audit";
 const logger: PluginLogger = { info: () => {}, warn: () => {}, error: () => {} };
@@ -37,6 +37,7 @@ describe("AuditTrail", () => {
 
     const rec = at.record(
       "allow",
+      "No matching policies",
       makeContext(),
       { score: 60, tier: "trusted" },
       { level: "medium", score: 50 },
@@ -48,6 +49,7 @@ describe("AuditTrail", () => {
     expect(rec.timestamp).toBeGreaterThan(0);
     expect(rec.timestampIso).toMatch(/^\d{4}-\d{2}-\d{2}T/);
     expect(rec.verdict).toBe("allow");
+    expect(rec.reason).toBe("No matching policies");
     expect(rec.controls).toBeInstanceOf(Array);
   });
 
@@ -55,8 +57,8 @@ describe("AuditTrail", () => {
     const at = new AuditTrail(makeAuditConfig(), WORKSPACE, logger);
     at.load();
 
-    at.record("allow", makeContext(), { score: 60, tier: "trusted" }, { level: "low", score: 10 }, [], 500);
-    at.record("deny", makeContext(), { score: 30, tier: "restricted" }, { level: "high", score: 70 }, [], 800);
+    at.record("allow", "Allowed", makeContext(), { score: 60, tier: "trusted" }, { level: "low", score: 10 }, [], 500);
+    at.record("deny", "Denied", makeContext(), { score: 30, tier: "restricted" }, { level: "high", score: 70 }, [], 800);
     at.flush();
 
     const auditDir = join(WORKSPACE, "governance", "audit");
@@ -69,7 +71,7 @@ describe("AuditTrail", () => {
     at.load();
 
     for (let i = 0; i < 101; i++) {
-      at.record("allow", makeContext(), { score: 60, tier: "trusted" }, { level: "low", score: 10 }, [], 500);
+      at.record("allow", "Allowed", makeContext(), { score: 60, tier: "trusted" }, { level: "low", score: 10 }, [], 500);
     }
 
     // Buffer should have been flushed at 100
@@ -84,6 +86,7 @@ describe("AuditTrail", () => {
 
     const rec = at.record(
       "allow",
+      "Allowed",
       makeContext({ toolParams: { command: "test", password: "secret" } }),
       { score: 60, tier: "trusted" },
       { level: "low", score: 10 },
@@ -95,29 +98,90 @@ describe("AuditTrail", () => {
     expect(rec.context.toolParams?.["command"]).toBe("test");
   });
 
-  it("should include ISO 27001 controls", () => {
+  it("should derive controls from matched policies (Bug 4)", () => {
+    const at = new AuditTrail(makeAuditConfig(), WORKSPACE, logger);
+    at.load();
+
+    const matchedPolicies: MatchedPolicy[] = [
+      {
+        policyId: "builtin-credential-guard",
+        ruleId: "block-credential-read",
+        effect: { action: "deny", reason: "Credential Guard: blocked" },
+        controls: ["A.8.11", "A.8.4"],
+      },
+    ];
+
+    const rec = at.record(
+      "deny",
+      "Credential Guard: blocked",
+      makeContext(),
+      { score: 60, tier: "trusted" },
+      { level: "high", score: 70 },
+      matchedPolicies,
+      500,
+    );
+
+    // Controls from the matched policy
+    expect(rec.controls).toContain("A.8.11");
+    expect(rec.controls).toContain("A.8.4");
+    // Denials always include incident controls
+    expect(rec.controls).toContain("A.5.24");
+    expect(rec.controls).toContain("A.5.28");
+    // Should NOT contain hardcoded hook controls
+    expect(rec.controls).not.toContain("A.8.3");
+    expect(rec.controls).not.toContain("A.8.5");
+  });
+
+  it("should return empty controls for allows with no matching policies", () => {
     const at = new AuditTrail(makeAuditConfig(), WORKSPACE, logger);
     at.load();
 
     const rec = at.record(
-      "deny",
+      "allow",
+      "No matching policies",
       makeContext(),
       { score: 60, tier: "trusted" },
-      { level: "high", score: 70 },
+      { level: "low", score: 10 },
       [],
       500,
     );
 
-    expect(rec.controls).toContain("A.8.3"); // tool call
-    expect(rec.controls).toContain("A.5.24"); // violation/deny
+    expect(rec.controls).toEqual([]);
+  });
+
+  it("should propagate custom SOC 2 controls", () => {
+    const at = new AuditTrail(makeAuditConfig(), WORKSPACE, logger);
+    at.load();
+
+    const matchedPolicies: MatchedPolicy[] = [
+      {
+        policyId: "custom-soc2",
+        ruleId: "r1",
+        effect: { action: "audit" },
+        controls: ["SOC2-CC6.1", "SOC2-CC7.2"],
+      },
+    ];
+
+    const rec = at.record(
+      "allow",
+      "Allowed with audit logging",
+      makeContext(),
+      { score: 60, tier: "trusted" },
+      { level: "low", score: 10 },
+      matchedPolicies,
+      500,
+    );
+
+    expect(rec.controls).toContain("SOC2-CC6.1");
+    expect(rec.controls).toContain("SOC2-CC7.2");
   });
 
   it("should query records by filter", () => {
     const at = new AuditTrail(makeAuditConfig(), WORKSPACE, logger);
     at.load();
 
-    at.record("allow", makeContext({ agentId: "main" }), { score: 60, tier: "trusted" }, { level: "low", score: 10 }, [], 500);
-    at.record("deny", makeContext({ agentId: "forge" }), { score: 30, tier: "restricted" }, { level: "high", score: 70 }, [], 500);
+    at.record("allow", "Allowed", makeContext({ agentId: "main" }), { score: 60, tier: "trusted" }, { level: "low", score: 10 }, [], 500);
+    at.record("deny", "Denied", makeContext({ agentId: "forge" }), { score: 30, tier: "restricted" }, { level: "high", score: 70 }, [], 500);
     at.flush();
 
     const results = at.query({ agentId: "forge" });
@@ -148,6 +212,7 @@ describe("AuditTrail", () => {
 
     const rec = at.record(
       "deny",
+      "Denied by cross-agent policy",
       makeContext({
         crossAgent: {
           parentAgentId: "main",
@@ -170,7 +235,7 @@ describe("AuditTrail", () => {
     const at = new AuditTrail(makeAuditConfig(), WORKSPACE, logger);
     at.load();
 
-    at.record("allow", makeContext(), { score: 60, tier: "trusted" }, { level: "low", score: 10 }, [], 500);
+    at.record("allow", "Allowed", makeContext(), { score: 60, tier: "trusted" }, { level: "low", score: 10 }, [], 500);
 
     const stats = at.getStats();
     expect(stats.todayRecords).toBe(1);
@@ -181,12 +246,46 @@ describe("AuditTrail", () => {
     at.load();
     at.startAutoFlush();
 
-    at.record("allow", makeContext(), { score: 60, tier: "trusted" }, { level: "low", score: 10 }, [], 500);
+    at.record("allow", "Allowed", makeContext(), { score: 60, tier: "trusted" }, { level: "low", score: 10 }, [], 500);
     at.stopAutoFlush();
 
     // Should have flushed on stop
     const auditDir = join(WORKSPACE, "governance", "audit");
     const files = readdirSync(auditDir).filter((f) => f.endsWith(".jsonl"));
     expect(files.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("should include reason field in records (Bug 2)", () => {
+    const at = new AuditTrail(makeAuditConfig(), WORKSPACE, logger);
+    at.load();
+
+    const rec = at.record(
+      "deny",
+      "Night mode active (23:00-08:00). Only critical operations allowed.",
+      makeContext(),
+      { score: 50, tier: "standard" },
+      { level: "medium", score: 50 },
+      [],
+      100,
+    );
+    expect(rec.reason).toBe("Night mode active (23:00-08:00). Only critical operations allowed.");
+  });
+
+  it("should include denials baseline controls even with no matched policies", () => {
+    const at = new AuditTrail(makeAuditConfig(), WORKSPACE, logger);
+    at.load();
+
+    const rec = at.record(
+      "deny",
+      "Denied",
+      makeContext(),
+      { score: 30, tier: "restricted" },
+      { level: "high", score: 70 },
+      [],
+      500,
+    );
+
+    expect(rec.controls).toContain("A.5.24");
+    expect(rec.controls).toContain("A.5.28");
   });
 });

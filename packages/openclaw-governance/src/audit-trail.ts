@@ -22,20 +22,22 @@ import type {
 } from "./types.js";
 import { createRedactor } from "./audit-redactor.js";
 
-const ISO_CONTROLS_MAP: Record<string, string[]> = {
-  before_tool_call: ["A.8.3", "A.8.5"],
-  message_sending: ["A.5.14"],
-  trust_adjustment: ["A.5.15", "A.8.2"],
-  violation: ["A.5.24", "A.5.28"],
-  config_change: ["A.8.9"],
-};
-
-function getControls(hook: string, verdict: AuditVerdict): string[] {
-  const controls = ISO_CONTROLS_MAP[hook] ?? [];
-  if (verdict === "deny") {
-    return [...controls, "A.5.24", "A.5.28"];
+function deriveControls(
+  matchedPolicies: MatchedPolicy[],
+  verdict: AuditVerdict,
+): string[] {
+  const controls = new Set<string>();
+  for (const mp of matchedPolicies) {
+    for (const c of mp.controls) {
+      controls.add(c);
+    }
   }
-  return controls;
+  // Denials always include incident response controls as baseline
+  if (verdict === "deny") {
+    controls.add("A.5.24");
+    controls.add("A.5.28");
+  }
+  return [...controls].sort();
 }
 
 function dateStr(ts: number): string {
@@ -73,6 +75,7 @@ export class AuditTrail {
 
   record(
     verdict: AuditVerdict,
+    reason: string,
     context: AuditContext,
     trust: { score: number; tier: TrustTier },
     risk: { level: RiskLevel; score: number },
@@ -87,12 +90,13 @@ export class AuditTrail {
       timestamp: now,
       timestampIso: new Date(now).toISOString(),
       verdict,
+      reason,
       context: redacted,
       trust,
       risk,
       matchedPolicies,
       evaluationUs,
-      controls: [...new Set(getControls(context.hook, verdict))],
+      controls: deriveControls(matchedPolicies, verdict),
     };
 
     this.buffer.push(rec);
