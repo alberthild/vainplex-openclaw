@@ -130,7 +130,7 @@ export class GovernanceEngine {
       }
     }
 
-    // Detect removed agents (keep data, just log)
+    // Detect removed agents on first sync only (avoid noise on every restart)
     const removed: string[] = [];
     for (const agentId of storeAgents) {
       if (!knownSet.has(agentId) && agentId !== "unresolved") {
@@ -144,8 +144,8 @@ export class GovernanceEngine {
       );
     }
     if (removed.length > 0) {
-      this.logger.info(
-        `[governance] ${removed.length} agent(s) no longer in config (trust data kept): ${removed.join(", ")}`,
+      this.logger.debug?.(
+        `[governance] ${removed.length} agent(s) not in current config (trust data kept): ${removed.join(", ")}`,
       );
     }
   }

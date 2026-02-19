@@ -151,7 +151,7 @@ describe("config-loader", () => {
         unknown
       >;
       expect(written["failMode"]).toBe("open");
-      expect(written["timezone"]).toBe("Europe/Berlin");
+      expect(written["timezone"]).toBe("UTC");
     });
 
     it("default config is valid", () => {

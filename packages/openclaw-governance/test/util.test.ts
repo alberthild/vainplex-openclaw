@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   clamp,
   extractAgentId,
+  extractAgentIds,
   extractParentSessionKey,
   getCurrentTime,
   globToRegex,
@@ -236,5 +237,49 @@ describe("resolveAgentId", () => {
   it("should handle empty string agentId", () => {
     // Empty string is falsy, should fall through
     expect(resolveAgentId({ agentId: "", sessionKey: "agent:forge" })).toBe("forge");
+  });
+});
+
+describe("extractAgentIds", () => {
+  it("should extract IDs from object array", () => {
+    const config = { agents: { list: [{ id: "main" }, { id: "forge" }, { id: "cerberus" }] } };
+    expect(extractAgentIds(config)).toEqual(["main", "forge", "cerberus"]);
+  });
+
+  it("should extract IDs from string array", () => {
+    const config = { agents: { list: ["main", "forge"] } };
+    expect(extractAgentIds(config)).toEqual(["main", "forge"]);
+  });
+
+  it("should handle mixed array", () => {
+    const config = { agents: { list: ["main", { id: "forge" }, 42, null] } };
+    expect(extractAgentIds(config)).toEqual(["main", "forge"]);
+  });
+
+  it("should return empty for missing agents key", () => {
+    expect(extractAgentIds({})).toEqual([]);
+  });
+
+  it("should return empty for missing list key", () => {
+    expect(extractAgentIds({ agents: {} })).toEqual([]);
+  });
+
+  it("should return empty for non-array list", () => {
+    expect(extractAgentIds({ agents: { list: "not-an-array" } })).toEqual([]);
+  });
+
+  it("should skip entries without id field", () => {
+    const config = { agents: { list: [{ name: "no-id" }, { id: "valid" }] } };
+    expect(extractAgentIds(config)).toEqual(["valid"]);
+  });
+
+  it("should skip entries with non-string id", () => {
+    const config = { agents: { list: [{ id: 42 }, { id: "valid" }] } };
+    expect(extractAgentIds(config)).toEqual(["valid"]);
+  });
+
+  it("should handle agents as non-object", () => {
+    expect(extractAgentIds({ agents: "string" })).toEqual([]);
+    expect(extractAgentIds({ agents: null })).toEqual([]);
   });
 });

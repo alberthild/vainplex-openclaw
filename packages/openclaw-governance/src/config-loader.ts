@@ -59,16 +59,33 @@ function readJsonFile(
 }
 
 /**
- * Write a default config file if none exists (first-run bootstrapping).
+ * Apply inline `enabled` override to a file-loaded config (immutably).
  */
-function writeDefaultConfig(path: string, logger: PluginLogger): void {
+function applyInlineOverrides(
+  fileConfig: Record<string, unknown>,
+  inline: Record<string, unknown>,
+): Record<string, unknown> {
+  if (typeof inline["enabled"] === "boolean") {
+    return { ...fileConfig, enabled: inline["enabled"] };
+  }
+  return fileConfig;
+}
+
+/**
+ * Bootstrap a default config file and return its contents.
+ * Returns null if writing or reading back fails.
+ */
+function bootstrapConfig(
+  path: string,
+  logger: PluginLogger,
+): Record<string, unknown> | null {
   try {
     const dir = dirname(path);
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
 
     const defaults: Record<string, unknown> = {
       enabled: true,
-      timezone: "Europe/Berlin",
+      timezone: "UTC",
       failMode: "open",
       policies: [],
       timeWindows: {},
@@ -94,10 +111,12 @@ function writeDefaultConfig(path: string, logger: PluginLogger): void {
 
     writeFileSync(path, JSON.stringify(defaults, null, 2) + "\n", "utf-8");
     logger.info(`[governance] Created default config at ${path}`);
+    return readJsonFile(path, logger);
   } catch (e) {
     logger.warn(
       `[governance] Failed to write default config: ${e instanceof Error ? e.message : String(e)}`,
     );
+    return null;
   }
 }
 
@@ -125,10 +144,7 @@ export function loadConfig(
   // Priority 1: Legacy inline config (backward compatible)
   if (isLegacyInlineConfig(raw)) {
     logger.info("[governance] Using inline config from openclaw.json");
-    return {
-      config: resolveConfig(raw),
-      source: "inline",
-    };
+    return { config: resolveConfig(raw), source: "inline" };
   }
 
   // Priority 2: External config file
@@ -138,40 +154,22 @@ export function loadConfig(
       : join(DEFAULT_CONFIG_DIR, DEFAULT_CONFIG_FILENAME);
 
   const fileConfig = readJsonFile(configPath, logger);
-
   if (fileConfig !== null) {
-    // Merge enabled from inline if present (inline `enabled` overrides file)
-    if (typeof raw["enabled"] === "boolean") {
-      fileConfig["enabled"] = raw["enabled"];
-    }
+    const merged = applyInlineOverrides(fileConfig, raw);
     logger.info(`[governance] Loaded config from ${configPath}`);
-    return {
-      config: resolveConfig(fileConfig),
-      source: "file",
-      filePath: configPath,
-    };
+    return { config: resolveConfig(merged), source: "file", filePath: configPath };
   }
 
-  // File doesn't exist → bootstrap with defaults
+  // File missing → bootstrap with defaults
   if (!existsSync(configPath)) {
-    writeDefaultConfig(configPath, logger);
-    const bootstrapped = readJsonFile(configPath, logger);
+    const bootstrapped = bootstrapConfig(configPath, logger);
     if (bootstrapped !== null) {
-      if (typeof raw["enabled"] === "boolean") {
-        bootstrapped["enabled"] = raw["enabled"];
-      }
-      return {
-        config: resolveConfig(bootstrapped),
-        source: "file",
-        filePath: configPath,
-      };
+      const merged = applyInlineOverrides(bootstrapped, raw);
+      return { config: resolveConfig(merged), source: "file", filePath: configPath };
     }
   }
 
-  // Priority 3: Graceful defaults (file was broken or unwritable)
+  // Priority 3: Graceful defaults (file broken or unwritable)
   logger.warn("[governance] Falling back to default config");
-  return {
-    config: resolveConfig(undefined),
-    source: "defaults",
-  };
+  return { config: resolveConfig(undefined), source: "defaults" };
 }
