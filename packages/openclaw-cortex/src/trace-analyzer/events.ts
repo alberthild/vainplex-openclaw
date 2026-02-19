@@ -213,15 +213,56 @@ function normalizeToolResultPayloadB(rawPayload: Record<string, unknown>): Norma
   };
 }
 
+/** Extract error from nested result structures (Schema A). */
+function extractErrorFromResult(rawPayload: Record<string, unknown>): { error?: string; isError: boolean } {
+  // 1. Top-level "error" field (simplest case)
+  const topError = optStr(rawPayload, "error");
+  if (topError) return { error: topError, isError: true };
+
+  // 2. result.details.error or result.details.status === "error"
+  const result = rawPayload.result;
+  if (typeof result === "object" && result !== null) {
+    const r = result as Record<string, unknown>;
+    const details = r.details as Record<string, unknown> | undefined;
+    if (details) {
+      const detailError = optStr(details, "error");
+      if (detailError) return { error: detailError, isError: true };
+      if (details.status === "error") return { error: "status: error", isError: true };
+      if (typeof details.exitCode === "number" && details.exitCode > 0) {
+        return { error: `exit code ${details.exitCode}`, isError: true };
+      }
+    }
+    // 3. result.isError flag
+    if (r.isError === true) {
+      const text = extractResultText(r);
+      return { error: text ?? "unknown error", isError: true };
+    }
+  }
+
+  return { isError: false };
+}
+
+/** Extract text content from tool result. */
+function extractResultText(result: Record<string, unknown>): string | undefined {
+  const content = result.content as Array<Record<string, unknown>> | undefined;
+  if (Array.isArray(content) && content.length > 0) {
+    const first = content[0];
+    if (typeof first?.text === "string") return first.text.slice(0, 500);
+  }
+  if (typeof result.result === "string") return result.result.slice(0, 500);
+  return undefined;
+}
+
 /** Normalize tool.result payload — Schema A. */
 function normalizeToolResultPayloadA(rawPayload: Record<string, unknown>): NormalizedPayload {
+  const { error, isError } = extractErrorFromResult(rawPayload);
   return {
     toolName: optStr(rawPayload, "toolName"),
     toolParams: typeof rawPayload.params === "object" && rawPayload.params !== null
       ? rawPayload.params as Record<string, unknown> : undefined,
     toolResult: rawPayload.result,
-    toolError: optStr(rawPayload, "error"),
-    toolIsError: typeof rawPayload.error === "string" ? true : undefined,
+    toolError: error,
+    toolIsError: isError || undefined,
     toolDurationMs: typeof rawPayload.durationMs === "number" ? rawPayload.durationMs : undefined,
   };
 }

@@ -115,8 +115,12 @@ function recordFailure(
     signal: "SIG-REPEAT-FAIL",
     severity: existing.count >= 3 ? "critical" : "high",
     eventRange: { start: eventIdx, end: eventIdx + 1 },
-    summary: `Same failure repeated across ${existing.count} sessions: ${toolName} — ${truncate(error, 80)}`,
-    evidence: { toolName, fingerprint, count: existing.count, sessions: [...existing.sessions] },
+    summary: `Same failure repeated across ${existing.count} sessions: ${toolName} — ${truncate(error, 200)}`,
+    evidence: {
+      toolName, fingerprint, count: existing.count,
+      sessions: [...existing.sessions],
+      errorPreview: truncate(error, 500),
+    },
   };
 }
 

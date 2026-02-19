@@ -184,8 +184,11 @@ export function detectDoomLoops(chain: ConversationChain): FailureSignal[] {
         evidence: {
           toolName: anchor.toolName,
           loopSize: count,
-          firstError: truncate(anchor.error, 200),
-          params: anchor.params,
+          firstError: truncate(anchor.error, 500),
+          lastError: truncate(lastAttempt.error, 500),
+          firstParams: anchor.params,
+          command: typeof anchor.params.command === "string"
+            ? truncate(anchor.params.command as string, 300) : undefined,
         },
       });
       i = lastIdx + 1;

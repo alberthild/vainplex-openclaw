@@ -54,8 +54,8 @@ export function detectCorrections(chain: ConversationChain, patterns: SignalPatt
       eventRange: { start: i - 1, end: i },
       summary: `User corrected agent after: '${truncate(agentText, 80)}'`,
       evidence: {
-        agentMessage: truncate(agentText, 300),
-        userCorrection: truncate(userText, 300),
+        agentMessage: truncate(agentText, 500),
+        userCorrection: truncate(userText, 500),
       },
     });
   }
