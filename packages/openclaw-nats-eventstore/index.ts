@@ -2,7 +2,7 @@ import type { NatsClient } from "./src/nats-client.js";
 import type { PluginLogger } from "./src/nats-client.js";
 import { createEventStoreService } from "./src/service.js";
 import { registerEventHooks } from "./src/hooks.js";
-import { resolveConfig } from "./src/config.js";
+import { loadConfig } from "./src/config-loader.js";
 
 type OpenClawPluginApi = {
   id: string;
@@ -24,7 +24,7 @@ const plugin = {
   version: "0.1.0",
 
   register(api: OpenClawPluginApi) {
-    const config = resolveConfig(api.pluginConfig);
+    const { config } = loadConfig(api.pluginConfig, api.logger);
 
     if (!config.enabled) {
       api.logger.info("[nats-eventstore] Disabled via config");
