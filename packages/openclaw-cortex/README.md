@@ -206,15 +206,24 @@ cd openclaw-cortex && npm install && npm run build
 
 ## Configure
 
-Add to your OpenClaw config:
+Add to your OpenClaw config (`openclaw.json`):
 
 ```json
 {
   "plugins": {
-    "openclaw-cortex": {
-      "enabled": true,
+    "entries": {
+      "openclaw-cortex": { "enabled": true }
+    }
+  }
+}
+```
+
+Then create `~/.openclaw/plugins/openclaw-cortex/config.json`:
+
+```json
+{
       "patterns": {
-        "language": "both"
+        "language": "all"
       },
       "threadTracker": {
         "enabled": true,
@@ -319,15 +328,44 @@ Restart OpenClaw after configuring.
         └── hot-snapshot.md         # Pre-compaction snapshot
 ```
 
-### Pattern Languages
+### Pattern Languages (v0.3.0)
 
-Thread and decision detection supports English, German, or both:
+Thread and decision detection supports **10 languages** out of the box:
 
-- **Decision patterns**: "we decided", "let's do", "the plan is", "wir machen", "beschlossen"
-- **Closure patterns**: "is done", "it works", "fixed ✅", "erledigt", "gefixt"
-- **Wait patterns**: "waiting for", "blocked by", "warte auf"
-- **Topic patterns**: "back to", "now about", "jetzt zu", "bzgl."
-- **Mood detection**: frustrated, excited, tense, productive, exploratory
+| Language | Code | Decision | Closure | Wait | Mood |
+|----------|------|----------|---------|------|------|
+| English | `en` | "we decided", "let's do", "the plan is" | "is done", "fixed ✅" | "waiting for", "blocked by" | ✅ |
+| German | `de` | "wir machen", "beschlossen" | "erledigt", "gefixt" | "warte auf" | ✅ |
+| French | `fr` | "nous avons décidé", "on fait" | "c'est fait", "résolu" | "en attente de" | ✅ |
+| Spanish | `es` | "decidimos", "el plan es" | "está hecho", "resuelto" | "esperando" | ✅ |
+| Portuguese | `pt` | "decidimos", "o plano é" | "está feito", "resolvido" | "aguardando" | ✅ |
+| Italian | `it` | "abbiamo deciso", "il piano è" | "è fatto", "risolto" | "in attesa di" | ✅ |
+| Chinese | `zh` | "我们决定", "计划是" | "已完成", "已解决" | "等待", "阻塞" | ✅ |
+| Japanese | `ja` | "決定しました", "方針は" | "完了", "解決済み" | "待ち" | ✅ |
+| Korean | `ko` | "결정했습니다", "계획은" | "완료", "해결" | "대기 중" | ✅ |
+| Russian | `ru` | "мы решили", "план такой" | "готово", "исправлено" | "ждём", "заблокировано" | ✅ |
+
+Configure via `patternLanguage`:
+```jsonc
+"both"              // backward-compat: EN + DE
+"all"               // all 10 languages
+["en", "fr", "es"]  // specific languages
+"de"                // single language
+```
+
+**Custom patterns** — add your own via config:
+```json
+{
+  "patterns": {
+    "language": "all",
+    "custom": {
+      "mode": "extend",
+      "decision": ["my custom pattern"],
+      "close": ["zakończone"]
+    }
+  }
+}
+```
 
 ### LLM Enhancement Flow
 
@@ -359,7 +397,7 @@ The LLM sees a conversation snippet (configurable batch size) and returns:
 
 ```bash
 npm install
-npm test            # 288 tests
+npm test            # 516 tests
 npm run typecheck   # TypeScript strict mode
 npm run build       # Compile to dist/
 ```
@@ -371,7 +409,7 @@ npm run build       # Compile to dist/
 - LLM enhancement: async, batched, fire-and-forget (never blocks hooks)
 - Atomic file writes via `.tmp` + rename
 - Noise filter prevents garbage threads from polluting state
-- Tested with 288 unit + integration tests
+- Tested with 516 unit + integration tests
 
 ## Architecture
 
@@ -385,12 +423,11 @@ MIT — see [LICENSE](LICENSE)
 
 | # | Plugin | Status | Description |
 |---|--------|--------|-------------|
-| 1 | [@vainplex/nats-eventstore](https://github.com/alberthild/openclaw-nats-eventstore) | ✅ Published | NATS JetStream event persistence |
-| 2 | **@vainplex/openclaw-cortex** | ✅ Published | Conversation intelligence — threads, decisions, boot context (this plugin) |
-| 3 | [@vainplex/openclaw-knowledge-engine](https://github.com/alberthild/openclaw-knowledge-engine) | ✅ Published | Real-time knowledge extraction |
-| 4 | @vainplex/openclaw-governance | 📋 Planned | Policy enforcement + guardrails |
-| 5 | @vainplex/openclaw-memory-engine | 📋 Planned | Unified memory layer |
-| 6 | @vainplex/openclaw-health-monitor | 📋 Planned | System health + auto-healing |
+| 1 | [@vainplex/nats-eventstore](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-nats-eventstore) | ✅ Published | NATS JetStream event persistence |
+| 2 | **@vainplex/openclaw-cortex** | ✅ Published | Conversation intelligence — threads, decisions, boot context, 10 languages (this plugin) |
+| 3 | [@vainplex/openclaw-knowledge-engine](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-knowledge-engine) | ✅ Published | Real-time knowledge extraction |
+| 4 | [@vainplex/openclaw-governance](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-governance) | ✅ Published | Policy-as-code engine — trust scoring, audit trail, production safeguards |
+| 5 | @vainplex/openclaw-health-monitor | 📋 Planned | System health + auto-healing |
 
 ## License
 
