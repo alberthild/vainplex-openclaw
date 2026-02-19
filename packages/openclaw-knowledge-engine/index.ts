@@ -1,6 +1,6 @@
 // index.ts — OpenClaw Plugin Entry Point
 
-import { resolveConfig } from './src/config.js';
+import { loadConfig } from './src/config-loader.js';
 import { HookManager } from './src/hooks.js';
 import type { OpenClawPluginApi } from './src/types.js';
 
@@ -14,7 +14,7 @@ const plugin = {
     const { pluginConfig, logger } = api;
 
     // 1. Resolve and validate the configuration
-    const config = resolveConfig(pluginConfig, logger);
+    const { config } = loadConfig(pluginConfig, logger);
     if (!config) {
       logger.error('Knowledge Engine: Invalid configuration — plugin disabled.');
       return;
