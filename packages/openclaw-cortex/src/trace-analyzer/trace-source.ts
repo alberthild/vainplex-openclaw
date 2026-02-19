@@ -12,6 +12,8 @@ export type FetchOpts = {
   agents?: string[];
   /** Batch size hint for the underlying transport (default: 500). */
   batchSize?: number;
+  /** Maximum number of events to yield (default: unlimited). */
+  maxEvents?: number;
 };
 
 /**

@@ -5,6 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.5] - 2026-02-19
+
+### Fixed
+- **Fetch hang on large streams**: `maxEventsPerRun` now caps the NATS fetch loop, not just chain reconstruction. Prevents 200k+ sequential getMessage calls from hanging.
+- **FetchOpts.maxEvents**: New option to limit events at the source level
+
 ## [0.4.4] - 2026-02-19
 
 ### Fixed

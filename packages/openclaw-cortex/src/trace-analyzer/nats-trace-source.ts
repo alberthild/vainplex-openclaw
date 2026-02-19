@@ -171,8 +171,11 @@ class NatsTraceSourceImpl implements TraceSource {
     let yieldedCount = 0;
     let missCount = 0;
     const maxConsecutiveMisses = 50;
+    const maxEvents = opts?.maxEvents ?? Infinity;
 
     for (let seq = startSeq; seq <= lastSeq; seq++) {
+      if (yieldedCount >= maxEvents) break;
+
       let raw: Record<string, unknown>;
       try {
         const stored = await this.jsm.streams.getMessage(this.config.stream, { seq });
@@ -195,7 +198,8 @@ class NatsTraceSourceImpl implements TraceSource {
       yield event;
     }
 
-    this.logger.info(`[trace-analyzer] Fetched ${yieldedCount} events in time range`);
+    const limitNote = yieldedCount >= maxEvents ? ` (capped at ${maxEvents})` : "";
+    this.logger.info(`[trace-analyzer] Fetched ${yieldedCount} events in time range${limitNote}`);
   }
 
   /**

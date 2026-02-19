@@ -73,6 +73,8 @@ function emptyReport(startedAt: number, previousState: Partial<ProcessingState>)
 export type TraceAnalyzerRunOpts = {
   /** If true, reprocesses all events from the beginning. */
   full?: boolean;
+  /** Override maximum events to fetch (default: config.maxEventsPerRun). */
+  maxEvents?: number;
 };
 
 export type TraceAnalyzerStatus = {
@@ -178,8 +180,10 @@ export class TraceAnalyzer {
       : (previousState.lastProcessedTs ?? 0) - (this.config.incrementalContextWindow * 60_000);
     const endMs = Date.now();
 
+    const maxEvents = opts?.maxEvents ?? this.config.maxEventsPerRun;
     const events = source.fetchByTimeRange(Math.max(0, startMs), endMs, {
       batchSize: this.config.fetchBatchSize,
+      maxEvents,
     });
 
     return reconstructChains(events, {
