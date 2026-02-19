@@ -1,6 +1,6 @@
 {
   "name": "@vainplex/nats-eventstore",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "OpenClaw plugin: publish agent events to NATS JetStream for audit, replay, and multi-agent sharing",
   "type": "module",
   "main": "dist/index.js",

@@ -1,6 +1,6 @@
 {
   "name": "@vainplex/openclaw-knowledge-engine",
-  "version": "0.1.2",
+  "version": "0.1.3",
   "description": "An OpenClaw plugin for real-time and batch knowledge extraction from conversational data.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
