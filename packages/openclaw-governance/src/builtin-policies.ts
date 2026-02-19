@@ -108,9 +108,9 @@ function resolveProductionSafeguard(
           {
             type: "any",
             conditions: [
-              { type: "tool", name: "exec", params: { command: { matches: "(docker push|docker-compose.*prod|deploy|systemctl.*(restart|stop))" } } },
-              { type: "tool", name: "exec", params: { command: { matches: "git push.*(main|master|prod)" } } },
-              { type: "tool", name: "gateway" },
+              { type: "tool", name: "exec", params: { command: { matches: "(docker push|docker-compose.*prod|systemctl.*(restart|stop|enable|disable))" } } },
+              { type: "tool", name: "exec", params: { command: { matches: "git push.*(origin|upstream).*(main|master|prod)" } } },
+              { type: "tool", name: "gateway", params: { action: { matches: "(restart|config\\.apply|update\\.run)" } } },
             ],
           },
         ],
@@ -130,19 +130,34 @@ function resolveRateLimiter(
 
   const maxPerMinute =
     typeof config === "object" ? config.maxPerMinute ?? 15 : 15;
+  const trustedLimit = maxPerMinute * 2;
 
   return {
     id: "builtin-rate-limiter",
     name: "Rate Limiter",
-    version: "1.0.0",
-    description: `Limits agents to ${maxPerMinute} tool calls per minute`,
+    version: "1.1.0",
+    description: `Limits agents to ${maxPerMinute}/min (trusted+: ${trustedLimit}/min)`,
     scope: { hooks: ["before_tool_call"] },
     priority: 50,
     controls: ["A.8.6"],
     rules: [
       {
-        id: "rate-limit-exceeded",
+        id: "rate-limit-trusted",
+        description: "Trusted+ agents get double the rate limit",
         conditions: [
+          { type: "agent", trustTier: ["trusted", "privileged"] },
+          { type: "frequency", maxCount: trustedLimit, windowSeconds: 60, scope: "agent" },
+        ],
+        effect: {
+          action: "deny",
+          reason: `Rate limit exceeded (${trustedLimit}/min for trusted agents)`,
+        },
+      },
+      {
+        id: "rate-limit-default",
+        description: "Standard rate limit for untrusted/standard/restricted agents",
+        conditions: [
+          { type: "not", condition: { type: "agent", trustTier: ["trusted", "privileged"] } },
           { type: "frequency", maxCount: maxPerMinute, windowSeconds: 60, scope: "agent" },
         ],
         effect: {
