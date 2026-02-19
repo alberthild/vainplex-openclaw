@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.0] - 2026-02-19
+
+### Added
+- **Trace Analyzer (RFC-005)** — conversation chain analysis for agent behavior improvement
+  - 3-stage pipeline: Structural Detection → LLM Classification → Output Generation
+  - 7 failure signal detectors: SIG-CORRECTION, SIG-TOOL-FAIL, SIG-DOOM-LOOP, SIG-DISSATISFIED, SIG-REPEAT-FAIL, SIG-HALLUCINATION, SIG-UNVERIFIED-CLAIM
+  - Multi-language signal detection (10 languages) per RFC-005 addendum
+  - NatsTraceSource with dual-schema normalization (Schema A + B)
+  - Chain reconstruction from raw events
+  - LLM-based finding classification (two-tier: fast + deep)
+  - Output generation: SOUL rules, governance policies, cortex patterns
+  - PII redaction before LLM processing
+  - Incremental processing with persistent state
+  - OpenClaw hook integration: `trace:analyze` command + scheduled runs
+  - Batch-only design — never in message hot path
+
 ## [0.3.1] - 2026-02-19
 
 ### Fixed
