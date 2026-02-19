@@ -64,7 +64,13 @@ export class GovernanceEngine {
     this.frequencyTracker = new FrequencyTrackerImpl(
       config.performance.frequencyBufferSize,
     );
-    this.policyIndex = { byHook: new Map(), byAgent: new Map(), regexCache: new Map() };
+    // Load policies eagerly so getStatus() is accurate before start()
+    const allPolicies = loadPolicies(
+      this.config.policies,
+      this.config.builtinPolicies,
+      this.logger,
+    );
+    this.policyIndex = buildPolicyIndex(allPolicies);
     this.stats = {
       totalEvaluations: 0,
       allowCount: 0,
@@ -75,12 +81,6 @@ export class GovernanceEngine {
   }
 
   async start(): Promise<void> {
-    const allPolicies = loadPolicies(
-      this.config.policies,
-      this.config.builtinPolicies,
-      this.logger,
-    );
-    this.policyIndex = buildPolicyIndex(allPolicies);
 
     this.trustManager.load();
     this.auditTrail.load();
@@ -89,8 +89,9 @@ export class GovernanceEngine {
     this.trustManager.startPersistence();
     this.auditTrail.startAutoFlush();
 
+    const policyCount = this.getStatus().policyCount;
     this.logger.info(
-      `[governance] Engine started: ${allPolicies.length} policies loaded`,
+      `[governance] Engine started: ${policyCount} policies loaded`,
     );
   }
 
