@@ -17,6 +17,29 @@ function matchesDissatisfaction(text: string, patterns: SignalPatternSet): boole
   return patterns.dissatisfaction.indicators.some(p => p.test(text));
 }
 
+/** Find the last msg.in index in a chain. Returns -1 if none. */
+function findLastUserMessage(events: ConversationChain["events"]): number {
+  for (let i = events.length - 1; i >= 0; i--) {
+    if (events[i].type === "msg.in") return i;
+  }
+  return -1;
+}
+
+/** Check if the agent resolved dissatisfaction after the given index. */
+function hasResolutionAfter(
+  events: ConversationChain["events"],
+  startIdx: number,
+  patterns: SignalPatternSet,
+): boolean {
+  for (let j = startIdx + 1; j < events.length; j++) {
+    if (events[j].type === "msg.out") {
+      const responseText = events[j].payload.content ?? "";
+      if (patterns.dissatisfaction.resolutionIndicators.some(p => p.test(responseText))) return true;
+    }
+  }
+  return false;
+}
+
 /**
  * Detect dissatisfied session endings.
  *
@@ -24,51 +47,20 @@ function matchesDissatisfaction(text: string, patterns: SignalPatternSet): boole
  * message is near the end of the chain (last 3 events).
  */
 export function detectDissatisfied(chain: ConversationChain, patterns: SignalPatternSet): FailureSignal[] {
-  const signals: FailureSignal[] = [];
   const { events } = chain;
-
-  // Find the last user message
-  let lastUserIdx = -1;
-  for (let i = events.length - 1; i >= 0; i--) {
-    if (events[i].type === "msg.in") {
-      lastUserIdx = i;
-      break;
-    }
-  }
-
-  if (lastUserIdx < 0) return signals;
+  const lastUserIdx = findLastUserMessage(events);
+  if (lastUserIdx < 0) return [];
 
   const userText = events[lastUserIdx].payload.content ?? "";
-  if (!userText) return signals;
+  if (!userText || !matchesDissatisfaction(userText, patterns)) return [];
+  if (lastUserIdx < events.length - 3) return [];
+  if (hasResolutionAfter(events, lastUserIdx, patterns)) return [];
 
-  if (!matchesDissatisfaction(userText, patterns)) return signals;
-
-  // Check: is this near the chain end? (within last 3 events)
-  if (lastUserIdx < events.length - 3) return signals;
-
-  // Check: did the agent resolve after the dissatisfaction?
-  let hasResolution = false;
-  for (let j = lastUserIdx + 1; j < events.length; j++) {
-    if (events[j].type === "msg.out") {
-      const responseText = events[j].payload.content ?? "";
-      if (patterns.dissatisfaction.resolutionIndicators.some(p => p.test(responseText))) {
-        hasResolution = true;
-        break;
-      }
-    }
-  }
-
-  if (hasResolution) return signals;
-
-  signals.push({
+  return [{
     signal: "SIG-DISSATISFIED",
     severity: "high",
     eventRange: { start: lastUserIdx, end: events.length - 1 },
     summary: `Session ended with user dissatisfaction: '${truncate(userText, 80)}'`,
-    evidence: {
-      userMessage: truncate(userText, 300),
-    },
-  });
-
-  return signals;
+    evidence: { userMessage: truncate(userText, 300) },
+  }];
 }

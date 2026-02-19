@@ -50,6 +50,33 @@ function paramsSimilar(
 }
 
 /**
+ * Check if there is a successful recovery attempt between index `start`
+ * and the next msg.out in `events`. Returns { recovered, reachedMsgOut }.
+ */
+function hasRecoveryAfter(
+  events: ConversationChain["events"],
+  start: number,
+  failedToolName: string | undefined,
+  failedParams: Record<string, unknown> | undefined,
+): { recovered: boolean; reachedMsgOut: boolean } {
+  for (let j = start; j < events.length; j++) {
+    if (events[j].type === "msg.out") return { recovered: false, reachedMsgOut: true };
+
+    if (events[j].type === "tool.call") {
+      const isDifferentTool = events[j].payload.toolName !== failedToolName;
+      const isDifferentParams = !paramsSimilar(events[j].payload.toolParams, failedParams);
+      if (isDifferentTool || isDifferentParams) {
+        const nextResult = events[j + 1];
+        if (nextResult?.type === "tool.result" && !isToolError(nextResult.payload)) {
+          return { recovered: true, reachedMsgOut: false };
+        }
+      }
+    }
+  }
+  return { recovered: false, reachedMsgOut: false };
+}
+
+/**
  * Detect unrecovered tool failures in a conversation chain.
  *
  * Pattern: tool.call → tool.result(error) → ... → msg.out (no recovery in between)
@@ -63,42 +90,14 @@ export function detectToolFails(chain: ConversationChain): FailureSignal[] {
     const call = events[i];
     const result = events[i + 1];
 
-    // Must be a tool.call followed by tool.result with error
     if (call.type !== "tool.call" || result.type !== "tool.result") continue;
     if (!isToolError(result.payload)) continue;
 
-    // Scan forward: is there a recovery attempt before the next msg.out?
-    let recovered = false;
-    let reachedMsgOut = false;
+    const { recovered, reachedMsgOut } = hasRecoveryAfter(
+      events, i + 2, call.payload.toolName, call.payload.toolParams,
+    );
 
-    for (let j = i + 2; j < events.length; j++) {
-      if (events[j].type === "msg.out") {
-        reachedMsgOut = true;
-        break;
-      }
-
-      if (events[j].type === "tool.call") {
-        // Different tool = recovery attempt
-        const isDifferentTool = events[j].payload.toolName !== call.payload.toolName;
-        const isDifferentParams = !paramsSimilar(
-          events[j].payload.toolParams,
-          call.payload.toolParams,
-        );
-
-        if (isDifferentTool || isDifferentParams) {
-          // Check if this recovery call succeeded
-          const nextResult = events[j + 1];
-          if (nextResult?.type === "tool.result" && !isToolError(nextResult.payload)) {
-            recovered = true;
-            break;
-          }
-        }
-      }
-    }
-
-    // Only flag if agent responded (msg.out) without recovering
-    if (!reachedMsgOut) continue;
-    if (recovered) continue;
+    if (!reachedMsgOut || recovered) continue;
 
     const toolName = call.payload.toolName ?? "unknown";
     const error = result.payload.toolError ?? "unknown error";

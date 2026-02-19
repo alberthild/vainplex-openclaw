@@ -119,45 +119,45 @@ export function formatChainAsTranscript(chain: ConversationChain): string {
 
 // ---- HTTP Call (uses node built-in fetch — Node 22) ----
 
+/** Resolve config fields that may come from ResolvedLlmConfig or TriageLlmConfig. */
+function resolveLlmCallConfig(config: ResolvedLlmConfig | TriageLlmConfig): {
+  endpoint: string; model: string; apiKey: string; timeoutMs: number;
+} {
+  return {
+    endpoint: "endpoint" in config ? config.endpoint : "",
+    model: "model" in config ? config.model : "",
+    apiKey: "apiKey" in config && config.apiKey ? config.apiKey : "",
+    timeoutMs: "timeoutMs" in config && config.timeoutMs ? config.timeoutMs : 15000,
+  };
+}
+
+/** Extract the assistant message content from an OpenAI-compatible response. */
+function parseLlmResponse(data: Record<string, unknown>): string | null {
+  const choices = data.choices as Array<{ message?: { content?: string } }> | undefined;
+  return choices?.[0]?.message?.content ?? null;
+}
+
 async function callLlmChat(
   config: ResolvedLlmConfig | TriageLlmConfig,
   messages: Array<{ role: string; content: string }>,
   logger: PluginLogger,
 ): Promise<string | null> {
-  const endpoint = "endpoint" in config ? config.endpoint : "";
-  const model = "model" in config ? config.model : "";
-  const apiKey = "apiKey" in config && config.apiKey ? config.apiKey : "";
-  const timeoutMs = "timeoutMs" in config && config.timeoutMs ? config.timeoutMs : 15000;
-
+  const { endpoint, model, apiKey, timeoutMs } = resolveLlmCallConfig(config);
   if (!endpoint || !model) return null;
 
   const url = `${endpoint}/chat/completions`;
   const body = JSON.stringify({
-    model,
-    messages,
-    temperature: 0.1,
-    max_tokens: 1000,
-    response_format: { type: "json_object" },
+    model, messages, temperature: 0.1,
+    max_tokens: 1000, response_format: { type: "json_object" },
   });
 
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-  };
-  if (apiKey) {
-    headers["Authorization"] = `Bearer ${apiKey}`;
-  }
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (apiKey) headers["Authorization"] = `Bearer ${apiKey}`;
 
   try {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
-
-    const response = await fetch(url, {
-      method: "POST",
-      headers,
-      body,
-      signal: controller.signal,
-    });
-
+    const response = await fetch(url, { method: "POST", headers, body, signal: controller.signal });
     clearTimeout(timer);
 
     if (!response.ok) {
@@ -165,9 +165,7 @@ async function callLlmChat(
       return null;
     }
 
-    const data = await response.json() as Record<string, unknown>;
-    const choices = data.choices as Array<{ message?: { content?: string } }> | undefined;
-    return choices?.[0]?.message?.content ?? null;
+    return parseLlmResponse(await response.json() as Record<string, unknown>);
   } catch (err) {
     if (err instanceof Error && err.name === "AbortError") {
       logger.warn(`[trace-analyzer] LLM request timed out (${timeoutMs}ms)`);

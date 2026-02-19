@@ -204,6 +204,36 @@ function resolveSignalConfig(
   return result;
 }
 
+/** Resolve NATS sub-config from raw input. */
+function resolveNatsConfig(natsRaw: Record<string, unknown>): TraceAnalyzerConfig["nats"] {
+  return {
+    url: str(natsRaw.url, TRACE_ANALYZER_DEFAULTS.nats.url),
+    stream: str(natsRaw.stream, TRACE_ANALYZER_DEFAULTS.nats.stream),
+    subjectPrefix: str(natsRaw.subjectPrefix, TRACE_ANALYZER_DEFAULTS.nats.subjectPrefix),
+    credentials: optStr(natsRaw.credentials),
+    user: optStr(natsRaw.user),
+    password: optStr(natsRaw.password),
+  };
+}
+
+/** Resolve LLM sub-config from raw input. */
+function resolveLlmConfig(llmRaw: Record<string, unknown>): TraceAnalyzerConfig["llm"] {
+  const triageRaw = (llmRaw.triage ?? undefined) as Record<string, unknown> | undefined;
+  return {
+    enabled: bool(llmRaw.enabled, TRACE_ANALYZER_DEFAULTS.llm.enabled),
+    endpoint: optStr(llmRaw.endpoint),
+    model: optStr(llmRaw.model),
+    apiKey: optStr(llmRaw.apiKey),
+    timeoutMs: optInt(llmRaw.timeoutMs),
+    triage: triageRaw ? {
+      endpoint: str(triageRaw.endpoint, ""),
+      model: str(triageRaw.model, ""),
+      apiKey: optStr(triageRaw.apiKey),
+      timeoutMs: optInt(triageRaw.timeoutMs),
+    } : undefined,
+  };
+}
+
 /**
  * Resolve a raw config object into a fully-typed TraceAnalyzerConfig.
  * Missing values are filled from TRACE_ANALYZER_DEFAULTS.
@@ -218,46 +248,23 @@ export function resolveTraceAnalyzerConfig(
   const llmRaw = (raw.llm ?? {}) as Record<string, unknown>;
   const outRaw = (raw.output ?? {}) as Record<string, unknown>;
   const signalsRaw = (raw.signals ?? {}) as Record<string, unknown>;
-  const triageRaw = (llmRaw.triage ?? undefined) as Record<string, unknown> | undefined;
 
   return {
     enabled: bool(raw.enabled, TRACE_ANALYZER_DEFAULTS.enabled),
-    nats: {
-      url: str(natsRaw.url, TRACE_ANALYZER_DEFAULTS.nats.url),
-      stream: str(natsRaw.stream, TRACE_ANALYZER_DEFAULTS.nats.stream),
-      subjectPrefix: str(natsRaw.subjectPrefix, TRACE_ANALYZER_DEFAULTS.nats.subjectPrefix),
-      credentials: optStr(natsRaw.credentials),
-      user: optStr(natsRaw.user),
-      password: optStr(natsRaw.password),
-    },
+    nats: resolveNatsConfig(natsRaw),
     schedule: {
       enabled: bool(schedRaw.enabled, TRACE_ANALYZER_DEFAULTS.schedule.enabled),
       intervalHours: int(schedRaw.intervalHours, TRACE_ANALYZER_DEFAULTS.schedule.intervalHours),
     },
     chainGapMinutes: int(raw.chainGapMinutes, TRACE_ANALYZER_DEFAULTS.chainGapMinutes),
     signals: resolveSignalConfig(signalsRaw),
-    llm: {
-      enabled: bool(llmRaw.enabled, TRACE_ANALYZER_DEFAULTS.llm.enabled),
-      endpoint: optStr(llmRaw.endpoint),
-      model: optStr(llmRaw.model),
-      apiKey: optStr(llmRaw.apiKey),
-      timeoutMs: optInt(llmRaw.timeoutMs),
-      triage: triageRaw ? {
-        endpoint: str(triageRaw.endpoint, ""),
-        model: str(triageRaw.model, ""),
-        apiKey: optStr(triageRaw.apiKey),
-        timeoutMs: optInt(triageRaw.timeoutMs),
-      } : undefined,
-    },
+    llm: resolveLlmConfig(llmRaw),
     output: {
       maxFindings: int(outRaw.maxFindings, TRACE_ANALYZER_DEFAULTS.output.maxFindings),
       reportPath: optStr(outRaw.reportPath),
     },
     redactPatterns: strArr(raw.redactPatterns) ?? [],
-    incrementalContextWindow: int(
-      raw.incrementalContextWindow,
-      TRACE_ANALYZER_DEFAULTS.incrementalContextWindow,
-    ),
+    incrementalContextWindow: int(raw.incrementalContextWindow, TRACE_ANALYZER_DEFAULTS.incrementalContextWindow),
     fetchBatchSize: int(raw.fetchBatchSize, TRACE_ANALYZER_DEFAULTS.fetchBatchSize),
     maxEventsPerRun: int(raw.maxEventsPerRun, TRACE_ANALYZER_DEFAULTS.maxEventsPerRun),
   };

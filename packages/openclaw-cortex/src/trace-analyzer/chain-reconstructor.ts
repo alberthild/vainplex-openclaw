@@ -44,6 +44,40 @@ const DEFAULT_OPTS: ChainReconstructorOpts = {
   maxEventsPerChain: 1000,
 };
 
+/** Phase 1: Bucket events by (session, agent). */
+async function bucketEvents(
+  events: AsyncIterable<NormalizedEvent>,
+): Promise<Map<string, NormalizedEvent[]>> {
+  const buckets = new Map<string, NormalizedEvent[]>();
+  for await (const event of events) {
+    const key = `${event.session}::${event.agent}`;
+    let bucket = buckets.get(key);
+    if (!bucket) { bucket = []; buckets.set(key, bucket); }
+    bucket.push(event);
+  }
+  return buckets;
+}
+
+/** Convert a segment of events into a ConversationChain. */
+function segmentToChain(segment: NormalizedEvent[]): ConversationChain {
+  const first = segment[0];
+  const last = segment[segment.length - 1];
+  const typeCounts: Partial<Record<AnalyzerEventType, number>> = {};
+  for (const e of segment) {
+    typeCounts[e.type] = (typeCounts[e.type] ?? 0) + 1;
+  }
+  return {
+    id: computeChainId(first.session, first.agent, first.ts),
+    agent: first.agent,
+    session: first.session,
+    startTs: first.ts,
+    endTs: last.ts,
+    events: segment,
+    typeCounts,
+    boundaryType: determineBoundaryType(segment),
+  };
+}
+
 /**
  * Reconstruct conversation chains from a stream of normalized events.
  *
@@ -56,58 +90,15 @@ export async function reconstructChains(
   opts?: Partial<ChainReconstructorOpts>,
 ): Promise<ConversationChain[]> {
   const config = { ...DEFAULT_OPTS, ...opts };
-
-  // Phase 1: Bucket events by (session, agent)
-  const buckets = new Map<string, NormalizedEvent[]>();
-
-  for await (const event of events) {
-    const key = `${event.session}::${event.agent}`;
-    let bucket = buckets.get(key);
-    if (!bucket) {
-      bucket = [];
-      buckets.set(key, bucket);
-    }
-    bucket.push(event);
-  }
-
-  // Phase 2: For each bucket, sort → dedup → split → emit chains
+  const buckets = await bucketEvents(events);
   const chains: ConversationChain[] = [];
 
   for (const bucket of buckets.values()) {
-    // Sort by timestamp (should already be ordered, but defensive)
     bucket.sort((a, b) => a.ts - b.ts);
-
-    // Deduplicate events (handles Schema A/B overlap)
     const deduped = deduplicateEvents(bucket);
-
-    // Split on boundaries
     const segments = splitOnBoundaries(deduped, config);
-
     for (const segment of segments) {
-      if (segment.length < 2) continue; // Skip trivially short chains
-
-      const first = segment[0];
-      const last = segment[segment.length - 1];
-
-      // Compute deterministic chain ID
-      const chainId = computeChainId(first.session, first.agent, first.ts);
-
-      // Count events by type
-      const typeCounts: Partial<Record<AnalyzerEventType, number>> = {};
-      for (const e of segment) {
-        typeCounts[e.type] = (typeCounts[e.type] ?? 0) + 1;
-      }
-
-      chains.push({
-        id: chainId,
-        agent: first.agent,
-        session: first.session,
-        startTs: first.ts,
-        endTs: last.ts,
-        events: segment,
-        typeCounts,
-        boundaryType: determineBoundaryType(segment),
-      });
+      if (segment.length >= 2) chains.push(segmentToChain(segment));
     }
   }
 
@@ -115,12 +106,24 @@ export async function reconstructChains(
 }
 
 /**
- * Split a sorted, deduplicated event list into chain segments based on:
- * (a) session.start → new chain
- * (b) session.end → close current chain
- * (c) run.end → run.start with >5 min gap
- * (d) inactivity gap exceeding configured threshold
- * (e) memory cap exceeded
+ * Determine if a chain boundary should be inserted between prev and curr.
+ * Checks lifecycle events and inactivity gaps.
+ */
+function isBoundary(
+  prev: NormalizedEvent,
+  curr: NormalizedEvent,
+  gapMs: number,
+): boolean {
+  if (curr.type === "session.start") return true;
+  if (prev.type === "session.end") return true;
+  if (prev.type === "run.end" && curr.type === "run.start" && curr.ts - prev.ts > 5 * 60 * 1000) return true;
+  if (curr.ts - prev.ts > gapMs) return true;
+  return false;
+}
+
+/**
+ * Split a sorted, deduplicated event list into chain segments based on
+ * lifecycle boundaries, inactivity gaps, and memory caps.
  */
 function splitOnBoundaries(
   events: NormalizedEvent[],
@@ -133,38 +136,11 @@ function splitOnBoundaries(
   let current: NormalizedEvent[] = [events[0]];
 
   for (let i = 1; i < events.length; i++) {
-    const prev = events[i - 1];
-    const curr = events[i];
-    let split = false;
-
-    // Boundary (a): session.start begins a new chain
-    if (curr.type === "session.start") {
-      split = true;
-    }
-
-    // Boundary (b): session.end closes current chain
-    if (prev.type === "session.end") {
-      split = true;
-    }
-
-    // Boundary (c): run.end → run.start with >5 min gap
-    if (prev.type === "run.end" && curr.type === "run.start") {
-      if (curr.ts - prev.ts > 5 * 60 * 1000) {
-        split = true;
-      }
-    }
-
-    // Boundary (d): inactivity gap exceeds configured threshold
-    if (curr.ts - prev.ts > gapMs) {
-      split = true;
-    }
-
-    if (split) {
+    if (isBoundary(events[i - 1], events[i], gapMs)) {
       if (current.length > 0) chains.push(current);
-      current = [curr];
+      current = [events[i]];
     } else {
-      current.push(curr);
-      // Boundary (e): memory cap — force split at max events
+      current.push(events[i]);
       if (current.length >= opts.maxEventsPerChain) {
         chains.push(current);
         current = [];

@@ -17,6 +17,46 @@ function matchesCompletion(text: string, patterns: SignalPatternSet): boolean {
 }
 
 /**
+ * Find the last tool.result index before `msgOutIdx` within the same turn.
+ * Returns -1 if none found.
+ */
+function findLastToolResultInTurn(
+  events: ConversationChain["events"],
+  msgOutIdx: number,
+): number {
+  for (let j = msgOutIdx - 1; j >= 0; j--) {
+    if (events[j].type === "tool.result") return j;
+    if (events[j].type === "msg.in") break;
+  }
+  return -1;
+}
+
+/**
+ * Build a hallucination signal from the given event indices.
+ */
+function buildHallucinationSignal(
+  events: ConversationChain["events"],
+  toolResultIdx: number,
+  msgOutIdx: number,
+  content: string,
+): FailureSignal {
+  const toolResult = events[toolResultIdx];
+  const toolCallIdx = toolResultIdx > 0 && events[toolResultIdx - 1].type === "tool.call"
+    ? toolResultIdx - 1 : toolResultIdx;
+  return {
+    signal: "SIG-HALLUCINATION",
+    severity: "critical",
+    eventRange: { start: toolCallIdx, end: msgOutIdx },
+    summary: `Agent claimed completion despite tool failure: '${truncate(content, 100)}'`,
+    evidence: {
+      agentClaim: truncate(content, 300),
+      precedingError: truncate(toolResult.payload.toolError ?? "unknown", 200),
+      toolName: toolResult.payload.toolName ?? "unknown",
+    },
+  };
+}
+
+/**
  * Detect hallucinated completions.
  *
  * Pattern: agent claims completion in msg.out, but the last tool.result
@@ -28,46 +68,12 @@ export function detectHallucinations(chain: ConversationChain, patterns: SignalP
 
   for (let i = 0; i < events.length; i++) {
     if (events[i].type !== "msg.out") continue;
-
     const content = events[i].payload.content ?? "";
-    if (!content) continue;
+    if (!content || !matchesCompletion(content, patterns) || isQuestion(content, patterns)) continue;
 
-    // Must claim completion
-    if (!matchesCompletion(content, patterns)) continue;
-
-    // Exclude questions
-    if (isQuestion(content, patterns)) continue;
-
-    // Find the last tool.result before this msg.out
-    let lastToolResultIdx = -1;
-    for (let j = i - 1; j >= 0; j--) {
-      if (events[j].type === "tool.result") {
-        lastToolResultIdx = j;
-        break;
-      }
-      // Stop at a previous msg.in — we only look within this turn
-      if (events[j].type === "msg.in") break;
-    }
-
-    // If there's a tool result and it was an error → hallucination
+    const lastToolResultIdx = findLastToolResultInTurn(events, i);
     if (lastToolResultIdx >= 0 && isToolError(events[lastToolResultIdx].payload)) {
-      const toolResult = events[lastToolResultIdx];
-      // Find the matching tool.call
-      const toolCallIdx = lastToolResultIdx > 0 && events[lastToolResultIdx - 1].type === "tool.call"
-        ? lastToolResultIdx - 1
-        : lastToolResultIdx;
-
-      signals.push({
-        signal: "SIG-HALLUCINATION",
-        severity: "critical",
-        eventRange: { start: toolCallIdx, end: i },
-        summary: `Agent claimed completion despite tool failure: '${truncate(content, 100)}'`,
-        evidence: {
-          agentClaim: truncate(content, 300),
-          precedingError: truncate(toolResult.payload.toolError ?? "unknown", 200),
-          toolName: toolResult.payload.toolName ?? "unknown",
-        },
-      });
+      signals.push(buildHallucinationSignal(events, lastToolResultIdx, i, content));
     }
   }
 

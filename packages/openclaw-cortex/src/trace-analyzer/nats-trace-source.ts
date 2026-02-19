@@ -59,6 +59,42 @@ interface NatsModule {
 }
 
 /**
+ * Dynamically import the nats module, returning null if not installed.
+ * Uses `new Function()` to prevent bundler static resolution (R-004).
+ */
+async function loadNatsModule(logger: PluginLogger): Promise<NatsModule | null> {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    return await (new Function("specifier", "return import(specifier)")("nats") as Promise<NatsModule>);
+  } catch {
+    logger.info("[trace-analyzer] `nats` package not installed — NATS trace source unavailable");
+    return null;
+  }
+}
+
+/** Connect to NATS and return an implementation, or null on failure. */
+async function connectNats(
+  nats: NatsModule,
+  natsConfig: TraceAnalyzerConfig["nats"],
+  logger: PluginLogger,
+): Promise<TraceSource | null> {
+  try {
+    const nc = await nats.connect({
+      servers: natsConfig.url.replace(/^nats:\/\//, ""),
+      user: natsConfig.user, pass: natsConfig.password,
+      reconnect: true, maxReconnectAttempts: 10, timeout: 10_000,
+    });
+    logger.info(`[trace-analyzer] Connected to NATS at ${natsConfig.url}`);
+    const js = nc.jetstream();
+    const jsm = await nc.jetstreamManager();
+    return new NatsTraceSourceImpl(nc, js, jsm, natsConfig, nats, logger);
+  } catch (err) {
+    logger.warn(`[trace-analyzer] NATS connection failed: ${err instanceof Error ? err.message : String(err)}`);
+    return null;
+  }
+}
+
+/**
  * Attempt to create a NatsTraceSource. Returns null if:
  * - `nats` npm package is not installed (R-004)
  * - NATS connection fails
@@ -67,44 +103,35 @@ export async function createNatsTraceSource(
   natsConfig: TraceAnalyzerConfig["nats"],
   logger: PluginLogger,
 ): Promise<TraceSource | null> {
-  let nats: NatsModule;
+  const nats = await loadNatsModule(logger);
+  if (!nats) return null;
+  return connectNats(nats, natsConfig, logger);
+}
+
+/** Result of processing a single NATS message. */
+type MessageResult = { event: NormalizedEvent } | "skip" | "past-end";
+
+/** Decode, normalize and filter a single NATS message. */
+function processMessage(
+  msg: JetStreamMsg,
+  sc: { decode(data: Uint8Array): string },
+  startMs: number,
+  endMs: number,
+  opts?: FetchOpts,
+): MessageResult {
+  let raw: Record<string, unknown>;
   try {
-    // Dynamic import — optional peer dependency (R-004)
-    // We use `new Function()` here to prevent bundlers (esbuild, webpack, rollup)
-    // from statically resolving this import. The `nats` package is an optional
-    // peer dependency: if it's not installed, this should fail gracefully at
-    // runtime rather than causing a build-time error. A plain `import("nats")`
-    // would be rewritten by bundlers into a static require, breaking builds
-    // when nats is absent.
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    nats = await (new Function("specifier", "return import(specifier)")("nats") as Promise<NatsModule>);
-  } catch {
-    logger.info("[trace-analyzer] `nats` package not installed — NATS trace source unavailable");
-    return null;
-  }
+    raw = JSON.parse(sc.decode(msg.data)) as Record<string, unknown>;
+  } catch { return "skip"; }
 
-  try {
-    const nc = await nats.connect({
-      servers: natsConfig.url.replace(/^nats:\/\//, ""),
-      user: natsConfig.user,
-      pass: natsConfig.password,
-      reconnect: true,
-      maxReconnectAttempts: 10,
-      timeout: 10_000,
-    });
+  const event = normalizeEvent(raw, msg.seq);
+  if (!event) return "skip";
+  if (event.ts < startMs) return "skip";
+  if (event.ts > endMs) return "past-end";
+  if (opts?.eventTypes && !opts.eventTypes.includes(event.type)) return "skip";
+  if (opts?.agents && !opts.agents.includes(event.agent)) return "skip";
 
-    logger.info(`[trace-analyzer] Connected to NATS at ${natsConfig.url}`);
-
-    const js = nc.jetstream();
-    const jsm = await nc.jetstreamManager();
-
-    return new NatsTraceSourceImpl(nc, js, jsm, natsConfig, nats, logger);
-  } catch (err) {
-    logger.warn(
-      `[trace-analyzer] NATS connection failed: ${err instanceof Error ? err.message : String(err)}`,
-    );
-    return null;
-  }
+  return { event };
 }
 
 class NatsTraceSourceImpl implements TraceSource {
@@ -129,58 +156,21 @@ class NatsTraceSourceImpl implements TraceSource {
     let yieldedCount = 0;
     let exhausted = false;
 
-    // Paginate: loop fetching batches until the endMs cutoff is reached or
-    // the stream is exhausted. Each consume() call fetches up to batchSize
-    // messages; we keep requesting new batches until done.
     while (!exhausted) {
       const consumer = await this.js.consumers.get(this.config.stream);
-      const messages = await consumer.consume({
-        max_messages: batchSize,
-        idle_heartbeat: 5_000,
-      });
-
+      const messages = await consumer.consume({ max_messages: batchSize, idle_heartbeat: 5_000 });
       let batchCount = 0;
       let pastEnd = false;
 
       try {
         for await (const msg of messages) {
           batchCount++;
-          const rawStr = sc.decode(msg.data);
-          let raw: Record<string, unknown>;
-          try {
-            raw = JSON.parse(rawStr) as Record<string, unknown>;
-          } catch {
-            msg.ack();
-            continue;
-          }
-
-          const event = normalizeEvent(raw, msg.seq);
-          if (!event) { msg.ack(); continue; }
-
-          // Time range filter
-          if (event.ts < startMs) { msg.ack(); continue; }
-          if (event.ts > endMs) {
-            msg.ack();
-            messages.stop();
-            pastEnd = true;
-            break;
-          }
-
-          // Event type filter
-          if (opts?.eventTypes && !opts.eventTypes.includes(event.type)) {
-            msg.ack();
-            continue;
-          }
-
-          // Agent filter
-          if (opts?.agents && !opts.agents.includes(event.agent)) {
-            msg.ack();
-            continue;
-          }
-
+          const result = processMessage(msg, sc, startMs, endMs, opts);
           msg.ack();
+          if (result === "skip") continue;
+          if (result === "past-end") { messages.stop(); pastEnd = true; break; }
           yieldedCount++;
-          yield event;
+          yield result.event;
         }
       } catch (err) {
         this.logger.warn(
@@ -189,11 +179,7 @@ class NatsTraceSourceImpl implements TraceSource {
         break;
       }
 
-      // If we went past endMs or the batch returned fewer messages than
-      // requested, the stream is exhausted for our time range.
-      if (pastEnd || batchCount < batchSize) {
-        exhausted = true;
-      }
+      if (pastEnd || batchCount < batchSize) exhausted = true;
     }
 
     this.logger.info(`[trace-analyzer] Fetched ${yieldedCount} events in time range`);

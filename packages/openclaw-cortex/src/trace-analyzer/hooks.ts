@@ -81,6 +81,83 @@ async function ensureAnalyzer(
   return state.analyzer;
 }
 
+/** Handle the /trace-analyze command. */
+async function handleTraceAnalyze(
+  api: OpenClawPluginApi,
+  state: TraceAnalyzerHookState,
+  config: CortexConfig,
+  workspace: string,
+  args?: Record<string, unknown>,
+): Promise<{ text: string }> {
+  const logger = api.logger;
+  const full = args?.full === true || args?.full === "true";
+  try {
+    const analyzer = await ensureAnalyzer(state, config, workspace, logger);
+    const report = await analyzer.run({ full });
+    return {
+      text: [
+        `Trace analysis complete.`,
+        `Events: ${report.stats.eventsProcessed}`,
+        `Chains: ${report.stats.chainsReconstructed}`,
+        `Findings: ${report.stats.findingsDetected}`,
+        `Classified: ${report.stats.findingsClassified}`,
+        `Outputs: ${report.stats.outputsGenerated}`,
+      ].join(" | "),
+    };
+  } catch (err) {
+    logger.warn(`[trace-analyzer] Command error: ${err instanceof Error ? err.message : String(err)}`);
+    return { text: `Trace analysis failed: ${err instanceof Error ? err.message : String(err)}` };
+  }
+}
+
+/** Handle the /trace-status command. */
+async function handleTraceStatus(
+  api: OpenClawPluginApi,
+  state: TraceAnalyzerHookState,
+  config: CortexConfig,
+  workspace: string,
+): Promise<{ text: string }> {
+  const logger = api.logger;
+  try {
+    const analyzer = await ensureAnalyzer(state, config, workspace, logger);
+    const status = await analyzer.getStatus();
+    return {
+      text: [
+        `Trace Analyzer Status`,
+        `Last run: ${status.lastRun ?? "never"}`,
+        `Total findings: ${status.findings}`,
+        `Events processed: ${status.state.totalEventsProcessed ?? 0}`,
+      ].join(" | "),
+    };
+  } catch (err) {
+    return { text: `Failed to get status: ${err instanceof Error ? err.message : String(err)}` };
+  }
+}
+
+/** Set up the scheduled analysis interval timer. */
+function setupSchedule(
+  api: OpenClawPluginApi,
+  state: TraceAnalyzerHookState,
+  config: CortexConfig,
+  workspace: string,
+): void {
+  const intervalMs = config.traceAnalyzer.schedule.intervalHours * 60 * 60 * 1000;
+  const timer = setInterval(() => {
+    const logger = api.logger;
+    logger.info("[trace-analyzer] Running scheduled analysis...");
+    ensureAnalyzer(state, config, workspace, logger)
+      .then(analyzer => analyzer.run())
+      .catch(err => {
+        logger.warn(
+          `[trace-analyzer] Scheduled analysis failed: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      });
+  }, intervalMs);
+  timer.unref();
+  state.timer = timer;
+  api.logger.info(`[trace-analyzer] Scheduled analysis every ${config.traceAnalyzer.schedule.intervalHours}h`);
+}
+
 /**
  * Register trace analyzer hooks (commands + optional scheduled runs).
  *
@@ -94,83 +171,20 @@ export function registerTraceAnalyzerHooks(
 ): void {
   const workspace = resolveWorkspace(config);
 
-  // Register /trace-analyze command
   api.registerCommand({
     name: "trace-analyze",
     description: "Run the trace analyzer pipeline (batch analysis of agent event traces)",
-    handler: async (args?: Record<string, unknown>) => {
-      const logger = api.logger;
-      const full = args?.full === true || args?.full === "true";
-
-      try {
-        const analyzer = await ensureAnalyzer(state, config, workspace, logger);
-        const report = await analyzer.run({ full });
-
-        return {
-          text: [
-            `Trace analysis complete.`,
-            `Events: ${report.stats.eventsProcessed}`,
-            `Chains: ${report.stats.chainsReconstructed}`,
-            `Findings: ${report.stats.findingsDetected}`,
-            `Classified: ${report.stats.findingsClassified}`,
-            `Outputs: ${report.stats.outputsGenerated}`,
-          ].join(" | "),
-        };
-      } catch (err) {
-        logger.warn(`[trace-analyzer] Command error: ${err instanceof Error ? err.message : String(err)}`);
-        return { text: `Trace analysis failed: ${err instanceof Error ? err.message : String(err)}` };
-      }
-    },
+    handler: (args?: Record<string, unknown>) => handleTraceAnalyze(api, state, config, workspace, args),
   });
 
-  // Register /trace-status command
   api.registerCommand({
     name: "trace-status",
     description: "Show trace analyzer status (last run, findings count, processing state)",
-    handler: async () => {
-      const logger = api.logger;
-      try {
-        const analyzer = await ensureAnalyzer(state, config, workspace, logger);
-        const status = await analyzer.getStatus();
-
-        return {
-          text: [
-            `Trace Analyzer Status`,
-            `Last run: ${status.lastRun ?? "never"}`,
-            `Total findings: ${status.findings}`,
-            `Events processed: ${status.state.totalEventsProcessed ?? 0}`,
-          ].join(" | "),
-        };
-      } catch (err) {
-        return { text: `Failed to get status: ${err instanceof Error ? err.message : String(err)}` };
-      }
-    },
+    handler: () => handleTraceStatus(api, state, config, workspace),
   });
 
-  // Set up scheduled interval if configured
   if (config.traceAnalyzer.schedule.enabled) {
-    const intervalMs = config.traceAnalyzer.schedule.intervalHours * 60 * 60 * 1000;
-
-    const timer = setInterval(() => {
-      const logger = api.logger;
-      logger.info("[trace-analyzer] Running scheduled analysis...");
-
-      ensureAnalyzer(state, config, workspace, logger)
-        .then(analyzer => analyzer.run())
-        .catch(err => {
-          logger.warn(
-            `[trace-analyzer] Scheduled analysis failed: ${err instanceof Error ? err.message : String(err)}`,
-          );
-        });
-    }, intervalMs);
-
-    // Prevent the timer from keeping Node alive
-    timer.unref();
-    state.timer = timer;
-
-    api.logger.info(
-      `[trace-analyzer] Scheduled analysis every ${config.traceAnalyzer.schedule.intervalHours}h`,
-    );
+    setupSchedule(api, state, config, workspace);
   }
 
   api.logger.info(

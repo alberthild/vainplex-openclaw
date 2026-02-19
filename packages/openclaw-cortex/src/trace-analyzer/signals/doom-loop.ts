@@ -136,6 +136,30 @@ export function paramSimilarity(
 }
 
 /**
+ * Count consecutive similar failing attempts starting from `anchor`.
+ * Returns the count and index of the last matching attempt.
+ */
+function countConsecutiveSimilarFails(
+  attempts: ToolAttempt[],
+  startIdx: number,
+): { count: number; lastIdx: number } {
+  const anchor = attempts[startIdx];
+  let count = 1;
+  let lastIdx = startIdx;
+
+  for (let j = startIdx + 1; j < attempts.length; j++) {
+    const candidate = attempts[j];
+    if (candidate.toolName !== anchor.toolName) break;
+    if (paramSimilarity(candidate.params, anchor.params) < 0.8) break;
+    if (!candidate.isError) break;
+    count++;
+    lastIdx = j;
+  }
+
+  return { count, lastIdx };
+}
+
+/**
  * Detect doom loops: 3+ consecutive similar tool calls with similar
  * params all failing.
  */
@@ -146,32 +170,9 @@ export function detectDoomLoops(chain: ConversationChain): FailureSignal[] {
   let i = 0;
   while (i < attempts.length) {
     const anchor = attempts[i];
+    if (!anchor.isError) { i++; continue; }
 
-    // Only start a loop from a failed attempt
-    if (!anchor.isError) {
-      i++;
-      continue;
-    }
-
-    // Count consecutive similar failures
-    let count = 1;
-    let lastIdx = i;
-
-    for (let j = i + 1; j < attempts.length; j++) {
-      const candidate = attempts[j];
-
-      // Must be same tool
-      if (candidate.toolName !== anchor.toolName) break;
-
-      // Must have similar params
-      if (paramSimilarity(candidate.params, anchor.params) < 0.8) break;
-
-      // Must also be a failure
-      if (!candidate.isError) break;
-
-      count++;
-      lastIdx = j;
-    }
+    const { count, lastIdx } = countConsecutiveSimilarFails(attempts, i);
 
     if (count >= 3) {
       const lastAttempt = attempts[lastIdx];
@@ -187,8 +188,6 @@ export function detectDoomLoops(chain: ConversationChain): FailureSignal[] {
           params: anchor.params,
         },
       });
-
-      // Skip past the loop
       i = lastIdx + 1;
     } else {
       i++;

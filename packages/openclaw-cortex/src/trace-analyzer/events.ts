@@ -142,6 +142,121 @@ export function normalizeSession(raw: string): string {
   return raw;
 }
 
+/** Extract optional string field. */
+function optStr(raw: Record<string, unknown>, key: string): string | undefined {
+  return typeof raw[key] === "string" ? raw[key] : undefined;
+}
+
+/** Normalize msg.in/msg.out payload — Schema B (conversation.*). */
+function normalizeMessagePayloadB(
+  rawPayload: Record<string, unknown>,
+  role: "user" | "assistant",
+): NormalizedPayload {
+  const textPreview = rawPayload.text_preview;
+  let content: string | undefined;
+  if (Array.isArray(textPreview) && textPreview.length > 0) {
+    const first = textPreview[0] as Record<string, unknown> | undefined;
+    if (first && typeof first.text === "string") content = first.text;
+  }
+  return { content, role, sessionId: optStr(rawPayload, "sessionId") };
+}
+
+/** Normalize msg.in/msg.out payload — Schema A. */
+function normalizeMessagePayloadA(
+  rawPayload: Record<string, unknown>,
+  role: "user" | "assistant",
+): NormalizedPayload {
+  return {
+    content: optStr(rawPayload, "content"),
+    role,
+    from: optStr(rawPayload, "from"),
+    to: optStr(rawPayload, "to"),
+    channel: optStr(rawPayload, "channel"),
+    success: typeof rawPayload.success === "boolean" ? rawPayload.success : undefined,
+  };
+}
+
+/** Normalize tool.call payload. */
+function normalizeToolCallPayload(
+  rawPayload: Record<string, unknown>,
+  isSchemaB: boolean,
+): NormalizedPayload {
+  if (isSchemaB) {
+    const data = rawPayload.data as Record<string, unknown> | undefined;
+    return {
+      toolName: data && typeof data.name === "string" ? data.name : undefined,
+      toolParams: data && typeof data.args === "object" && data.args !== null
+        ? data.args as Record<string, unknown> : undefined,
+    };
+  }
+  return {
+    toolName: optStr(rawPayload, "toolName"),
+    toolParams: typeof rawPayload.params === "object" && rawPayload.params !== null
+      ? rawPayload.params as Record<string, unknown> : undefined,
+  };
+}
+
+/** Normalize tool.result payload — Schema B. */
+function normalizeToolResultPayloadB(rawPayload: Record<string, unknown>): NormalizedPayload {
+  const data = rawPayload.data as Record<string, unknown> | undefined;
+  let toolResult: unknown;
+  let toolError: string | undefined;
+  let toolIsError = false;
+  if (data) {
+    toolResult = data.result;
+    toolIsError = data.isError === true;
+    if (toolIsError && typeof data.result === "string") toolError = data.result;
+  }
+  return {
+    toolName: data && typeof data.name === "string" ? data.name : undefined,
+    toolResult, toolError, toolIsError,
+  };
+}
+
+/** Normalize tool.result payload — Schema A. */
+function normalizeToolResultPayloadA(rawPayload: Record<string, unknown>): NormalizedPayload {
+  return {
+    toolName: optStr(rawPayload, "toolName"),
+    toolParams: typeof rawPayload.params === "object" && rawPayload.params !== null
+      ? rawPayload.params as Record<string, unknown> : undefined,
+    toolResult: rawPayload.result,
+    toolError: optStr(rawPayload, "error"),
+    toolIsError: typeof rawPayload.error === "string" ? true : undefined,
+    toolDurationMs: typeof rawPayload.durationMs === "number" ? rawPayload.durationMs : undefined,
+  };
+}
+
+/** Normalize lifecycle events (session.*, run.*). */
+function normalizeLifecyclePayload(
+  type: AnalyzerEventType,
+  rawPayload: Record<string, unknown>,
+): NormalizedPayload {
+  switch (type) {
+    case "session.start":
+      return { sessionId: optStr(rawPayload, "sessionId") };
+    case "session.end":
+      return {
+        sessionId: optStr(rawPayload, "sessionId"),
+        durationMs: typeof rawPayload.durationMs === "number" ? rawPayload.durationMs : undefined,
+      };
+    case "run.start":
+      return { prompt: optStr(rawPayload, "prompt") };
+    case "run.end":
+      return {
+        success: typeof rawPayload.success === "boolean" ? rawPayload.success : undefined,
+        error: optStr(rawPayload, "error"),
+        durationMs: typeof rawPayload.durationMs === "number" ? rawPayload.durationMs : undefined,
+      };
+    case "run.error":
+      return {
+        error: optStr(rawPayload, "error"),
+        durationMs: typeof rawPayload.durationMs === "number" ? rawPayload.durationMs : undefined,
+      };
+    default:
+      return {};
+  }
+}
+
 /**
  * Normalize a raw payload into the unified NormalizedPayload shape.
  * Handles both Schema A and Schema B payload structures.
@@ -157,122 +272,18 @@ export function normalizePayload(
     case "msg.in":
     case "msg.out": {
       const role: "user" | "assistant" = type === "msg.in" ? "user" : "assistant";
-
-      if (isSchemaB) {
-        // Schema B: content in text_preview[0].text
-        const textPreview = rawPayload.text_preview;
-        let content: string | undefined;
-        if (Array.isArray(textPreview) && textPreview.length > 0) {
-          const first = textPreview[0] as Record<string, unknown> | undefined;
-          if (first && typeof first.text === "string") {
-            content = first.text;
-          }
-        }
-        return {
-          content,
-          role,
-          sessionId: typeof rawPayload.sessionId === "string" ? rawPayload.sessionId : undefined,
-        };
-      }
-
-      // Schema A: direct fields
-      return {
-        content: typeof rawPayload.content === "string" ? rawPayload.content : undefined,
-        role,
-        from: typeof rawPayload.from === "string" ? rawPayload.from : undefined,
-        to: typeof rawPayload.to === "string" ? rawPayload.to : undefined,
-        channel: typeof rawPayload.channel === "string" ? rawPayload.channel : undefined,
-        success: typeof rawPayload.success === "boolean" ? rawPayload.success : undefined,
-      };
+      return isSchemaB
+        ? normalizeMessagePayloadB(rawPayload, role)
+        : normalizeMessagePayloadA(rawPayload, role);
     }
-
-    case "tool.call": {
-      if (isSchemaB) {
-        // Schema B: data.name, data.args
-        const data = rawPayload.data as Record<string, unknown> | undefined;
-        return {
-          toolName: data && typeof data.name === "string" ? data.name : undefined,
-          toolParams: data && typeof data.args === "object" && data.args !== null
-            ? data.args as Record<string, unknown>
-            : undefined,
-        };
-      }
-      // Schema A: toolName, params
-      return {
-        toolName: typeof rawPayload.toolName === "string" ? rawPayload.toolName : undefined,
-        toolParams: typeof rawPayload.params === "object" && rawPayload.params !== null
-          ? rawPayload.params as Record<string, unknown>
-          : undefined,
-      };
-    }
-
-    case "tool.result": {
-      if (isSchemaB) {
-        // Schema B: data.name, data.isError, data.result
-        const data = rawPayload.data as Record<string, unknown> | undefined;
-        let toolResult: unknown;
-        let toolError: string | undefined;
-        let toolIsError = false;
-
-        if (data) {
-          toolResult = data.result;
-          toolIsError = data.isError === true;
-          if (toolIsError && typeof data.result === "string") {
-            toolError = data.result;
-          }
-        }
-
-        return {
-          toolName: data && typeof data.name === "string" ? data.name : undefined,
-          toolResult,
-          toolError,
-          toolIsError,
-        };
-      }
-      // Schema A: toolName, params, result, error, durationMs
-      return {
-        toolName: typeof rawPayload.toolName === "string" ? rawPayload.toolName : undefined,
-        toolParams: typeof rawPayload.params === "object" && rawPayload.params !== null
-          ? rawPayload.params as Record<string, unknown>
-          : undefined,
-        toolResult: rawPayload.result,
-        toolError: typeof rawPayload.error === "string" ? rawPayload.error : undefined,
-        toolIsError: typeof rawPayload.error === "string" ? true : undefined,
-        toolDurationMs: typeof rawPayload.durationMs === "number" ? rawPayload.durationMs : undefined,
-      };
-    }
-
-    case "session.start":
-      return {
-        sessionId: typeof rawPayload.sessionId === "string" ? rawPayload.sessionId : undefined,
-      };
-
-    case "session.end":
-      return {
-        sessionId: typeof rawPayload.sessionId === "string" ? rawPayload.sessionId : undefined,
-        durationMs: typeof rawPayload.durationMs === "number" ? rawPayload.durationMs : undefined,
-      };
-
-    case "run.start":
-      return {
-        prompt: typeof rawPayload.prompt === "string" ? rawPayload.prompt : undefined,
-      };
-
-    case "run.end":
-      return {
-        success: typeof rawPayload.success === "boolean" ? rawPayload.success : undefined,
-        error: typeof rawPayload.error === "string" ? rawPayload.error : undefined,
-        durationMs: typeof rawPayload.durationMs === "number" ? rawPayload.durationMs : undefined,
-      };
-
-    case "run.error":
-      return {
-        error: typeof rawPayload.error === "string" ? rawPayload.error : undefined,
-        durationMs: typeof rawPayload.durationMs === "number" ? rawPayload.durationMs : undefined,
-      };
-
+    case "tool.call":
+      return normalizeToolCallPayload(rawPayload, isSchemaB);
+    case "tool.result":
+      return isSchemaB
+        ? normalizeToolResultPayloadB(rawPayload)
+        : normalizeToolResultPayloadA(rawPayload);
     default:
-      return {};
+      return normalizeLifecyclePayload(type, rawPayload);
   }
 }
 

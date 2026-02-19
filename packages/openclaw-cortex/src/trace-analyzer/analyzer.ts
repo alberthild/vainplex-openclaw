@@ -166,82 +166,82 @@ export class TraceAnalyzer {
 
   // ---- Private Pipeline Steps ----
 
-  private async executePipeline(
+  /** Steps 2-3: Fetch events and reconstruct conversation chains. */
+  private async fetchAndReconstructChains(
     source: TraceSource,
-    startedAt: number,
     previousState: Partial<ProcessingState>,
     opts?: TraceAnalyzerRunOpts,
-  ): Promise<AnalysisReport> {
-    // 2. Determine time range
+  ): Promise<ConversationChain[]> {
     const isFullRun = opts?.full === true || !previousState.lastProcessedTs;
     const startMs = isFullRun
       ? 0
       : (previousState.lastProcessedTs ?? 0) - (this.config.incrementalContextWindow * 60_000);
     const endMs = Date.now();
 
-    // Fetch events
     const events = source.fetchByTimeRange(Math.max(0, startMs), endMs, {
       batchSize: this.config.fetchBatchSize,
     });
 
-    // 3. Reconstruct chains
-    const chains = await reconstructChains(events, {
+    return reconstructChains(events, {
       gapMinutes: this.config.chainGapMinutes,
       maxEventsPerChain: 1000,
     });
+  }
 
-    const eventsProcessed = chains.reduce((sum, c) => sum + c.events.length, 0);
-
-    // 4. Stage 1 — Structural detection
+  /** Steps 4-6: Detect signals and optionally classify with LLM. */
+  private async detectAndClassify(chains: ConversationChain[]): Promise<Finding[]> {
     const repeatFailState = createRepeatFailState();
-    let findings = detectAllSignals(chains, this.config.signals, repeatFailState, this.signalPatterns, this.logger);
+    let findings = detectAllSignals(
+      chains, this.config.signals, repeatFailState, this.signalPatterns, this.logger,
+    );
 
-    // 5. Limit findings by severity priority
     if (findings.length > this.config.output.maxFindings) {
       findings = findings
         .sort((a, b) => SEVERITY_RANK[b.signal.severity] - SEVERITY_RANK[a.signal.severity])
         .slice(0, this.config.output.maxFindings);
     }
 
-    // 6. Stage 2 — LLM classification (optional)
     if (this.config.llm.enabled) {
       const chainMap = new Map<string, ConversationChain>(chains.map(c => [c.id, c]));
-      findings = await classifyFindings(
-        findings,
-        chainMap,
-        this.config,
-        this.topLevelLlm,
-        this.logger,
-      );
+      findings = await classifyFindings(findings, chainMap, this.config, this.topLevelLlm, this.logger);
     }
 
-    // 7. Stage 3 — Output generation
-    const generatedOutputs: GeneratedOutput[] = generateOutputs(findings);
+    return findings;
+  }
 
-    // 8. Assemble report
+  /** Steps 7-8: Generate outputs, assemble report, persist. */
+  private generateAndPersist(
+    startedAt: number,
+    eventsProcessed: number,
+    chains: ConversationChain[],
+    findings: Finding[],
+    previousState: Partial<ProcessingState>,
+  ): AnalysisReport {
+    const generatedOutputs: GeneratedOutput[] = generateOutputs(findings);
     const report = assembleReport({
-      startedAt,
-      completedAt: Date.now(),
-      eventsProcessed,
-      chains,
-      findings,
-      generatedOutputs,
-      previousState,
+      startedAt, completedAt: Date.now(),
+      eventsProcessed, chains, findings, generatedOutputs, previousState,
     });
 
-    // Persist report
-    const rPath = reportPath(this.workspace, this.config);
-    saveJson(rPath, report, this.logger);
-
-    // Persist processing state
-    const sPath = statePath(this.workspace);
-    saveJson(sPath, report.processingState, this.logger);
+    saveJson(reportPath(this.workspace, this.config), report, this.logger);
+    saveJson(statePath(this.workspace), report.processingState, this.logger);
 
     this.logger.info(
       `[trace-analyzer] Analysis complete: ${eventsProcessed} events, ${chains.length} chains, ${findings.length} findings`,
     );
-
     return report;
+  }
+
+  private async executePipeline(
+    source: TraceSource,
+    startedAt: number,
+    previousState: Partial<ProcessingState>,
+    opts?: TraceAnalyzerRunOpts,
+  ): Promise<AnalysisReport> {
+    const chains = await this.fetchAndReconstructChains(source, previousState, opts);
+    const eventsProcessed = chains.reduce((sum, c) => sum + c.events.length, 0);
+    const findings = await this.detectAndClassify(chains);
+    return this.generateAndPersist(startedAt, eventsProcessed, chains, findings, previousState);
   }
 
   private loadState(): Partial<ProcessingState> {

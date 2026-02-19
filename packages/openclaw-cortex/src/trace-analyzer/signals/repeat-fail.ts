@@ -86,6 +86,40 @@ function evictOldest(state: RepeatFailState): void {
   }
 }
 
+/** Record a new fingerprint or update existing state. Returns a signal if threshold crossed. */
+function recordFailure(
+  state: RepeatFailState,
+  fingerprint: string,
+  session: string,
+  toolName: string,
+  error: string,
+  callTs: number,
+  eventIdx: number,
+): FailureSignal | null {
+  const existing = state.fingerprints.get(fingerprint);
+  if (!existing) {
+    state.fingerprints.set(fingerprint, {
+      count: 1, lastSeenTs: callTs, sessions: [session],
+      toolName, errorPreview: truncate(error, 200),
+    });
+    return null;
+  }
+  if (existing.sessions.includes(session)) return null;
+
+  existing.count++;
+  existing.lastSeenTs = Math.max(existing.lastSeenTs, callTs);
+  existing.sessions.push(session);
+
+  if (existing.count < 2) return null;
+  return {
+    signal: "SIG-REPEAT-FAIL",
+    severity: existing.count >= 3 ? "critical" : "high",
+    eventRange: { start: eventIdx, end: eventIdx + 1 },
+    summary: `Same failure repeated across ${existing.count} sessions: ${toolName} — ${truncate(error, 80)}`,
+    evidence: { toolName, fingerprint, count: existing.count, sessions: [...existing.sessions] },
+  };
+}
+
 /**
  * Detect repeated failures across sessions.
  *
@@ -102,51 +136,15 @@ export function detectRepeatFails(
   for (let i = 0; i < events.length - 1; i++) {
     const call = events[i];
     const result = events[i + 1];
-
     if (call.type !== "tool.call" || result.type !== "tool.result") continue;
-
-    const hasError = Boolean(result.payload.toolError) || result.payload.toolIsError === true;
-    if (!hasError) continue;
+    if (!result.payload.toolError && result.payload.toolIsError !== true) continue;
 
     const toolName = call.payload.toolName ?? "";
     const params = (call.payload.toolParams ?? {}) as Record<string, unknown>;
     const error = result.payload.toolError ?? "unknown";
-
-    const fingerprint = computeToolFailFingerprint(toolName, params, error);
-
-    const existing = state.fingerprints.get(fingerprint);
-
-    if (existing) {
-      // Only count if this is a DIFFERENT session
-      if (!existing.sessions.includes(chain.session)) {
-        existing.count++;
-        existing.lastSeenTs = Math.max(existing.lastSeenTs, call.ts);
-        existing.sessions.push(chain.session);
-
-        if (existing.count >= 2) {
-          signals.push({
-            signal: "SIG-REPEAT-FAIL",
-            severity: existing.count >= 3 ? "critical" : "high",
-            eventRange: { start: i, end: i + 1 },
-            summary: `Same failure repeated across ${existing.count} sessions: ${toolName} — ${truncate(error, 80)}`,
-            evidence: {
-              toolName,
-              fingerprint,
-              count: existing.count,
-              sessions: [...existing.sessions],
-            },
-          });
-        }
-      }
-    } else {
-      state.fingerprints.set(fingerprint, {
-        count: 1,
-        lastSeenTs: call.ts,
-        sessions: [chain.session],
-        toolName,
-        errorPreview: truncate(error, 200),
-      });
-    }
+    const fp = computeToolFailFingerprint(toolName, params, error);
+    const signal = recordFailure(state, fp, chain.session, toolName, error, call.ts, i);
+    if (signal) signals.push(signal);
   }
 
   evictOldest(state);
