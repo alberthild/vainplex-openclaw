@@ -34,7 +34,7 @@ Try the interactive demo — it simulates a real bilingual dev conversation and 
 ```bash
 git clone https://github.com/alberthild/vainplex-openclaw.git
 cd vainplex-openclaw/packages/openclaw-cortex
-cd openclaw-cortex && npm install
+npm install
 npx tsx demo/demo.ts
 ```
 
@@ -203,7 +203,7 @@ Or clone directly:
 cd ~/.openclaw/extensions
 git clone https://github.com/alberthild/vainplex-openclaw.git
 cd vainplex-openclaw/packages/openclaw-cortex
-cd openclaw-cortex && npm install && npm run build
+npm install && npm run build
 ```
 
 ## Configure

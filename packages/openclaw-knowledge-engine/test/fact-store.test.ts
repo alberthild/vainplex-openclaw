@@ -20,7 +20,10 @@ describe('FactStore', () => {
   let factStore: FactStore;
 
   before(async () => await fs.mkdir(testDir, { recursive: true }));
-  after(async () => await fs.rm(testDir, { recursive: true, force: true }));
+  after(async () => {
+    if (factStore) await factStore.flush();
+    await fs.rm(testDir, { recursive: true, force: true });
+  });
 
   beforeEach(async () => {
     // Flush any pending debounced writes from the previous test

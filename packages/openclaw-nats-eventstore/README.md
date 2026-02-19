@@ -116,7 +116,9 @@ Add to the `plugins.entries` section of your `openclaw.json`:
 Include credentials in the NATS URL:
 
 ```json
-"natsUrl": "nats://myuser:mypassword@nats.example.com:4222"
+{
+  "natsUrl": "nats://myuser:mypassword@nats.example.com:4222"
+}
 ```
 
 Credentials are stripped from log output automatically.
