@@ -498,6 +498,71 @@ describe("Governance Integration", () => {
     await engine.stop();
   });
 
+  it("should validate external communication with LLM validator", async () => {
+    const config = makeConfig({
+      outputValidation: {
+        enabled: true,
+        enabledDetectors: ["system_state"],
+        factRegistries: [
+          {
+            id: "system",
+            facts: [{ subject: "nats-events", predicate: "count", value: "255908" }],
+          },
+        ],
+        unverifiedClaimPolicy: "ignore",
+        selfReferentialPolicy: "ignore",
+        contradictionThresholds: { flagAbove: 60, blockBelow: 40 },
+        llmValidator: {
+          enabled: true,
+          maxTokens: 500,
+          timeoutMs: 5000,
+          externalChannels: ["twitter"],
+          externalCommands: ["bird tweet"],
+        },
+      },
+    });
+
+    const engine = new GovernanceEngine(config, logger, WORKSPACE);
+    await engine.start();
+
+    // Without LLM validator set, Stage 3 is skipped → sync result
+    const result = engine.validateOutput("We process data efficiently.", "main");
+    expect(result).not.toBeInstanceOf(Promise);
+
+    if (!(result instanceof Promise)) {
+      expect(result.verdict).toBe("pass");
+    }
+
+    await engine.stop();
+  });
+
+  it("should handle isExternal flag in validateOutput", async () => {
+    const config = makeConfig({
+      outputValidation: {
+        enabled: true,
+        enabledDetectors: ["system_state"],
+        factRegistries: [],
+        unverifiedClaimPolicy: "ignore",
+        selfReferentialPolicy: "ignore",
+        contradictionThresholds: { flagAbove: 60, blockBelow: 40 },
+      },
+    });
+
+    const engine = new GovernanceEngine(config, logger, WORKSPACE);
+    await engine.start();
+
+    // isExternal but no LLM validator → should still work
+    const result = engine.validateOutput("Hello world", "main", { isExternal: true });
+    if (result instanceof Promise) {
+      const resolved = await result;
+      expect(resolved.verdict).toBe("pass");
+    } else {
+      expect(result.verdict).toBe("pass");
+    }
+
+    await engine.stop();
+  });
+
   it("output validation pipeline completes in <10ms", async () => {
     const config = makeConfig({
       outputValidation: {

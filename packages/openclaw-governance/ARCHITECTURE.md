@@ -1663,4 +1663,10 @@ Features deferred from v0.1 to keep the initial release lean and focused:
 
 ---
 
+## 11. RFCs
+
+- **RFC-006: LLM Output Validation Gate for External Communications:** See [docs/RFC-006-llm-output-gate.md](./docs/RFC-006-llm-output-gate.md)
+
+---
+
 *End of Architecture Document.*

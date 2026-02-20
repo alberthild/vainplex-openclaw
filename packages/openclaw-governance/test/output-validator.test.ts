@@ -1,6 +1,8 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { OutputValidator, DEFAULT_OUTPUT_VALIDATION_CONFIG } from "../src/output-validator.js";
-import type { OutputValidationConfig, PluginLogger } from "../src/types.js";
+import { LlmValidator } from "../src/llm-validator.js";
+import type { CallLlmFn } from "../src/llm-validator.js";
+import type { OutputValidationConfig, OutputValidationResult, PluginLogger } from "../src/types.js";
 
 const logger: PluginLogger = {
   info: () => {},
@@ -310,6 +312,163 @@ describe("OutputValidator", () => {
       const elapsed = performance.now() - start;
 
       expect(elapsed).toBeLessThan(10);
+    });
+  });
+
+  describe("Stage 3 — LLM Validation (isExternal)", () => {
+    function makeLlmConfig(overrides: Partial<OutputValidationConfig> = {}): OutputValidationConfig {
+      return makeConfig({
+        llmValidator: {
+          enabled: true,
+          maxTokens: 500,
+          timeoutMs: 5000,
+          externalChannels: ["twitter", "linkedin"],
+          externalCommands: ["bird tweet"],
+        },
+        ...overrides,
+      });
+    }
+
+    it("does NOT call LLM when isExternal is false", () => {
+      const callLlm: CallLlmFn = vi.fn();
+      const config = makeLlmConfig();
+      const v = new OutputValidator(config, logger);
+      v.setLlmValidator(new LlmValidator(config.llmValidator!, callLlm, logger));
+
+      const result = v.validate("We handle 500k events daily.", 50);
+      // Should be synchronous (not a Promise)
+      expect(result).not.toBeInstanceOf(Promise);
+      expect(callLlm).not.toHaveBeenCalled();
+    });
+
+    it("does NOT call LLM when isExternal is undefined", () => {
+      const callLlm: CallLlmFn = vi.fn();
+      const config = makeLlmConfig();
+      const v = new OutputValidator(config, logger);
+      v.setLlmValidator(new LlmValidator(config.llmValidator!, callLlm, logger));
+
+      const result = v.validate("We handle 500k events daily.", 50);
+      expect(result).not.toBeInstanceOf(Promise);
+      expect(callLlm).not.toHaveBeenCalled();
+    });
+
+    it("calls LLM when isExternal is true", async () => {
+      const callLlm: CallLlmFn = vi.fn().mockResolvedValue('{"issues": []}');
+      const config = makeLlmConfig();
+      const v = new OutputValidator(config, logger);
+      v.setLlmValidator(new LlmValidator(config.llmValidator!, callLlm, logger));
+
+      const result = v.validate("We handle 500k events daily.", 50, true);
+      expect(result).toBeInstanceOf(Promise);
+
+      const resolved = await result;
+      expect(resolved.verdict).toBe("pass");
+      expect(callLlm).toHaveBeenCalledOnce();
+    });
+
+    it("LLM block overrides Stage 1+2 pass", async () => {
+      const callLlm: CallLlmFn = vi.fn().mockResolvedValue(
+        JSON.stringify({
+          issues: [
+            { category: "unsubstantiated_assertion", claim: "No vibe-coded plugins", explanation: "Cannot verify", severity: "critical" },
+          ],
+        }),
+      );
+      const config = makeLlmConfig();
+      const v = new OutputValidator(config, logger);
+      v.setLlmValidator(new LlmValidator(config.llmValidator!, callLlm, logger));
+
+      const result = await v.validate("We have no vibe-coded plugins.", 50, true);
+      expect(result.verdict).toBe("block");
+    });
+
+    it("Stage 1+2 block prevails even if LLM passes", async () => {
+      const callLlm: CallLlmFn = vi.fn().mockResolvedValue('{"issues": []}');
+      const config = makeLlmConfig({
+        factRegistries: [
+          {
+            id: "system",
+            facts: [{ subject: "nginx", predicate: "state", value: "stopped" }],
+          },
+        ],
+        llmValidator: {
+          enabled: true,
+          maxTokens: 500,
+          timeoutMs: 5000,
+          externalChannels: [],
+          externalCommands: [],
+        },
+      });
+      const v = new OutputValidator(config, logger);
+      v.setLlmValidator(new LlmValidator(config.llmValidator!, callLlm, logger));
+
+      const result = await v.validate("nginx is running", 30, true);
+      expect(result.verdict).toBe("block"); // Stage 2 blocks (trust 30)
+    });
+
+    it("most restrictive verdict wins: LLM flag + Stage 2 pass = flag", async () => {
+      const callLlm: CallLlmFn = vi.fn().mockResolvedValue(
+        JSON.stringify({
+          issues: [
+            { category: "exaggerated_claim", claim: "best ever", explanation: "exaggeration", severity: "high" },
+          ],
+        }),
+      );
+      const config = makeLlmConfig();
+      const v = new OutputValidator(config, logger);
+      v.setLlmValidator(new LlmValidator(config.llmValidator!, callLlm, logger));
+
+      const result = await v.validate("Our platform is the best ever.", 50, true);
+      expect(result.verdict).toBe("flag");
+    });
+
+    it("fails open when LLM call throws", async () => {
+      const callLlm: CallLlmFn = vi.fn().mockRejectedValue(new Error("network error"));
+      const config = makeLlmConfig();
+      const v = new OutputValidator(config, logger);
+      v.setLlmValidator(new LlmValidator(config.llmValidator!, callLlm, logger));
+
+      const result = await v.validate("Some external text.", 50, true);
+      expect(result.verdict).toBe("pass"); // fail open
+    });
+
+    it("does not call LLM when llmValidator config disabled", () => {
+      const callLlm: CallLlmFn = vi.fn();
+      const config = makeConfig({
+        llmValidator: {
+          enabled: false,
+          maxTokens: 500,
+          timeoutMs: 5000,
+          externalChannels: [],
+          externalCommands: [],
+        },
+      });
+      const v = new OutputValidator(config, logger);
+      v.setLlmValidator(new LlmValidator(config.llmValidator!, callLlm, logger));
+
+      const result = v.validate("external text", 50, true);
+      expect(result).not.toBeInstanceOf(Promise);
+      expect(callLlm).not.toHaveBeenCalled();
+    });
+
+    it("does not call LLM when no llmValidator is set", () => {
+      const config = makeLlmConfig();
+      const v = new OutputValidator(config, logger);
+      // Don't set llmValidator
+
+      const result = v.validate("external text", 50, true);
+      expect(result).not.toBeInstanceOf(Promise);
+    });
+
+    it("includes evaluationUs in async result", async () => {
+      const callLlm: CallLlmFn = vi.fn().mockResolvedValue('{"issues": []}');
+      const config = makeLlmConfig();
+      const v = new OutputValidator(config, logger);
+      v.setLlmValidator(new LlmValidator(config.llmValidator!, callLlm, logger));
+
+      const result = await v.validate("Test text.", 50, true);
+      expect(typeof result.evaluationUs).toBe("number");
+      expect(result.evaluationUs).toBeGreaterThanOrEqual(0);
     });
   });
 });

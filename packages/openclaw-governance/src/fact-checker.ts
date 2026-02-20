@@ -1,5 +1,5 @@
 /**
- * Fact Checker Module — Output Validation Pipeline (v0.2.0)
+ * Fact Checker Module — Output Validation Pipeline (v0.2.0 / v0.5.0)
  *
  * Checks detected claims against in-memory Fact Registries.
  * Each fact has a subject + predicate → value mapping.
@@ -7,16 +7,58 @@
  * Lookup is case-insensitive on subject.
  * Returns: verified (matches), contradicted (different value), or unverified (no fact found).
  *
+ * v0.5.0: Supports loading facts from external JSON files (RFC-006).
+ *
  * All operations are synchronous. Index is built once at load time.
  */
 
-import type { Claim, Fact, FactCheckResult, FactRegistryConfig } from "./types.js";
+import { readFileSync, existsSync } from "node:fs";
+import type { Claim, Fact, FactCheckResult, FactRegistryConfig, PluginLogger } from "./types.js";
 
 /** Normalized key for fact lookup: "subject|predicate" (lowercase) */
 type FactKey = string;
 
 function makeKey(subject: string, predicate: string): FactKey {
   return `${subject.toLowerCase()}|${predicate.toLowerCase()}`;
+}
+
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+/**
+ * Load facts from an external JSON file.
+ * Expects format: { facts: [...] } or { id: "...", facts: [...] }
+ * Returns empty array on missing file or invalid JSON (logs warning).
+ */
+function loadFactsFromFile(filePath: string, logger?: PluginLogger): Fact[] {
+  try {
+    if (!existsSync(filePath)) {
+      logger?.warn?.(`[governance] Fact registry file not found: ${filePath}`);
+      return [];
+    }
+
+    const raw = readFileSync(filePath, "utf-8");
+    const parsed: unknown = JSON.parse(raw);
+
+    if (!isRecord(parsed)) {
+      logger?.warn?.(`[governance] Fact registry file is not an object: ${filePath}`);
+      return [];
+    }
+
+    const facts = parsed["facts"];
+    if (!Array.isArray(facts)) {
+      logger?.warn?.(`[governance] Fact registry file missing 'facts' array: ${filePath}`);
+      return [];
+    }
+
+    return facts as Fact[];
+  } catch (e) {
+    logger?.warn?.(
+      `[governance] Failed to load fact registry file ${filePath}: ${e instanceof Error ? e.message : String(e)}`,
+    );
+    return [];
+  }
 }
 
 /**
@@ -26,12 +68,17 @@ export class FactRegistry {
   private readonly index: Map<FactKey, Fact>;
   private readonly subjectIndex: Map<string, Fact[]>;
 
-  constructor(configs: FactRegistryConfig[]) {
+  constructor(configs: FactRegistryConfig[], logger?: PluginLogger) {
     this.index = new Map();
     this.subjectIndex = new Map();
 
     for (const config of configs) {
-      for (const fact of config.facts) {
+      // Resolve facts: from filePath or inline
+      const facts = config.filePath
+        ? loadFactsFromFile(config.filePath, logger)
+        : (config.facts ?? []);
+
+      for (const fact of facts) {
         const key = makeKey(fact.subject, fact.predicate);
         // Later registries override earlier ones
         this.index.set(key, fact);
@@ -64,6 +111,14 @@ export class FactRegistry {
   /** Total number of facts indexed */
   get size(): number {
     return this.index.size;
+  }
+
+  /**
+   * Get all indexed facts (for LLM context in Stage 3).
+   * Returns deduplicated facts from all sources (inline + file-loaded).
+   */
+  getAllFacts(): Fact[] {
+    return Array.from(this.index.values());
   }
 }
 

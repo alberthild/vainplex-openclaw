@@ -278,10 +278,23 @@ export class GovernanceEngine {
   }
 
   /**
-   * Validate agent output text against fact registries.
-   * Synchronous. Used by before_message_write and message_sending hooks.
+   * Set the LLM validator for Stage 3 external communication validation.
    */
-  validateOutput(text: string, agentId: string): OutputValidationResult {
+  setLlmValidator(validator: unknown): void {
+    // Delegate to output validator — import type avoidance
+    this.outputValidator.setLlmValidator(validator as Parameters<OutputValidator["setLlmValidator"]>[0]);
+  }
+
+  /**
+   * Validate agent output text against fact registries.
+   * Synchronous for Stage 1+2. Async when isExternal triggers Stage 3.
+   * Used by before_message_write and message_sending hooks.
+   */
+  validateOutput(
+    text: string,
+    agentId: string,
+    opts?: { isExternal?: boolean },
+  ): OutputValidationResult | Promise<OutputValidationResult> {
     if (!this.config.outputValidation.enabled) {
       return {
         verdict: "pass",
@@ -294,28 +307,34 @@ export class GovernanceEngine {
     }
 
     const trust = this.trustManager.getAgentTrust(agentId);
-    const result = this.outputValidator.validate(text, trust.score);
+    const resultOrPromise = this.outputValidator.validate(text, trust.score, opts?.isExternal);
 
-    // Record audit for output validation
-    if (this.config.audit.enabled) {
-      const auditVerdict = `output_${result.verdict}` as "output_pass" | "output_flag" | "output_block";
-      this.auditTrail.record(
-        auditVerdict,
-        result.reason,
-        {
-          hook: "output_validation",
-          agentId,
-          sessionKey: `agent:${agentId}`,
-          messageContent: text.length > 200 ? text.substring(0, 200) + "..." : text,
-        },
-        { score: trust.score, tier: trust.tier },
-        { level: "low", score: 0 },
-        [],
-        result.evaluationUs,
-      );
+    const recordAudit = (result: OutputValidationResult): OutputValidationResult => {
+      if (this.config.audit.enabled) {
+        const auditVerdict = `output_${result.verdict}` as "output_pass" | "output_flag" | "output_block";
+        this.auditTrail.record(
+          auditVerdict,
+          result.reason,
+          {
+            hook: "output_validation",
+            agentId,
+            sessionKey: `agent:${agentId}`,
+            messageContent: text.length > 200 ? text.substring(0, 200) + "..." : text,
+          },
+          { score: trust.score, tier: trust.tier },
+          { level: "low", score: 0 },
+          [],
+          result.evaluationUs,
+        );
+      }
+      return result;
+    };
+
+    if (resultOrPromise instanceof Promise) {
+      return resultOrPromise.then(recordAudit);
     }
 
-    return result;
+    return recordAudit(resultOrPromise);
   }
 
   recordOutcome(

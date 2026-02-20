@@ -73,6 +73,77 @@ function buildMessageEvalContext(
   };
 }
 
+/**
+ * Detect if a tool call targets external communication.
+ * Returns the text content to validate if external, or null.
+ *
+ * Detection covers:
+ * - `message` tool with channel in externalChannels
+ * - `exec` tool with command matching externalCommands
+ * - `sessions_send` to external-facing sessions (if configured)
+ * - Any tool whose name matches externalCommands patterns
+ */
+function detectExternalComm(
+  ev: HookBeforeToolCallEvent,
+  config: GovernanceConfig,
+): string | null {
+  const llmConfig = config.outputValidation.llmValidator;
+  if (!llmConfig?.enabled) return null;
+
+  // 1. message tool with channel in externalChannels
+  if (ev.toolName === "message") {
+    const channel = ev.params["channel"];
+    if (typeof channel === "string" && llmConfig.externalChannels.includes(channel)) {
+      return extractTextParam(ev.params);
+    }
+    // Also check action=send with target containing external channel names
+    const action = ev.params["action"];
+    const target = ev.params["target"] ?? ev.params["to"];
+    if (action === "send" && typeof target === "string") {
+      for (const ch of llmConfig.externalChannels) {
+        if (target.toLowerCase().includes(ch)) {
+          return extractTextParam(ev.params);
+        }
+      }
+    }
+  }
+
+  // 2. exec tool with command matching externalCommands
+  if (ev.toolName === "exec" && typeof ev.params["command"] === "string") {
+    const cmd = ev.params["command"];
+    for (const pattern of llmConfig.externalCommands) {
+      if (cmd.includes(pattern)) {
+        return cmd;
+      }
+    }
+  }
+
+  // 3. sessions_send — could forward content to external-facing agents
+  if (ev.toolName === "sessions_send") {
+    const message = ev.params["message"];
+    if (typeof message === "string" && message.length > 0) {
+      // Check if the target session/label suggests external comms
+      const label = String(ev.params["label"] ?? ev.params["sessionKey"] ?? "");
+      for (const ch of llmConfig.externalChannels) {
+        if (label.toLowerCase().includes(ch)) {
+          return message;
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+/** Extract text content from tool params (multiple possible field names) */
+function extractTextParam(params: Record<string, unknown>): string | null {
+  for (const key of ["message", "text", "content", "body"]) {
+    const val = params[key];
+    if (typeof val === "string" && val.length > 0) return val;
+  }
+  return null;
+}
+
 function handleBeforeToolCall(
   engine: GovernanceEngine,
   config: GovernanceConfig,
@@ -91,6 +162,30 @@ function handleBeforeToolCall(
       if (verdict.action === "deny") {
         return { block: true, blockReason: verdict.reason };
       }
+
+      // External communication detection (RFC-006)
+      if (config.outputValidation.enabled) {
+        const externalText = detectExternalComm(ev, config);
+        if (externalText) {
+          const ovResult = await engine.validateOutput(
+            externalText,
+            evalCtx.agentId,
+            { isExternal: true },
+          );
+          if (ovResult.verdict === "block") {
+            logger.warn(
+              `[governance] External comm blocked for ${evalCtx.agentId}: ${ovResult.reason}`,
+            );
+            return { block: true, blockReason: ovResult.reason };
+          }
+          if (ovResult.verdict === "flag") {
+            logger.warn(
+              `[governance] External comm flagged for ${evalCtx.agentId}: ${ovResult.reason}`,
+            );
+          }
+        }
+      }
+
       return undefined;
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
@@ -127,7 +222,10 @@ function handleMessageSending(
 
       // Output validation (if enabled)
       if (config.outputValidation.enabled && ev.content) {
-        const ovResult = engine.validateOutput(ev.content, evalCtx.agentId);
+        const ovResultOrPromise = engine.validateOutput(ev.content, evalCtx.agentId);
+        const ovResult = ovResultOrPromise instanceof Promise
+          ? await ovResultOrPromise
+          : ovResultOrPromise;
         if (ovResult.verdict === "block") {
           logger.warn(
             `[governance] Output blocked for ${evalCtx.agentId}: ${ovResult.reason}`,
@@ -150,7 +248,7 @@ function handleMessageSending(
 }
 
 /**
- * Hook: before_message_write (synchronous)
+ * Hook: before_message_write (synchronous for Stage 1+2)
  * Validates agent output before it's written to conversation.
  * Returns { block: true } if output should be blocked.
  */
@@ -176,7 +274,15 @@ function handleBeforeMessageWrite(
         logger,
       );
 
-      const result = engine.validateOutput(ev.content, agentId);
+      // before_message_write is synchronous — only Stage 1+2 (no isExternal)
+      const resultOrPromise = engine.validateOutput(ev.content, agentId);
+      // This should be synchronous (no isExternal), but guard against Promise
+      if (resultOrPromise instanceof Promise) {
+        logger.warn("[governance] before_message_write got async result, skipping");
+        return undefined;
+      }
+
+      const result = resultOrPromise;
 
       if (result.verdict === "block") {
         logger.warn(

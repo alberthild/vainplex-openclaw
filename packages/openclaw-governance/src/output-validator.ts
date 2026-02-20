@@ -1,10 +1,11 @@
 /**
- * Output Validator Module — Output Validation Pipeline (v0.2.0)
+ * Output Validator Module — Output Validation Pipeline (v0.2.0 / v0.5.0)
  *
  * Orchestrates the full output validation pipeline:
  * 1. Claim detection (via claim-detector)
  * 2. Fact checking (via fact-checker)
  * 3. Contradiction detection with trust-proportional verdicts
+ * 4. (v0.5.0) LLM validation for external communications (Stage 3)
  *
  * Verdict rules:
  * - No claims or no contradictions → "pass"
@@ -12,13 +13,16 @@
  * - Contradiction + blockBelow ≤ trust < flagAbove → "flag"
  * - Contradiction + trust < blockBelow (default 40) → "block"
  * - unverifiedClaimPolicy default "ignore" → unverified claims not flagged
+ * - isExternal + LLM validator enabled → Stage 3 (LLM verdict overrides if more restrictive)
  *
- * All operations are synchronous. Target: <10ms total.
+ * Stage 1+2 are synchronous. Stage 3 is async (LLM call).
  */
 
 import type {
   Claim,
+  Fact,
   FactCheckResult,
+  LlmValidationResult,
   OutputValidationConfig,
   OutputValidationResult,
   OutputVerdict,
@@ -26,6 +30,7 @@ import type {
 } from "./types.js";
 import { detectClaims } from "./claim-detector.js";
 import { FactRegistry, checkClaims } from "./fact-checker.js";
+import type { LlmValidator } from "./llm-validator.js";
 
 /** Default output validation configuration */
 export const DEFAULT_OUTPUT_VALIDATION_CONFIG: OutputValidationConfig = {
@@ -46,14 +51,22 @@ export const DEFAULT_OUTPUT_VALIDATION_CONFIG: OutputValidationConfig = {
   },
 };
 
+/** Verdict severity ordering for "most restrictive wins" logic */
+const VERDICT_SEVERITY: Record<OutputVerdict, number> = {
+  pass: 0,
+  flag: 1,
+  block: 2,
+};
+
 export class OutputValidator {
   private readonly config: OutputValidationConfig;
   private readonly factRegistry: FactRegistry;
   private readonly logger: PluginLogger;
+  private llmValidator: LlmValidator | null = null;
 
   constructor(config: OutputValidationConfig, logger: PluginLogger) {
     this.config = config;
-    this.factRegistry = new FactRegistry(config.factRegistries);
+    this.factRegistry = new FactRegistry(config.factRegistries, logger);
     this.logger = logger;
 
     if (config.enabled) {
@@ -66,49 +79,125 @@ export class OutputValidator {
   }
 
   /**
-   * Validate agent output text. Synchronous.
+   * Set the LLM validator instance (for Stage 3).
+   * Called externally after construction since LLM validator
+   * requires dependency injection of callLlm.
+   */
+  setLlmValidator(validator: LlmValidator): void {
+    this.llmValidator = validator;
+  }
+
+  /**
+   * Validate agent output text.
+   * Stages 1+2 are synchronous. Stage 3 (LLM) is async and only runs
+   * when isExternal=true and llmValidator is configured.
+   *
    * @param text - The output text to validate
    * @param trustScore - Current agent trust score (0-100)
+   * @param isExternal - Whether this is an external communication
    * @returns Full validation result with verdict, claims, and reasons
    */
-  validate(text: string, trustScore: number): OutputValidationResult {
+  validate(text: string, trustScore: number, isExternal?: boolean): OutputValidationResult | Promise<OutputValidationResult> {
     const startUs = Math.round(performance.now() * 1000);
 
     if (!this.config.enabled || !text) {
       return makePassResult(startUs);
     }
 
-    // Step 1: Detect claims
+    // Stage 1: Detect claims
     const claims = detectClaims(text, this.config.enabledDetectors);
 
-    if (claims.length === 0) {
+    if (claims.length === 0 && !isExternal) {
       return makePassResult(startUs, [], [], "No claims detected");
     }
 
-    // Step 2: Fact-check claims
-    const factCheckResults = checkClaims(claims, this.factRegistry);
+    // Stage 2: Fact-check claims
+    const factCheckResults = claims.length > 0 ? checkClaims(claims, this.factRegistry) : [];
 
-    // Step 3: Separate results
     const contradictions = factCheckResults.filter((r) => r.status === "contradicted");
     const unverified = factCheckResults.filter((r) => r.status === "unverified");
 
-    // Step 4: Determine verdict
-    const verdict = this.determineVerdict(
+    const stage12Verdict = this.determineVerdict(
       contradictions,
       unverified,
       trustScore,
     );
 
-    const endUs = Math.round(performance.now() * 1000);
+    // Stage 3: LLM validation (only for external communications)
+    if (isExternal && this.llmValidator && this.config.llmValidator?.enabled) {
+      return this.runStage3(
+        text, claims, factCheckResults, contradictions,
+        stage12Verdict, startUs,
+      );
+    }
 
+    const endUs = Math.round(performance.now() * 1000);
     return {
-      verdict: verdict.action,
+      verdict: stage12Verdict.action,
       claims,
       factCheckResults,
       contradictions,
-      reason: verdict.reason,
+      reason: stage12Verdict.reason,
       evaluationUs: endUs - startUs,
     };
+  }
+
+  private async runStage3(
+    text: string,
+    claims: Claim[],
+    factCheckResults: FactCheckResult[],
+    contradictions: FactCheckResult[],
+    stage12Verdict: { action: OutputVerdict; reason: string },
+    startUs: number,
+  ): Promise<OutputValidationResult> {
+    try {
+      // Get all known facts for context
+      const allFacts = this.getAllFacts();
+      const llmResult = await this.llmValidator!.validate(text, allFacts, true);
+
+      // Most restrictive verdict wins
+      const finalVerdict = moreRestrictiveVerdict(stage12Verdict.action, llmResult.verdict);
+      const reasons: string[] = [];
+      if (stage12Verdict.action !== "pass") reasons.push(stage12Verdict.reason);
+      if (llmResult.verdict !== "pass") reasons.push(llmResult.reason);
+      const reason = reasons.length > 0
+        ? reasons.join(" | ")
+        : stage12Verdict.reason || llmResult.reason;
+
+      const endUs = Math.round(performance.now() * 1000);
+      return {
+        verdict: finalVerdict,
+        claims,
+        factCheckResults,
+        contradictions,
+        reason,
+        evaluationUs: endUs - startUs,
+        llmResult,
+      } as OutputValidationResult & { llmResult?: LlmValidationResult };
+    } catch (e) {
+      this.logger.error(
+        `[governance] LLM validation stage error: ${e instanceof Error ? e.message : String(e)}`,
+      );
+      // Fail open — return Stage 1+2 result
+      const endUs = Math.round(performance.now() * 1000);
+      return {
+        verdict: stage12Verdict.action,
+        claims,
+        factCheckResults,
+        contradictions,
+        reason: stage12Verdict.reason,
+        evaluationUs: endUs - startUs,
+      };
+    }
+  }
+
+  /**
+   * Get all facts from the registry (for LLM context).
+   * Delegates to FactRegistry.getAllFacts() which includes both
+   * inline facts AND file-loaded facts (RFC-006 §8.3).
+   */
+  private getAllFacts(): Fact[] {
+    return this.factRegistry.getAllFacts();
   }
 
   private determineVerdict(
@@ -194,6 +283,10 @@ export class OutputValidator {
   getFactCount(): number {
     return this.factRegistry.size;
   }
+}
+
+function moreRestrictiveVerdict(a: OutputVerdict, b: OutputVerdict): OutputVerdict {
+  return VERDICT_SEVERITY[a] >= VERDICT_SEVERITY[b] ? a : b;
 }
 
 function makePassResult(

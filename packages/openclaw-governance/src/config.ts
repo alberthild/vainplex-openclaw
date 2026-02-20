@@ -4,6 +4,7 @@ import type {
   BuiltinPoliciesConfig,
   FailMode,
   GovernanceConfig,
+  LlmValidatorConfig,
   OutputValidationConfig,
   PerformanceConfig,
   Policy,
@@ -76,6 +77,26 @@ const ALL_DETECTOR_IDS: BuiltinDetectorId[] = [
   "self_referential",
 ];
 
+function resolveLlmValidator(raw: unknown): LlmValidatorConfig {
+  const r = isRecord(raw) ? raw : {};
+  return {
+    enabled: typeof r["enabled"] === "boolean" ? r["enabled"] : false,
+    model: typeof r["model"] === "string" ? r["model"] : undefined,
+    maxTokens: typeof r["maxTokens"] === "number" ? r["maxTokens"] : 500,
+    timeoutMs: typeof r["timeoutMs"] === "number" ? r["timeoutMs"] : 5000,
+    externalChannels: Array.isArray(r["externalChannels"])
+      ? (r["externalChannels"] as string[]).filter(
+          (s): s is string => typeof s === "string",
+        )
+      : ["twitter", "linkedin", "email"],
+    externalCommands: Array.isArray(r["externalCommands"])
+      ? (r["externalCommands"] as string[]).filter(
+          (s): s is string => typeof s === "string",
+        )
+      : ["bird tweet", "bird reply"],
+  };
+}
+
 function resolveOutputValidation(raw: unknown): OutputValidationConfig {
   const r = isRecord(raw) ? raw : {};
   const thresholds = isRecord(r["contradictionThresholds"])
@@ -116,6 +137,9 @@ function resolveOutputValidation(raw: unknown): OutputValidationConfig {
           ? thresholds["blockBelow"]
           : 40,
     },
+    llmValidator: r["llmValidator"] !== undefined
+      ? resolveLlmValidator(r["llmValidator"])
+      : undefined,
   };
 }
 

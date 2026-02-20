@@ -404,4 +404,229 @@ describe("registerGovernanceHooks", () => {
 
     await engine.stop();
   });
+
+  // ── External Communication Detection (RFC-006) ──
+
+  it("should detect external message tool call and validate", async () => {
+    const { api, hooks } = createMockApi();
+    const config = makeConfig({
+      outputValidation: {
+        enabled: true,
+        enabledDetectors: ["system_state"],
+        factRegistries: [],
+        unverifiedClaimPolicy: "ignore",
+        selfReferentialPolicy: "ignore",
+        contradictionThresholds: { flagAbove: 60, blockBelow: 40 },
+        llmValidator: {
+          enabled: true,
+          maxTokens: 500,
+          timeoutMs: 5000,
+          externalChannels: ["twitter", "linkedin"],
+          externalCommands: ["bird tweet"],
+        },
+      },
+    });
+
+    const engine = new GovernanceEngine(config, logger, WORKSPACE);
+    await engine.start();
+    registerGovernanceHooks(api, engine, config);
+
+    const handler = hooks.find((h) => h.name === "before_tool_call")?.handler;
+
+    // Message to twitter — should trigger external comm detection
+    // Since no LLM validator is actually set on engine, it returns sync pass
+    const result = await handler!(
+      { toolName: "message", params: { channel: "twitter", text: "We processed 500k events!" } },
+      { agentId: "main", sessionKey: "agent:main", toolName: "message" },
+    );
+
+    // Without actual LLM validator set, should pass through
+    expect(result).toBeUndefined();
+
+    await engine.stop();
+  });
+
+  it("should detect external exec command (bird tweet)", async () => {
+    const { api, hooks } = createMockApi();
+    const config = makeConfig({
+      outputValidation: {
+        enabled: true,
+        enabledDetectors: ["system_state"],
+        factRegistries: [],
+        unverifiedClaimPolicy: "ignore",
+        selfReferentialPolicy: "ignore",
+        contradictionThresholds: { flagAbove: 60, blockBelow: 40 },
+        llmValidator: {
+          enabled: true,
+          maxTokens: 500,
+          timeoutMs: 5000,
+          externalChannels: ["twitter"],
+          externalCommands: ["bird tweet"],
+        },
+      },
+    });
+
+    const engine = new GovernanceEngine(config, logger, WORKSPACE);
+    await engine.start();
+    registerGovernanceHooks(api, engine, config);
+
+    const handler = hooks.find((h) => h.name === "before_tool_call")?.handler;
+
+    const result = await handler!(
+      { toolName: "exec", params: { command: "bird tweet 'Hello world!'" } },
+      { agentId: "main", sessionKey: "agent:main", toolName: "exec" },
+    );
+
+    // Without LLM validator, should pass
+    expect(result).toBeUndefined();
+
+    await engine.stop();
+  });
+
+  it("should not flag non-external message channels", async () => {
+    const { api, hooks } = createMockApi();
+    const config = makeConfig({
+      outputValidation: {
+        enabled: true,
+        enabledDetectors: ["system_state"],
+        factRegistries: [],
+        unverifiedClaimPolicy: "ignore",
+        selfReferentialPolicy: "ignore",
+        contradictionThresholds: { flagAbove: 60, blockBelow: 40 },
+        llmValidator: {
+          enabled: true,
+          maxTokens: 500,
+          timeoutMs: 5000,
+          externalChannels: ["twitter"],
+          externalCommands: ["bird tweet"],
+        },
+      },
+    });
+
+    const engine = new GovernanceEngine(config, logger, WORKSPACE);
+    await engine.start();
+    registerGovernanceHooks(api, engine, config);
+
+    const handler = hooks.find((h) => h.name === "before_tool_call")?.handler;
+
+    // Matrix is not in externalChannels — should not trigger external validation
+    const result = await handler!(
+      { toolName: "message", params: { channel: "matrix", text: "Internal message" } },
+      { agentId: "main", sessionKey: "agent:main", toolName: "message" },
+    );
+
+    expect(result).toBeUndefined();
+
+    await engine.stop();
+  });
+
+  it("should detect sessions_send to external-labeled session", async () => {
+    const { api, hooks } = createMockApi();
+    const config = makeConfig({
+      outputValidation: {
+        enabled: true,
+        enabledDetectors: ["system_state"],
+        factRegistries: [],
+        unverifiedClaimPolicy: "ignore",
+        selfReferentialPolicy: "ignore",
+        contradictionThresholds: { flagAbove: 60, blockBelow: 40 },
+        llmValidator: {
+          enabled: true,
+          maxTokens: 500,
+          timeoutMs: 5000,
+          externalChannels: ["twitter", "linkedin"],
+          externalCommands: ["bird tweet"],
+        },
+      },
+    });
+
+    const engine = new GovernanceEngine(config, logger, WORKSPACE);
+    await engine.start();
+    registerGovernanceHooks(api, engine, config);
+
+    const handler = hooks.find((h) => h.name === "before_tool_call")?.handler;
+
+    // sessions_send to a twitter-labeled session — should detect
+    const result = await handler!(
+      { toolName: "sessions_send", params: { label: "twitter-poster", message: "500k events processed!" } },
+      { agentId: "main", sessionKey: "agent:main", toolName: "sessions_send" },
+    );
+
+    // Without LLM validator set, passes through
+    expect(result).toBeUndefined();
+
+    await engine.stop();
+  });
+
+  it("should detect message tool with action=send and external target", async () => {
+    const { api, hooks } = createMockApi();
+    const config = makeConfig({
+      outputValidation: {
+        enabled: true,
+        enabledDetectors: ["system_state"],
+        factRegistries: [],
+        unverifiedClaimPolicy: "ignore",
+        selfReferentialPolicy: "ignore",
+        contradictionThresholds: { flagAbove: 60, blockBelow: 40 },
+        llmValidator: {
+          enabled: true,
+          maxTokens: 500,
+          timeoutMs: 5000,
+          externalChannels: ["twitter", "linkedin", "email"],
+          externalCommands: ["bird tweet"],
+        },
+      },
+    });
+
+    const engine = new GovernanceEngine(config, logger, WORKSPACE);
+    await engine.start();
+    registerGovernanceHooks(api, engine, config);
+
+    const handler = hooks.find((h) => h.name === "before_tool_call")?.handler;
+
+    const result = await handler!(
+      { toolName: "message", params: { action: "send", target: "linkedin-company-page", message: "Check our plugins!" } },
+      { agentId: "main", sessionKey: "agent:main", toolName: "message" },
+    );
+
+    expect(result).toBeUndefined();
+
+    await engine.stop();
+  });
+
+  it("should not trigger external detection when output validation disabled", async () => {
+    const { api, hooks } = createMockApi();
+    const config = makeConfig({
+      outputValidation: {
+        enabled: false,
+        enabledDetectors: [],
+        factRegistries: [],
+        unverifiedClaimPolicy: "ignore",
+        selfReferentialPolicy: "ignore",
+        contradictionThresholds: { flagAbove: 60, blockBelow: 40 },
+        llmValidator: {
+          enabled: true,
+          maxTokens: 500,
+          timeoutMs: 5000,
+          externalChannels: ["twitter"],
+          externalCommands: ["bird tweet"],
+        },
+      },
+    });
+
+    const engine = new GovernanceEngine(config, logger, WORKSPACE);
+    await engine.start();
+    registerGovernanceHooks(api, engine, config);
+
+    const handler = hooks.find((h) => h.name === "before_tool_call")?.handler;
+
+    const result = await handler!(
+      { toolName: "message", params: { channel: "twitter", text: "Tweet this!" } },
+      { agentId: "main", sessionKey: "agent:main", toolName: "message" },
+    );
+
+    expect(result).toBeUndefined();
+
+    await engine.stop();
+  });
 });

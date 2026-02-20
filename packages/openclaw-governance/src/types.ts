@@ -583,17 +583,73 @@ export type OutputValidationConfig = {
     /** Trust score below which contradictions result in "block" (default: 40) */
     blockBelow: number;
   };
+  llmValidator?: LlmValidatorConfig;
 };
 
 export type FactRegistryConfig = {
-  id: string;
-  facts: Fact[];
+  id?: string;
+  facts?: Fact[];
+  filePath?: string;
 };
 
 export type AuditOutputVerdict =
   | "output_pass"
   | "output_flag"
   | "output_block";
+
+// ── LLM Output Validation Gate (v0.5.0 / RFC-006) ──
+
+export type LlmValidatorConfig = {
+  enabled: boolean;
+  model?: string;
+  maxTokens: number;
+  timeoutMs: number;
+  externalChannels: string[];
+  externalCommands: string[];
+  /** Behavior when LLM call fails. "open" = pass (default), "closed" = block */
+  failMode?: "open" | "closed";
+  /** Max retry attempts for transient LLM failures (default: 0) */
+  retryAttempts?: number;
+};
+
+export type LlmValidationIssue = {
+  category: string;
+  claim: string;
+  explanation: string;
+  severity: "critical" | "high" | "medium" | "low";
+};
+
+export type LlmValidationResult = {
+  verdict: OutputVerdict;
+  issues: LlmValidationIssue[];
+  reason: string;
+  cached: boolean;
+};
+
+/** Standard finding format for cross-plugin interop (RFC-006 §8.2) */
+export type TraceFinding = {
+  id: string;
+  agent: string;
+  signal: {
+    signal: string;
+    severity: "critical" | "high" | "medium" | "low";
+    summary: string;
+  };
+  classification?: {
+    rootCause: string;
+    actionType: string;
+    actionText: string;
+    confidence: number;
+  };
+  factCorrection?: FactCorrection;
+};
+
+export type FactCorrection = {
+  subject: string;
+  claimed: string;
+  actual: string;
+  predicate?: string;
+};
 
 // ── Audit Filter / Stats ──
 

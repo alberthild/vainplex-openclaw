@@ -212,4 +212,48 @@ describe("resolveConfig", () => {
     });
     expect(cfg.outputValidation.unverifiedClaimPolicy).toBe("ignore");
   });
+
+  // ── LLM Validator Config (RFC-006) ──
+
+  it("should resolve llmValidator with defaults", () => {
+    const cfg = resolveConfig({
+      outputValidation: {
+        llmValidator: { enabled: true },
+      },
+    });
+    expect(cfg.outputValidation.llmValidator).toBeDefined();
+    expect(cfg.outputValidation.llmValidator!.enabled).toBe(true);
+    expect(cfg.outputValidation.llmValidator!.maxTokens).toBe(500);
+    expect(cfg.outputValidation.llmValidator!.timeoutMs).toBe(5000);
+    expect(cfg.outputValidation.llmValidator!.externalChannels).toContain("twitter");
+    expect(cfg.outputValidation.llmValidator!.externalCommands).toContain("bird tweet");
+  });
+
+  it("should resolve llmValidator with custom values", () => {
+    const cfg = resolveConfig({
+      outputValidation: {
+        llmValidator: {
+          enabled: true,
+          model: "gpt-4",
+          maxTokens: 1000,
+          timeoutMs: 10000,
+          externalChannels: ["slack", "email"],
+          externalCommands: ["send-email"],
+        },
+      },
+    });
+    const llm = cfg.outputValidation.llmValidator!;
+    expect(llm.model).toBe("gpt-4");
+    expect(llm.maxTokens).toBe(1000);
+    expect(llm.timeoutMs).toBe(10000);
+    expect(llm.externalChannels).toEqual(["slack", "email"]);
+    expect(llm.externalCommands).toEqual(["send-email"]);
+  });
+
+  it("should leave llmValidator undefined when not configured", () => {
+    const cfg = resolveConfig({
+      outputValidation: { enabled: true },
+    });
+    expect(cfg.outputValidation.llmValidator).toBeUndefined();
+  });
 });

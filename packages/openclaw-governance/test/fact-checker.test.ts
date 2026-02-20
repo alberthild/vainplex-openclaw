@@ -1,6 +1,17 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { writeFileSync, mkdirSync, rmSync, existsSync } from "node:fs";
+import { join } from "node:path";
 import { FactRegistry, checkClaim, checkClaims } from "../src/fact-checker.js";
-import type { Claim, Fact, FactRegistryConfig } from "../src/types.js";
+import type { Claim, Fact, FactRegistryConfig, PluginLogger } from "../src/types.js";
+
+const WORKSPACE = "/tmp/governance-test-fact-file";
+
+const testLogger: PluginLogger = {
+  info: () => {},
+  warn: () => {},
+  error: () => {},
+  debug: () => {},
+};
 
 function makeClaim(overrides: Partial<Claim> = {}): Claim {
   return {
@@ -233,5 +244,164 @@ describe("performance", () => {
     const elapsed = performance.now() - start;
 
     expect(elapsed).toBeLessThan(2);
+  });
+});
+
+describe("FactRegistry file loading", () => {
+  beforeEach(() => {
+    if (existsSync(WORKSPACE)) rmSync(WORKSPACE, { recursive: true });
+    mkdirSync(WORKSPACE, { recursive: true });
+  });
+
+  afterEach(() => {
+    if (existsSync(WORKSPACE)) rmSync(WORKSPACE, { recursive: true });
+  });
+
+  it("loads facts from a JSON file", () => {
+    const filePath = join(WORKSPACE, "facts.json");
+    writeFileSync(
+      filePath,
+      JSON.stringify({
+        id: "file-facts",
+        facts: [
+          { subject: "nginx", predicate: "state", value: "running" },
+          { subject: "redis", predicate: "state", value: "stopped" },
+        ],
+      }),
+      "utf-8",
+    );
+
+    const reg = new FactRegistry([{ filePath }], testLogger);
+    expect(reg.size).toBe(2);
+    expect(reg.lookup("nginx", "state")?.value).toBe("running");
+  });
+
+  it("handles missing file gracefully", () => {
+    const reg = new FactRegistry(
+      [{ filePath: "/tmp/nonexistent-file.json" }],
+      testLogger,
+    );
+    expect(reg.size).toBe(0);
+  });
+
+  it("handles invalid JSON gracefully", () => {
+    const filePath = join(WORKSPACE, "bad.json");
+    writeFileSync(filePath, "not valid json", "utf-8");
+
+    const reg = new FactRegistry([{ filePath }], testLogger);
+    expect(reg.size).toBe(0);
+  });
+
+  it("handles file with missing facts array", () => {
+    const filePath = join(WORKSPACE, "no-facts.json");
+    writeFileSync(filePath, JSON.stringify({ id: "empty" }), "utf-8");
+
+    const reg = new FactRegistry([{ filePath }], testLogger);
+    expect(reg.size).toBe(0);
+  });
+
+  it("handles file that is not an object", () => {
+    const filePath = join(WORKSPACE, "array.json");
+    writeFileSync(filePath, "[1, 2, 3]", "utf-8");
+
+    const reg = new FactRegistry([{ filePath }], testLogger);
+    expect(reg.size).toBe(0);
+  });
+
+  it("combines inline facts and file facts", () => {
+    const filePath = join(WORKSPACE, "facts.json");
+    writeFileSync(
+      filePath,
+      JSON.stringify({
+        facts: [{ subject: "file-service", predicate: "state", value: "active" }],
+      }),
+      "utf-8",
+    );
+
+    const reg = new FactRegistry(
+      [
+        { id: "inline", facts: [{ subject: "inline-service", predicate: "state", value: "running" }] },
+        { filePath },
+      ],
+      testLogger,
+    );
+
+    expect(reg.size).toBe(2);
+    expect(reg.lookup("inline-service", "state")?.value).toBe("running");
+    expect(reg.lookup("file-service", "state")?.value).toBe("active");
+  });
+
+  it("file facts override inline facts with same key", () => {
+    const filePath = join(WORKSPACE, "facts.json");
+    writeFileSync(
+      filePath,
+      JSON.stringify({
+        facts: [{ subject: "nginx", predicate: "state", value: "stopped" }],
+      }),
+      "utf-8",
+    );
+
+    const reg = new FactRegistry(
+      [
+        { id: "inline", facts: [{ subject: "nginx", predicate: "state", value: "running" }] },
+        { filePath },
+      ],
+      testLogger,
+    );
+
+    expect(reg.size).toBe(1);
+    expect(reg.lookup("nginx", "state")?.value).toBe("stopped");
+  });
+
+  it("works without logger parameter", () => {
+    const reg = new FactRegistry([{ filePath: "/tmp/nonexistent.json" }]);
+    expect(reg.size).toBe(0);
+  });
+
+  it("config with neither facts nor filePath creates empty registry", () => {
+    const reg = new FactRegistry([{}], testLogger);
+    expect(reg.size).toBe(0);
+  });
+
+  describe("getAllFacts", () => {
+    it("returns all indexed facts from inline configs", () => {
+      const facts: Fact[] = [
+        { subject: "nats", predicate: "count", value: "255908" },
+        { subject: "plugins", predicate: "type", value: "governance" },
+      ];
+      const reg = new FactRegistry([{ id: "test", facts }], testLogger);
+      const all = reg.getAllFacts();
+      expect(all).toHaveLength(2);
+      expect(all.map((f) => f.subject)).toContain("nats");
+      expect(all.map((f) => f.subject)).toContain("plugins");
+    });
+
+    it("returns facts from file-loaded registries", () => {
+      const filePath = join(WORKSPACE, "facts-for-getall.json");
+      writeFileSync(filePath, JSON.stringify({
+        id: "file-test",
+        facts: [{ subject: "file-fact", predicate: "status", value: "loaded" }],
+      }), "utf-8");
+
+      const reg = new FactRegistry([{ filePath }], testLogger);
+      const all = reg.getAllFacts();
+      expect(all).toHaveLength(1);
+      expect(all[0]!.subject).toBe("file-fact");
+    });
+
+    it("returns deduplicated facts (later wins)", () => {
+      const reg = new FactRegistry([
+        { id: "a", facts: [{ subject: "x", predicate: "v", value: "old" }] },
+        { id: "b", facts: [{ subject: "x", predicate: "v", value: "new" }] },
+      ], testLogger);
+      const all = reg.getAllFacts();
+      expect(all).toHaveLength(1);
+      expect(all[0]!.value).toBe("new");
+    });
+
+    it("returns empty array for empty registry", () => {
+      const reg = new FactRegistry([], testLogger);
+      expect(reg.getAllFacts()).toHaveLength(0);
+    });
   });
 });
