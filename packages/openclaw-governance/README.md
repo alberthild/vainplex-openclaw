@@ -302,7 +302,7 @@ Trust modifiers: +0.1/success, -2/violation, +0.5/day age, +0.3/day clean streak
 
 ## Audit Trail
 
-Every decision → `{workspace}/governance/audit/YYYY-MM-DD.jsonl`:
+Every decision → `~/.openclaw/plugins/openclaw-governance/governance/audit/YYYY-MM-DD.jsonl`:
 - One file per day, auto-cleaned after `retentionDays`
 - Sensitive data redacted before write
 - Each record maps to compliance controls (ISO 27001, SOC 2, NIS2)
