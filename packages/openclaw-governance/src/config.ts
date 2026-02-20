@@ -8,6 +8,7 @@ import type {
   OutputValidationConfig,
   PerformanceConfig,
   Policy,
+  RedactionConfig,
   TimeWindow,
   TrustConfig,
 } from "./types.js";
@@ -192,5 +193,8 @@ export function resolveConfig(
       : {},
     performance: resolvePerformance(r["performance"]),
     outputValidation: resolveOutputValidation(r["outputValidation"]),
+    redaction: isRecord(r["redaction"])
+      ? (r["redaction"] as unknown as RedactionConfig)
+      : undefined,
   };
 }

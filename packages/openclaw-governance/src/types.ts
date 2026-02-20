@@ -457,6 +457,7 @@ export type GovernanceConfig = {
   builtinPolicies: BuiltinPoliciesConfig;
   performance: PerformanceConfig;
   outputValidation: OutputValidationConfig;
+  redaction?: RedactionConfig;
 };
 
 // ── Policy Index (internal) ──

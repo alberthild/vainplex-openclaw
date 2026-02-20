@@ -444,9 +444,11 @@ export function registerGovernanceHooks(
   const logger = api.logger;
 
   // ── Redaction Subsystem ──
-  const redactionConfig = parseRedactionConfig(
-    api.pluginConfig as Record<string, unknown> | undefined,
-  );
+  // Read from GovernanceConfig.redaction (loaded from external config file),
+  // not api.pluginConfig (which is just { enabled: true } from openclaw.json)
+  const redactionConfig = config.redaction
+    ? parseRedactionConfig({ redaction: config.redaction } as Record<string, unknown>)
+    : parseRedactionConfig(undefined);
   let redactionState: RedactionState | undefined;
 
   if (redactionConfig.enabled) {
