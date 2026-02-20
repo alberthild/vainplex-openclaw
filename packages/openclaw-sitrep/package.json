@@ -1,0 +1,46 @@
+{
+  "name": "@vainplex/openclaw-sitrep",
+  "version": "0.1.0",
+  "description": "Situation Report Generator for OpenClaw — aggregates system health, goals, timers, events into a unified sitrep.json",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "type": "module",
+  "files": [
+    "dist",
+    "openclaw.plugin.json",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "lint": "tsc --noEmit"
+  },
+  "keywords": [
+    "openclaw",
+    "plugin",
+    "sitrep",
+    "situation-report",
+    "health-monitoring",
+    "system-status",
+    "agent-autonomy"
+  ],
+  "author": "Vainplex",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/alberthild/vainplex-openclaw.git",
+    "directory": "packages/openclaw-sitrep"
+  },
+  "openclaw": {
+    "id": "openclaw-sitrep",
+    "extensions": [
+      "./dist/index.js"
+    ]
+  },
+  "devDependencies": {
+    "@types/node": "^25.3.0",
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
+  }
+}
