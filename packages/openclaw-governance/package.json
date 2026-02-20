@@ -1,6 +1,6 @@
 {
   "name": "@vainplex/openclaw-governance",
-  "version": "0.5.2",
+  "version": "0.5.3",
   "description": "Contextual, learning, cross-agent governance for AI agents",
   "type": "module",
   "main": "dist/index.js",
