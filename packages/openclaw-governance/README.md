@@ -8,7 +8,7 @@
 
 An agent that can `exec("rm -rf /")` at 3 AM because a prompt injection told it to? That's not a feature, that's a liability. This plugin adds contextual, learning governance to OpenClaw — so your agents stay powerful but accountable.
 
-**v0.5.2** — 767 tests, zero runtime dependencies.
+**v0.5.4** — 767 tests, zero runtime dependencies.
 
 ---
 
@@ -324,9 +324,9 @@ Every decision → `{workspace}/governance/audit/YYYY-MM-DD.jsonl`:
 | # | Plugin | Version | Description |
 |---|--------|---------|-------------|
 | 1 | [@vainplex/nats-eventstore](../openclaw-nats-eventstore) | 0.2.1 | NATS JetStream event persistence + audit |
-| 2 | [@vainplex/openclaw-cortex](../openclaw-cortex) | 0.4.2 | Conversation intelligence — threads, decisions, trace analysis |
+| 2 | [@vainplex/openclaw-cortex](../openclaw-cortex) | 0.4.5 | Conversation intelligence — threads, decisions, trace analysis |
 | 3 | [@vainplex/openclaw-knowledge-engine](../openclaw-knowledge-engine) | 0.1.4 | Real-time fact extraction |
-| 4 | **@vainplex/openclaw-governance** | **0.5.2** | Policy-as-code, trust, redaction, output validation (this plugin) |
+| 4 | **@vainplex/openclaw-governance** | **0.5.4** | Policy-as-code, trust, redaction, output validation (this plugin) |
 
 ## License
 
