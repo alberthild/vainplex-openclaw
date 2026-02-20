@@ -46,7 +46,7 @@ const BUILTIN_PATTERNS: readonly RedactionPattern[] = [
   {
     id: "aws-key",
     category: "credential",
-    regex: /(?:^|[^A-Z0-9])AKIA[0-9A-Z]{16}(?![A-Z0-9])/,
+    regex: /(?<![A-Z0-9])AKIA[0-9A-Z]{16}(?![A-Z0-9])/,
     replacementType: "api_key",
     builtin: true,
   },
