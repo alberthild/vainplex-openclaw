@@ -72,11 +72,11 @@ export class FactRegistry {
  * Some claim types match directly (system_state → "state"),
  * others need broader matching.
  */
-const CLAIM_TO_FACT_PREDICATE: Record<string, string | null> = {
+const CLAIM_TO_FACT_PREDICATE: Record<string, string | string[] | null> = {
   system_state: "state",
   existence: "exists",
   entity_name: null, // Match by subject, any predicate
-  operational_status: null, // Match by subject, check predicate/value
+  operational_status: ["count", "metric", "percentage"], // Try multiple predicates
   self_referential: null, // Match by "self" subject
 };
 
@@ -85,17 +85,20 @@ const CLAIM_TO_FACT_PREDICATE: Record<string, string | null> = {
  * Returns the fact-check result with status.
  */
 export function checkClaim(claim: Claim, registry: FactRegistry): FactCheckResult {
-  // 1. Try exact predicate match
+  // 1. Try exact predicate match (single or multiple predicates)
   const directPredicate = CLAIM_TO_FACT_PREDICATE[claim.type];
 
   if (directPredicate) {
-    const fact = registry.lookup(claim.subject, directPredicate);
-    if (fact) {
-      return {
-        claim,
-        fact,
-        status: valuesMatch(claim.value, fact.value) ? "verified" : "contradicted",
-      };
+    const predicates = Array.isArray(directPredicate) ? directPredicate : [directPredicate];
+    for (const pred of predicates) {
+      const fact = registry.lookup(claim.subject, pred);
+      if (fact) {
+        return {
+          claim,
+          fact,
+          status: valuesMatchFuzzy(claim.value, fact.value) ? "verified" : "contradicted",
+        };
+      }
     }
   }
 
@@ -140,6 +143,35 @@ function valuesMatch(claimValue: string, factValue: string): boolean {
   const a = normalizeValue(claimValue);
   const b = normalizeValue(factValue);
   return a === b;
+}
+
+/**
+ * Fuzzy value comparison: also extracts leading numbers for numeric matching.
+ * "255908 items" matches "255908". "92000" does NOT match "255908".
+ */
+function valuesMatchFuzzy(claimValue: string, factValue: string): boolean {
+  // Try exact match first
+  if (valuesMatch(claimValue, factValue)) return true;
+
+  // Extract leading number from both and compare
+  const claimNum = extractNumber(claimValue);
+  const factNum = extractNumber(factValue);
+
+  if (claimNum !== null && factNum !== null) {
+    return claimNum === factNum;
+  }
+
+  return false;
+}
+
+/**
+ * Extract the numeric portion from a string like "255908 items" or "90%"
+ */
+function extractNumber(v: string): number | null {
+  const match = v.trim().match(/^[\d,]+(\.\d+)?/);
+  if (!match) return null;
+  const num = parseFloat(match[0].replace(/,/g, ""));
+  return isNaN(num) ? null : num;
 }
 
 function normalizeValue(v: string): string {
