@@ -101,7 +101,16 @@ export function registerRedactionHooks(
   const logger = api.logger;
   const { engine, vault, config, credentialOnlyEngine } = state;
 
-  // Layer 1: Tool Output Redaction
+  // Layer 1: Tool Output Redaction (uses tool_result_persist — synchronous hook
+  // that can modify tool results before they reach the LLM context.
+  // after_tool_call is fire-and-forget and cannot modify results.)
+  api.on(
+    "tool_result_persist" as string,
+    handleToolResultPersist(engine, credentialOnlyEngine, config, logger),
+    { priority: 800 },
+  );
+
+  // Keep after_tool_call for audit logging (fire-and-forget is fine for logging)
   api.on(
     "after_tool_call",
     handleAfterToolCall(engine, credentialOnlyEngine, config, logger),
@@ -140,6 +149,61 @@ export function stopRedaction(state: RedactionState): void {
 }
 
 // ── Hook Handlers ──
+
+/**
+ * Layer 1 (synchronous): Redact tool results before they reach the LLM context.
+ * Uses tool_result_persist hook which runs synchronously and can return
+ * { message } to replace the persisted tool result.
+ */
+function handleToolResultPersist(
+  engine: RedactionEngine,
+  credentialOnlyEngine: RedactionEngine,
+  config: RedactionConfig,
+  logger: PluginLogger,
+) {
+  return (
+    event: unknown,
+    _hookCtx: unknown,
+  ): { message: unknown } | undefined => {
+    try {
+      const ev = event as { message: unknown; toolName?: string };
+      const toolName = ev.toolName ?? "unknown";
+      const message = ev.message;
+
+      if (message === undefined || message === null) return undefined;
+
+      // Determine which engine to use based on tool exemption
+      const activeEngine = isToolExempt(toolName, config.allowlist)
+        ? credentialOnlyEngine
+        : engine;
+
+      const scanInput =
+        typeof message === "string" ? message : JSON.stringify(message);
+      const result = activeEngine.scan(scanInput);
+
+      if (result.redactionCount > 0) {
+        const cats = [...result.categories].join(", ");
+        logger.info(
+          `[redaction] L1: Redacted ${result.redactionCount} item(s) [${cats}] from tool "${toolName}" (${result.elapsedMs.toFixed(1)}ms)`,
+        );
+        return { message: result.output };
+      }
+
+      return undefined;
+    } catch (e) {
+      logger.error(
+        `[redaction] L1 persist error: ${e instanceof Error ? e.message : String(e)}`,
+      );
+      if (config.failMode === "closed") {
+        return {
+          message:
+            "[REDACTION ERROR: Tool output suppressed (fail-closed)]",
+        };
+      }
+      return undefined;
+    }
+  };
+}
 
 function handleAfterToolCall(
   engine: RedactionEngine,
