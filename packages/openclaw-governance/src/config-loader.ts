@@ -99,7 +99,7 @@ function bootstrapConfig(
         level: "standard",
       },
       builtinPolicies: {
-        nightMode: { enabled: true, start: "23:00", end: "08:00" },
+        nightMode: { enabled: true, after: "23:00", before: "06:00" },
         credentialGuard: true,
         productionSafeguard: true,
         rateLimiter: { enabled: true, maxPerMinute: 15 },

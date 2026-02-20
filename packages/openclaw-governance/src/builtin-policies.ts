@@ -5,8 +5,17 @@ function resolveNightMode(
 ): Policy | null {
   if (!config) return null;
 
-  const after = typeof config === "object" ? config.after ?? "23:00" : "23:00";
-  const before = typeof config === "object" ? config.before ?? "08:00" : "08:00";
+  // Accept both canonical (after/before) and friendly (start/end) field names
+  const cfg = typeof config === "object" ? config : {};
+  const raw = cfg as Record<string, unknown>;
+  const after =
+    (typeof raw["after"] === "string" ? raw["after"] : undefined) ??
+    (typeof raw["start"] === "string" ? raw["start"] : undefined) ??
+    "23:00";
+  const before =
+    (typeof raw["before"] === "string" ? raw["before"] : undefined) ??
+    (typeof raw["end"] === "string" ? raw["end"] : undefined) ??
+    "08:00";
 
   return {
     id: "builtin-night-mode",

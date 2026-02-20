@@ -437,7 +437,7 @@ export type PerformanceConfig = {
 };
 
 export type BuiltinPoliciesConfig = {
-  nightMode?: boolean | { after?: string; before?: string };
+  nightMode?: boolean | { after?: string; before?: string; start?: string; end?: string };
   credentialGuard?: boolean;
   productionSafeguard?: boolean;
   rateLimiter?: boolean | { maxPerMinute?: number };

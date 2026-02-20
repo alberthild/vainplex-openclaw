@@ -15,7 +15,7 @@ describe("getBuiltinPolicies", () => {
     expect(nm.rules.length).toBeGreaterThanOrEqual(2);
   });
 
-  it("should generate night mode with custom times", () => {
+  it("should generate night mode with custom times (after/before)", () => {
     const policies = getBuiltinPolicies({
       nightMode: { after: "22:00", before: "07:00" },
     });
@@ -23,6 +23,26 @@ describe("getBuiltinPolicies", () => {
     const nm = policies[0]!;
     expect(nm.description).toContain("22:00");
     expect(nm.description).toContain("07:00");
+  });
+
+  it("should accept start/end as aliases for after/before", () => {
+    const policies = getBuiltinPolicies({
+      nightMode: { start: "23:00", end: "06:00" } as any,
+    });
+    expect(policies).toHaveLength(1);
+    const nm = policies[0]!;
+    expect(nm.description).toContain("23:00");
+    expect(nm.description).toContain("06:00");
+  });
+
+  it("should prefer after/before over start/end when both present", () => {
+    const policies = getBuiltinPolicies({
+      nightMode: { after: "22:00", before: "05:00", start: "23:00", end: "06:00" } as any,
+    });
+    expect(policies).toHaveLength(1);
+    const nm = policies[0]!;
+    expect(nm.description).toContain("22:00");
+    expect(nm.description).toContain("05:00");
   });
 
   it("should generate credential guard policy", () => {
