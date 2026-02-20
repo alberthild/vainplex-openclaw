@@ -190,8 +190,9 @@ export class PatternRegistry {
         (p) => p.category === category,
       );
       for (const pattern of categoryPatterns) {
-        // Create a new regex with global flag for iteration
-        const globalRegex = new RegExp(pattern.regex.source, "gi");
+        // Create a new regex with global flag for iteration, preserving original case-sensitivity
+        const flags = "g" + (pattern.regex.flags.includes("i") ? "i" : "");
+        const globalRegex = new RegExp(pattern.regex.source, flags);
         let m: RegExpExecArray | null;
         while ((m = globalRegex.exec(input)) !== null) {
           allMatches.push({

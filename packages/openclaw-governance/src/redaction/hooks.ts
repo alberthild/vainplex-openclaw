@@ -55,6 +55,7 @@ export type RedactionState = {
   vault: RedactionVault;
   engine: RedactionEngine;
   config: RedactionConfig;
+  credentialOnlyEngine: RedactionEngine;
 };
 
 /**
@@ -73,9 +74,13 @@ export function initRedaction(
   const vault = new RedactionVault(logger, config.vaultExpirySeconds);
   vault.start();
 
-  const engine = new RedactionEngine(registry, vault, logger);
+  const engine = new RedactionEngine(registry, vault);
 
-  return { registry, vault, engine, config };
+  // Pre-create credential-only registry+engine for exempt tool scanning (S1 perf fix)
+  const credentialOnlyRegistry = new PatternRegistry(["credential"], [], logger);
+  const credentialOnlyEngine = new RedactionEngine(credentialOnlyRegistry, vault);
+
+  return { registry, vault, engine, config, credentialOnlyEngine };
 }
 
 /**
@@ -94,12 +99,12 @@ export function registerRedactionHooks(
   state: RedactionState,
 ): void {
   const logger = api.logger;
-  const { engine, vault, config } = state;
+  const { engine, vault, config, credentialOnlyEngine } = state;
 
   // Layer 1: Tool Output Redaction
   api.on(
     "after_tool_call",
-    handleAfterToolCall(engine, config, logger),
+    handleAfterToolCall(engine, credentialOnlyEngine, config, logger),
     { priority: 800 },
   );
 
@@ -138,6 +143,7 @@ export function stopRedaction(state: RedactionState): void {
 
 function handleAfterToolCall(
   engine: RedactionEngine,
+  credentialOnlyEngine: RedactionEngine,
   config: RedactionConfig,
   logger: PluginLogger,
 ) {
@@ -147,23 +153,9 @@ function handleAfterToolCall(
 
       // Skip exempt tools (but still redact credentials in their output)
       if (isToolExempt(ev.toolName, config.allowlist)) {
-        // Even exempt tools get credential-only scanning
+        // Even exempt tools get credential-only scanning (pre-created for perf)
         if (ev.result !== undefined && ev.result !== null) {
-          const credentialOnlyRegistry = new PatternRegistry(
-            ["credential"],
-            [],
-            logger,
-          );
-          const credEngine = new RedactionEngine(
-            credentialOnlyRegistry,
-            // Re-use the same vault from the main engine closure
-            // We need to reach it through the engine's vault reference
-            // Instead, we'll scan with the full engine and that's fine —
-            // exempt tools skip non-credential categories via allowlist logic
-            (engine as unknown as { vault: RedactionVault }).vault,
-            logger,
-          );
-          const result = credEngine.scan(ev.result);
+          const result = credentialOnlyEngine.scan(ev.result);
           if (result.redactionCount > 0) {
             (ev as Record<string, unknown>)["result"] = result.output;
             logger.info(
@@ -338,6 +330,9 @@ function handleMessageSending(
       logger.error(
         `[redaction] L2 error: ${e instanceof Error ? e.message : String(e)}`,
       );
+      if (config.failMode === "closed") {
+        return { cancel: true };
+      }
       return undefined;
     }
   };

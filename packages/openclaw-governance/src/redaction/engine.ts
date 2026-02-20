@@ -36,12 +36,11 @@ export type ScanResult = {
  */
 export class RedactionEngine {
   private readonly registry: PatternRegistry;
-  private readonly vault: RedactionVault;
+  readonly vault: RedactionVault;
 
   constructor(
     registry: PatternRegistry,
     vault: RedactionVault,
-    _logger: { info: (msg: string) => void },
   ) {
     this.registry = registry;
     this.vault = vault;

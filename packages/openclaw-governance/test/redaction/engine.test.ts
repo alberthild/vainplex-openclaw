@@ -14,7 +14,7 @@ const logger: PluginLogger = {
 function makeEngine(categories = ["credential", "pii", "financial"] as const) {
   const registry = new PatternRegistry([...categories], [], logger);
   const vault = new RedactionVault(logger);
-  const engine = new RedactionEngine(registry, vault, logger);
+  const engine = new RedactionEngine(registry, vault);
   return { engine, vault, registry };
 }
 
