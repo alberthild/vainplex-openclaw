@@ -44,6 +44,20 @@ const BUILTIN_PATTERNS: readonly RedactionPattern[] = [
     builtin: true,
   },
   {
+    id: "aws-key",
+    category: "credential",
+    regex: /(?:^|[^A-Z0-9])AKIA[0-9A-Z]{16}(?![A-Z0-9])/,
+    replacementType: "api_key",
+    builtin: true,
+  },
+  {
+    id: "generic-api-key",
+    category: "credential",
+    regex: /sk-[a-zA-Z0-9_-]{20,}/,
+    replacementType: "api_key",
+    builtin: true,
+  },
+  {
     id: "google-api-key",
     category: "credential",
     regex: /AIza[0-9A-Za-z_-]{35}/,
@@ -86,6 +100,13 @@ const BUILTIN_PATTERNS: readonly RedactionPattern[] = [
     builtin: true,
   },
   {
+    id: "basic-auth",
+    category: "credential",
+    regex: /Basic [A-Za-z0-9+/]{16,}={0,2}/,
+    replacementType: "basic_auth",
+    builtin: true,
+  },
+  {
     id: "key-value-credential",
     category: "credential",
     regex: /(?:password|passwd|pwd|secret|token|api_key|apikey)\s*[:=]\s*['"]?[^\s'"]{8,64}/i,
@@ -102,8 +123,15 @@ const BUILTIN_PATTERNS: readonly RedactionPattern[] = [
   {
     id: "phone-number",
     category: "pii",
-    regex: /\+?[1-9]\d{6,14}/,
+    regex: /(?<!\d)\+?[1-9]\d{6,14}(?!\d)/,
     replacementType: "phone",
+    builtin: true,
+  },
+  {
+    id: "ssn-us",
+    category: "pii",
+    regex: /\b\d{3}-\d{2}-\d{4}\b/,
+    replacementType: "ssn",
     builtin: true,
   },
   {

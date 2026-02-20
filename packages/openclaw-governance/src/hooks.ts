@@ -16,6 +16,14 @@ import type {
 } from "./types.js";
 import type { GovernanceEngine } from "./engine.js";
 import { getCurrentTime, resolveAgentId } from "./util.js";
+import {
+  initRedaction,
+  parseRedactionConfig,
+  registerRedactionHooks,
+  stopRedaction,
+  type RedactionState,
+} from "./redaction/hooks.js";
+import { LlmValidator, type CallLlmFn } from "./llm-validator.js";
 
 function buildToolEvalContext(
   event: HookBeforeToolCallEvent,
@@ -387,8 +395,11 @@ function handleGatewayStart(engine: GovernanceEngine) {
   };
 }
 
-function handleGatewayStop(engine: GovernanceEngine) {
+function handleGatewayStop(engine: GovernanceEngine, redactionState?: RedactionState) {
   return async (): Promise<void> => {
+    if (redactionState) {
+      stopRedaction(redactionState);
+    }
     await engine.stop();
   };
 }
@@ -428,8 +439,29 @@ export function registerGovernanceHooks(
   api: OpenClawPluginApi,
   engine: GovernanceEngine,
   config: GovernanceConfig,
+  opts?: { callLlm?: CallLlmFn },
 ): void {
   const logger = api.logger;
+
+  // ── Redaction Subsystem ──
+  const redactionConfig = parseRedactionConfig(
+    api.pluginConfig as Record<string, unknown> | undefined,
+  );
+  let redactionState: RedactionState | undefined;
+
+  if (redactionConfig.enabled) {
+    redactionState = initRedaction(redactionConfig, logger);
+    registerRedactionHooks(api, redactionState);
+    logger.info("[governance] Redaction subsystem initialized");
+  }
+
+  // ── LLM Validator (Stage 3) ──
+  const llmConfig = config.outputValidation.llmValidator;
+  if (llmConfig?.enabled && opts?.callLlm) {
+    const llmValidator = new LlmValidator(llmConfig, opts.callLlm, logger);
+    engine.setLlmValidator(llmValidator);
+    logger.info("[governance] LLM validator initialized for Stage 3 output validation");
+  }
 
   // Primary enforcement
   api.on("before_tool_call", handleBeforeToolCall(engine, config, logger), {
@@ -455,7 +487,7 @@ export function registerGovernanceHooks(
   // Lifecycle
   api.on("session_start", handleSessionStart(engine, logger), { priority: 1 });
   api.on("gateway_start", handleGatewayStart(engine), { priority: 1 });
-  api.on("gateway_stop", handleGatewayStop(engine), { priority: 999 });
+  api.on("gateway_stop", handleGatewayStop(engine, redactionState), { priority: 999 });
 
   // Commands
   registerCommands(api, engine);
