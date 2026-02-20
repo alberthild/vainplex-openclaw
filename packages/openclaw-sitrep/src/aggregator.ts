@@ -25,34 +25,26 @@ const BUILT_IN_COLLECTORS: Record<string, CollectorFn> = {
   calendar: collectCalendar,
 };
 
-/**
- * Generate a full situation report.
- */
-export async function generateSitrep(
+/** Run all built-in and custom collectors. */
+async function runAllCollectors(
   config: SitrepConfig,
   logger: PluginLogger,
-): Promise<SitrepReport> {
-  const collectorResults: Record<string, CollectorResult> = {};
-  const allItems: SitrepItem[] = [];
+): Promise<Record<string, CollectorResult>> {
+  const results: Record<string, CollectorResult> = {};
 
-  // Run built-in collectors
   for (const [name, fn] of Object.entries(BUILT_IN_COLLECTORS)) {
     const collectorConfig = config.collectors[name] ?? { enabled: false };
-    const result = await safeCollect(name, fn, collectorConfig, logger);
-    collectorResults[name] = result;
-    allItems.push(...result.items);
+    results[name] = await safeCollect(name, fn, collectorConfig, logger);
   }
 
-  // Run custom collectors
   for (const customDef of config.customCollectors) {
     const start = Date.now();
     try {
       const result = await runCustomCollector(customDef, logger);
       result.duration_ms = Date.now() - start;
-      collectorResults[`custom:${customDef.id}`] = result;
-      allItems.push(...result.items);
+      results[`custom:${customDef.id}`] = result;
     } catch (err) {
-      collectorResults[`custom:${customDef.id}`] = {
+      results[`custom:${customDef.id}`] = {
         status: "error",
         items: [],
         summary: `error: ${err instanceof Error ? err.message : String(err)}`,
@@ -62,81 +54,49 @@ export async function generateSitrep(
     }
   }
 
-  // Sort by score (highest first)
-  allItems.sort((a, b) => b.score - a.score);
+  return results;
+}
 
-  // Categorize
-  const categories: SitrepReport["categories"] = {
-    needs_owner: allItems.filter((i) => i.category === "needs_owner"),
-    auto_fixable: allItems.filter((i) => i.category === "auto_fixable"),
-    delegatable: allItems.filter((i) => i.category === "delegatable"),
-    informational: allItems.filter((i) => i.category === "informational"),
-  };
+/** Compute overall health from items. */
+function computeHealth(
+  items: SitrepItem[],
+  results: Record<string, CollectorResult>,
+): SitrepReport["health"] {
+  const details: Record<string, "ok" | "warn" | "critical" | "error" | "disabled"> = {};
+  for (const [name, result] of Object.entries(results)) {
+    details[name] = result.status as "ok" | "warn" | "critical" | "error" | "disabled";
+  }
 
-  // Compute overall health
-  const collectorStatuses = Object.entries(collectorResults).reduce(
-    (acc, [name, result]) => {
-      acc[name] = result.status as "ok" | "warn" | "critical" | "error" | "disabled";
-      return acc;
-    },
-    {} as Record<string, "ok" | "warn" | "critical" | "error" | "disabled">,
-  );
-
-  const overallHealth: "ok" | "warn" | "critical" = allItems.some(
-    (i) => i.severity === "critical",
-  )
+  const overall: "ok" | "warn" | "critical" = items.some((i) => i.severity === "critical")
     ? "critical"
-    : allItems.some((i) => i.severity === "warn")
+    : items.some((i) => i.severity === "warn")
       ? "warn"
       : "ok";
 
-  // Compute delta against previous sitrep
-  const previous = readJsonSafe<SitrepReport>(config.previousPath);
+  return { overall, details };
+}
+
+/** Compute delta against previous sitrep. */
+function computeDelta(
+  currentItems: SitrepItem[],
+  previousPath: string,
+): SitrepReport["delta"] {
+  const previous = readJsonSafe<SitrepReport>(previousPath);
   const previousItemIds = new Set(previous?.items?.map((i) => i.id) ?? []);
-  const currentItemIds = new Set(allItems.map((i) => i.id));
-  const newItems = allItems.filter((i) => !previousItemIds.has(i.id));
-  const resolvedItems = [...previousItemIds].filter((id) => !currentItemIds.has(id));
-
-  // Generate summary
-  const summary = generateSummary(allItems, categories, collectorResults, config);
-
-  // Build collector metadata (without items — those are in allItems)
-  const collectors: SitrepReport["collectors"] = {};
-  for (const [name, result] of Object.entries(collectorResults)) {
-    collectors[name] = {
-      status: result.status,
-      duration_ms: result.duration_ms,
-      ...(result.error ? { error: result.error } : {}),
-    };
-  }
+  const currentItemIds = new Set(currentItems.map((i) => i.id));
 
   return {
-    version: 1,
-    generated: new Date().toISOString(),
-    summary,
-    health: {
-      overall: overallHealth,
-      details: collectorStatuses,
-    },
-    items: allItems,
-    categories,
-    delta: {
-      new_items: newItems.length,
-      resolved_items: resolvedItems.length,
-      previous_generated: previous?.generated ?? null,
-    },
-    collectors,
+    new_items: currentItems.filter((i) => !previousItemIds.has(i.id)).length,
+    resolved_items: [...previousItemIds].filter((id) => !currentItemIds.has(id)).length,
+    previous_generated: previous?.generated ?? null,
   };
 }
 
-/**
- * Generate a human-readable summary string.
- */
+/** Generate a human-readable summary string. */
 function generateSummary(
-  items: SitrepItem[],
   categories: SitrepReport["categories"],
   results: Record<string, CollectorResult>,
-  config: SitrepConfig,
+  maxChars: number,
 ): string {
   const parts: string[] = [];
 
@@ -147,17 +107,59 @@ function generateSummary(
     parts.push(`${categories.auto_fixable.length} auto-fixable`);
   }
 
-  // Add collector summaries
   for (const [name, result] of Object.entries(results)) {
     if (result.status !== "ok" && result.summary !== "disabled") {
       parts.push(`${name}: ${result.summary}`);
     }
   }
 
-  if (items.length === 0) {
+  if (parts.length === 0) {
     parts.push("All systems nominal");
   }
 
-  const summary = parts.join(". ") + ".";
-  return summary.slice(0, config.summaryMaxChars);
+  return (parts.join(". ") + ".").slice(0, maxChars);
+}
+
+/**
+ * Generate a full situation report.
+ */
+export async function generateSitrep(
+  config: SitrepConfig,
+  logger: PluginLogger,
+): Promise<SitrepReport> {
+  const results = await runAllCollectors(config, logger);
+
+  // Flatten and sort items
+  const allItems: SitrepItem[] = Object.values(results)
+    .flatMap((r) => r.items)
+    .sort((a, b) => b.score - a.score);
+
+  // Categorize
+  const categories: SitrepReport["categories"] = {
+    needs_owner: allItems.filter((i) => i.category === "needs_owner"),
+    auto_fixable: allItems.filter((i) => i.category === "auto_fixable"),
+    delegatable: allItems.filter((i) => i.category === "delegatable"),
+    informational: allItems.filter((i) => i.category === "informational"),
+  };
+
+  // Build collector metadata
+  const collectors: SitrepReport["collectors"] = {};
+  for (const [name, result] of Object.entries(results)) {
+    collectors[name] = {
+      status: result.status,
+      duration_ms: result.duration_ms,
+      ...(result.error ? { error: result.error } : {}),
+    };
+  }
+
+  return {
+    version: 1,
+    generated: new Date().toISOString(),
+    summary: generateSummary(categories, results, config.summaryMaxChars),
+    health: computeHealth(allItems, results),
+    items: allItems,
+    categories,
+    delta: computeDelta(allItems, config.previousPath),
+    collectors,
+  };
 }

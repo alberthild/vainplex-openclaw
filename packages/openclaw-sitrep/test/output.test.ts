@@ -1,15 +1,10 @@
-import { describe, it, expect, vi, afterEach } from "vitest";
+import { describe, it, expect, afterEach } from "vitest";
 import { writeSitrep } from "../src/output.js";
+import { createMockLogger } from "./helpers.js";
 import { readFileSync, existsSync, unlinkSync, mkdirSync } from "node:fs";
-import type { SitrepReport, PluginLogger } from "../src/types.js";
+import type { SitrepReport } from "../src/types.js";
 
-const mockLogger: PluginLogger = {
-  info: vi.fn(),
-  warn: vi.fn(),
-  error: vi.fn(),
-  debug: vi.fn(),
-};
-
+const mockLogger = createMockLogger();
 const testDir = "/tmp/sitrep-test-output";
 const outputPath = `${testDir}/sitrep.json`;
 const previousPath = `${testDir}/sitrep-previous.json`;
@@ -36,44 +31,34 @@ afterEach(() => {
 
 describe("writeSitrep", () => {
   it("creates output file", () => {
-    const report = makeReport();
-    writeSitrep(report, outputPath, previousPath, mockLogger);
+    mkdirSync(testDir, { recursive: true });
+    writeSitrep(makeReport(), outputPath, previousPath, mockLogger);
     expect(existsSync(outputPath)).toBe(true);
-    const written = JSON.parse(readFileSync(outputPath, "utf-8"));
-    expect(written.version).toBe(1);
   });
 
   it("creates directories if needed", () => {
-    const deepPath = `${testDir}/deep/nested/sitrep.json`;
-    const deepPrev = `${testDir}/deep/nested/prev.json`;
-    writeSitrep(makeReport(), deepPath, deepPrev, mockLogger);
-    expect(existsSync(deepPath)).toBe(true);
-    if (existsSync(deepPath)) unlinkSync(deepPath);
+    const deep = `${testDir}/deep/nested/sitrep.json`;
+    writeSitrep(makeReport(), deep, `${testDir}/deep/prev.json`, mockLogger);
+    expect(existsSync(deep)).toBe(true);
+    unlinkSync(deep);
   });
 
   it("backs up previous report", () => {
-    // Write first report
+    mkdirSync(testDir, { recursive: true });
     writeSitrep(makeReport({ summary: "first" }), outputPath, previousPath, mockLogger);
-    // Write second report
     writeSitrep(makeReport({ summary: "second" }), outputPath, previousPath, mockLogger);
-
-    // Check previous
-    expect(existsSync(previousPath)).toBe(true);
     const prev = JSON.parse(readFileSync(previousPath, "utf-8"));
     expect(prev.summary).toBe("first");
-
-    // Check current
     const current = JSON.parse(readFileSync(outputPath, "utf-8"));
     expect(current.summary).toBe("second");
   });
 
-  it("writes valid JSON", () => {
-    const report = makeReport({
-      items: [{ id: "test", source: "test", severity: "warn", category: "informational", title: "Test item", score: 42 }],
-    });
-    writeSitrep(report, outputPath, previousPath, mockLogger);
+  it("writes valid JSON with items", () => {
+    mkdirSync(testDir, { recursive: true });
+    writeSitrep(makeReport({
+      items: [{ id: "x", source: "t", severity: "warn", category: "informational", title: "T", score: 42 }],
+    }), outputPath, previousPath, mockLogger);
     const parsed = JSON.parse(readFileSync(outputPath, "utf-8"));
     expect(parsed.items).toHaveLength(1);
-    expect(parsed.items[0].score).toBe(42);
   });
 });

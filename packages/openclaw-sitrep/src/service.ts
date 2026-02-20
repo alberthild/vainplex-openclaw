@@ -3,9 +3,27 @@ import { generateSitrep } from "./aggregator.js";
 import { writeSitrep } from "./output.js";
 import { resolveConfig } from "./config.js";
 
+/** Run a single sitrep generation cycle. */
+async function runGeneration(config: SitrepConfig, logger: PluginLogger): Promise<void> {
+  const start = Date.now();
+  const report = await generateSitrep(config, logger);
+  writeSitrep(report, config.outputPath, config.previousPath, logger);
+  logger.info(
+    `[sitrep] Generated in ${Date.now() - start}ms: ${report.health.overall} (${report.items.length} items)`,
+  );
+}
+
+/** Resolve config from service context, falling back to register-time config. */
+function resolveServiceConfig(ctx: ServiceContext, fallback: SitrepConfig): SitrepConfig {
+  const plugins = (ctx.config as Record<string, unknown>)["plugins"] as Record<string, unknown> | undefined;
+  const entries = plugins?.["entries"] as Record<string, unknown> | undefined;
+  const entry = entries?.["openclaw-sitrep"] as Record<string, unknown> | undefined;
+  const inlineConfig = entry?.["config"] as Record<string, unknown> | undefined;
+  return inlineConfig ? resolveConfig(inlineConfig) : fallback;
+}
+
 /**
  * Service: Periodic sitrep generation.
- * Runs on an interval (configurable), writing sitrep.json each cycle.
  */
 export function createSitrepService(configFromRegister: SitrepConfig) {
   let timer: ReturnType<typeof setInterval> | null = null;
@@ -14,16 +32,7 @@ export function createSitrepService(configFromRegister: SitrepConfig) {
     id: "sitrep-generator",
 
     async start(ctx: ServiceContext): Promise<void> {
-      // Re-resolve config from service context (same pattern as nats-eventstore)
-      const pluginEntry = (ctx.config as Record<string, unknown>)["plugins"] as
-        | Record<string, unknown>
-        | undefined;
-      const entries = pluginEntry?.["entries"] as Record<string, unknown> | undefined;
-      const sitrepEntry = entries?.["openclaw-sitrep"] as Record<string, unknown> | undefined;
-      const config = sitrepEntry?.["config"]
-        ? resolveConfig(sitrepEntry["config"] as Record<string, unknown>)
-        : configFromRegister;
-
+      const config = resolveServiceConfig(ctx, configFromRegister);
       const logger = ctx.logger;
 
       if (!config.enabled) {
@@ -31,10 +40,10 @@ export function createSitrepService(configFromRegister: SitrepConfig) {
         return;
       }
 
-      // Generate initial report
-      await runGeneration(config, logger);
+      await runGeneration(config, logger).catch((err) =>
+        logger.error(`[sitrep] Initial generation failed: ${err}`, err as Error),
+      );
 
-      // Schedule periodic regeneration
       const intervalMs = config.intervalMinutes * 60_000;
       if (intervalMs > 0) {
         timer = setInterval(() => {
@@ -42,12 +51,7 @@ export function createSitrepService(configFromRegister: SitrepConfig) {
             logger.error(`[sitrep] Periodic generation failed: ${err}`, err as Error),
           );
         }, intervalMs);
-
-        // Don't prevent Node from exiting
-        if (timer && "unref" in timer) {
-          (timer as NodeJS.Timeout).unref();
-        }
-
+        if (timer && "unref" in timer) (timer as NodeJS.Timeout).unref();
         logger.info(`[sitrep] Scheduled every ${config.intervalMinutes}min`);
       }
 
@@ -61,24 +65,4 @@ export function createSitrepService(configFromRegister: SitrepConfig) {
       }
     },
   };
-}
-
-async function runGeneration(
-  config: SitrepConfig,
-  logger: PluginLogger,
-): Promise<void> {
-  const start = Date.now();
-  try {
-    const report = await generateSitrep(config, logger);
-    writeSitrep(report, config.outputPath, config.previousPath, logger);
-    const duration = Date.now() - start;
-    logger.info(
-      `[sitrep] Generated in ${duration}ms: ${report.health.overall} (${report.items.length} items)`,
-    );
-  } catch (err) {
-    logger.error(
-      `[sitrep] Generation failed: ${err instanceof Error ? err.message : String(err)}`,
-      err as Error,
-    );
-  }
 }

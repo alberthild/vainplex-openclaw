@@ -5,25 +5,32 @@ interface CalendarCollectorConfig extends CollectorConfig {
   command?: string;
 }
 
+/** Convert lines of calendar output into sitrep items. */
+function linesToItems(lines: string[]): SitrepItem[] {
+  return lines.slice(0, 10).map((line) => ({
+    id: `calendar-${Buffer.from(line.slice(0, 50)).toString("base64url").slice(0, 16)}`,
+    source: "calendar",
+    severity: "info" as const,
+    category: "informational" as const,
+    title: line.trim(),
+    score: 10,
+  }));
+}
+
 /**
  * Collector: Calendar events via configurable shell command.
- * The command should output text — each line is treated as an event.
  */
 export const collectCalendar: CollectorFn = async (
   config: CollectorConfig,
 ): Promise<CollectorResult> => {
   const calConfig = config as CalendarCollectorConfig;
-  const command = calConfig.command;
-
-  if (!command) {
+  if (!calConfig.command) {
     return { status: "ok", items: [], summary: "no calendar command configured", duration_ms: 0 };
   }
 
-  const items: SitrepItem[] = [];
-
   let output: string;
   try {
-    output = shell(command);
+    output = shell(calConfig.command);
   } catch {
     return {
       status: "warn",
@@ -33,7 +40,7 @@ export const collectCalendar: CollectorFn = async (
         severity: "warn",
         category: "informational",
         title: "Calendar command failed",
-        detail: `Command: ${command}`,
+        detail: `Command: ${calConfig.command}`,
         score: 20,
       }],
       summary: "calendar command failed",
@@ -41,26 +48,14 @@ export const collectCalendar: CollectorFn = async (
     };
   }
 
-  if (!output.trim()) {
-    return { status: "ok", items: [], summary: "no upcoming events", duration_ms: 0 };
-  }
-
   const lines = output.split("\n").filter((l) => l.trim());
-
-  for (const line of lines.slice(0, 10)) {
-    items.push({
-      id: `calendar-${Buffer.from(line.slice(0, 50)).toString("base64url").slice(0, 16)}`,
-      source: "calendar",
-      severity: "info",
-      category: "informational",
-      title: line.trim(),
-      score: 10,
-    });
+  if (lines.length === 0) {
+    return { status: "ok", items: [], summary: "no upcoming events", duration_ms: 0 };
   }
 
   return {
     status: "ok",
-    items,
+    items: linesToItems(lines),
     summary: `${lines.length} upcoming event(s)`,
     duration_ms: 0,
   };
