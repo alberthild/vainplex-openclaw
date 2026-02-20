@@ -667,3 +667,52 @@ export type AuditStats = {
   oldestRecord?: string;
   newestRecord?: string;
 };
+
+// ── Redaction Layer (RFC-007) ──
+
+export type RedactionCategory = "credential" | "pii" | "financial" | "custom";
+
+export type RedactionPattern = {
+  id: string;
+  category: RedactionCategory;
+  regex: RegExp;
+  replacementType: string;
+  /** Built-in patterns cannot be disabled via config */
+  builtin: boolean;
+};
+
+export type RedactionAllowlist = {
+  /** Channels where PII is allowed to pass through (e.g., internal Matrix) */
+  piiAllowedChannels: string[];
+  /** Channels where financial data is allowed (e.g., internal admin tools) */
+  financialAllowedChannels: string[];
+  /** Tools whose output should not be redacted (e.g., status commands) */
+  exemptTools: string[];
+  /** Agent IDs that are exempt from outbound redaction (e.g., admin agents) */
+  exemptAgents: string[];
+};
+
+export type CustomPatternConfig = {
+  name: string;
+  regex: string;
+  category: RedactionCategory;
+};
+
+export type RedactionConfig = {
+  enabled: boolean;
+  categories: RedactionCategory[];
+  vaultExpirySeconds: number;
+  failMode: FailMode;
+  customPatterns: CustomPatternConfig[];
+  allowlist: RedactionAllowlist;
+  performanceBudgetMs: number;
+};
+
+export type VaultEntry = {
+  original: string;
+  category: RedactionCategory;
+  placeholder: string;
+  hash: string;
+  createdAt: number;
+  expiresAt: number;
+};
