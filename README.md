@@ -16,20 +16,20 @@ We built these plugins because we needed them. Not as a product exercise — as 
 
 ## The Suite
 
-| Plugin | What it does | npm |
-|--------|-------------|-----|
-| **[Cortex](packages/openclaw-cortex)** | Conversation intelligence — tracks discussion threads, extracts decisions, generates boot context that survives memory compaction | [`@vainplex/openclaw-cortex`](https://www.npmjs.com/package/@vainplex/openclaw-cortex) |
-| **[Knowledge Engine](packages/openclaw-knowledge-engine)** | Real-time fact extraction from conversations — entities, relationships, structured knowledge, all without external APIs | [`@vainplex/openclaw-knowledge-engine`](https://www.npmjs.com/package/@vainplex/openclaw-knowledge-engine) |
-| **[Governance](packages/openclaw-governance)** | Policy-as-code for AI agents — tool blocking, trust scoring, time-based rules, credential protection. Deterministic, not probabilistic. | [`@vainplex/openclaw-governance`](https://www.npmjs.com/package/@vainplex/openclaw-governance) |
-| **[NATS EventStore](packages/openclaw-nats-eventstore)** | Publish every agent event to NATS JetStream — full audit trail, replay capability, multi-agent event sharing | [`@vainplex/openclaw-nats-eventstore`](https://www.npmjs.com/package/@vainplex/openclaw-nats-eventstore) |
-| **Membrane** | Structured memory substrate with revision operations, competence learning, and decay — built with [GustyCube](https://github.com/gustycube/membrane) | *in development* |
+| Plugin | What it does | Version | npm |
+|--------|-------------|---------|-----|
+| **[Cortex](packages/openclaw-cortex)** | Conversation intelligence — tracks discussion threads, extracts decisions, generates boot context that survives memory compaction | 0.4.5 | [`@vainplex/openclaw-cortex`](https://www.npmjs.com/package/@vainplex/openclaw-cortex) |
+| **[Governance](packages/openclaw-governance)** | Policy-as-code for AI agents — tool blocking, trust scoring, time-based rules, credential protection. Deterministic, not probabilistic. | 0.5.5 | [`@vainplex/openclaw-governance`](https://www.npmjs.com/package/@vainplex/openclaw-governance) |
+| **[Knowledge Engine](packages/openclaw-knowledge-engine)** | Real-time fact extraction from conversations — entities, relationships, structured knowledge, all without external APIs | 0.1.4 | [`@vainplex/openclaw-knowledge-engine`](https://www.npmjs.com/package/@vainplex/openclaw-knowledge-engine) |
+| **[NATS EventStore](packages/openclaw-nats-eventstore)** | Publish every agent event to NATS JetStream — full audit trail, replay capability, multi-agent event sharing | 0.2.1 | [`@vainplex/nats-eventstore`](https://www.npmjs.com/package/@vainplex/nats-eventstore) |
+| **[Membrane](https://github.com/alberthild/openclaw-membrane)** | Episodic memory bridge — gRPC integration with [GustyCube's Membrane](https://github.com/gustycube/membrane) for salience-based recall, rehearsal, and organic memory decay | 0.3.0 | [`@vainplex/openclaw-membrane`](https://www.npmjs.com/package/@vainplex/openclaw-membrane) |
 
 ## Numbers
 
-- **10,234 lines** of TypeScript source
-- **12,687 lines** of tests
-- **1,070 tests** across 61 test files
-- **0** runtime dependencies (except NATS client for EventStore)
+- **18,174 lines** of TypeScript source
+- **23,588 lines** of tests
+- **1,813 tests** across 94 test files
+- **0** runtime dependencies (except NATS client for EventStore, gRPC for Membrane)
 - **0** `any` types — strict TypeScript throughout
 - **5 plugins** in production since February 2026
 
@@ -40,9 +40,10 @@ Install any plugin individually:
 ```bash
 # In your OpenClaw extensions directory
 npm install @vainplex/openclaw-cortex
-npm install @vainplex/openclaw-knowledge-engine
 npm install @vainplex/openclaw-governance
-npm install @vainplex/openclaw-nats-eventstore
+npm install @vainplex/openclaw-knowledge-engine
+npm install @vainplex/nats-eventstore
+npm install @vainplex/openclaw-membrane
 ```
 
 Or clone the full suite:
@@ -62,7 +63,8 @@ Each plugin registers itself with OpenClaw's plugin API. Add it to your `opencla
     { "name": "@vainplex/openclaw-cortex" },
     { "name": "@vainplex/openclaw-governance" },
     { "name": "@vainplex/openclaw-knowledge-engine" },
-    { "name": "@vainplex/openclaw-nats-eventstore" }
+    { "name": "@vainplex/nats-eventstore" },
+    { "name": "@vainplex/openclaw-membrane" }
   ]
 }
 ```
@@ -80,6 +82,12 @@ User Message
     │ (allowed)
     ▼
 ┌─────────────┐     ┌──────────────┐
+│ Membrane     │────▶│ Retrieve     │──▶ Episodic Context (salience-ranked)
+│ (pre-agent)  │     └──────────────┘
+└─────────────┘
+    │
+    ▼
+┌─────────────┐     ┌──────────────┐
 │ Cortex       │────▶│ Thread Track │──▶ Decisions, Boot Context
 │ (post-msg)   │     └──────────────┘
 └─────────────┘
@@ -92,12 +100,18 @@ User Message
     │
     ▼
 ┌─────────────┐     ┌──────────────┐
+│ Membrane     │────▶│ Ingest       │──▶ Episodic Memory (decay + rehearsal)
+│ (post-msg)   │     └──────────────┘
+└─────────────┘
+    │
+    ▼
+┌─────────────┐     ┌──────────────┐
 │ NATS Event   │────▶│ Publish      │──▶ Audit, Replay, Sharing
 │ Store        │     └──────────────┘
 └─────────────┘
 ```
 
-Governance checks before actions run. Cortex and Knowledge Engine extract intelligence after. EventStore records everything. Each plugin works independently — use one or all five.
+Governance checks before actions run. Membrane injects relevant episodic context before the agent responds. Cortex and Knowledge Engine extract intelligence after. Membrane ingests the conversation into long-term memory with salience tracking. EventStore records everything. Each plugin works independently — use one or all five.
 
 ## Why Not Just Use [X]?
 
@@ -112,6 +126,8 @@ Governance checks before actions run. Cortex and Knowledge Engine extract intell
 **Albert Hild** — 30 years in tech, CTO, serial builder. Not in Silicon Valley. In a basement in Germany with a gigabit line and something to prove.
 
 **Claudia** — Albert's AI. Built on OpenClaw, running on Claude. The first user and co-developer of every plugin in this suite. These plugins exist because she needed them to do her job.
+
+**[GustyCube](https://github.com/gustycube)** — Creator of [Membrane](https://github.com/gustycube/membrane), the episodic memory substrate. The Membrane plugin bridges GustyCube's sidecar into OpenClaw's plugin ecosystem.
 
 This suite is what happens when you stop treating AI agents as toys and start treating them as teammates.
 
