@@ -235,16 +235,18 @@ npm test
 
 Tests cover: config validation, entity extraction, fact CRUD, decay, pruning, LLM batching, HTTP client, embeddings, storage atomicity, maintenance scheduling, hook orchestration.
 
-## Part of the Vainplex Plugin Suite
+## Vainplex OpenClaw Plugin Suite
 
-All plugins live in one monorepo: [alberthild/vainplex-openclaw](https://github.com/alberthild/vainplex-openclaw)
+| # | Plugin | npm | Tests | Description |
+|---|--------|-----|-------|-------------|
+| 1 | [@vainplex/openclaw-nats-eventstore](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-nats-eventstore) | 0.2.1 | 55 | NATS JetStream event persistence + audit trail |
+| 2 | [@vainplex/openclaw-cortex](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-cortex) | 0.4.5 | 756 | Conversation intelligence — threads, decisions, boot context, trace analysis |
+| 3 | [@vainplex/openclaw-governance](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-governance) | 0.5.5 | 767 | Policy engine — trust scores, credential guard, production safeguards |
+| 4 | [@vainplex/openclaw-knowledge-engine](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-knowledge-engine) | 0.1.4 | 94 | LanceDB knowledge extraction + search |
+| 5 | [@vainplex/openclaw-membrane](https://github.com/alberthild/openclaw-membrane) | 0.3.0 | 44 | Membrane episodic memory bridge — gRPC sidecar |
 
-| # | Plugin | Version | Description |
-|---|--------|---------|-------------|
-| 1 | [@vainplex/nats-eventstore](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-nats-eventstore) | 0.2.1 | NATS JetStream event persistence + audit trail |
-| 2 | [@vainplex/openclaw-cortex](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-cortex) | 0.4.0 | Conversation intelligence — threads, decisions, boot context, trace analysis, 10 languages |
-| 3 | **@vainplex/openclaw-knowledge-engine** | **0.1.4** | Real-time fact extraction from conversations (this plugin) |
-| 4 | [@vainplex/openclaw-governance](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-governance) | 0.3.2 | Policy-as-code — trust scoring, audit trail, production safeguards |
+All monorepo plugins: [alberthild/vainplex-openclaw](https://github.com/alberthild/vainplex-openclaw) · Membrane: [alberthild/openclaw-membrane](https://github.com/alberthild/openclaw-membrane)
+
 
 ## License
 
