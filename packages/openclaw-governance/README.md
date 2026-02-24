@@ -10,7 +10,7 @@ The gap is clear: agents are everywhere, governance is nowhere. The Berkeley fra
 
 This plugin does. It implements 8 of Berkeley's 12 core requirements today, with the remaining 4 designed and scheduled.
 
-**v0.5.5** — 767 tests, zero runtime dependencies.
+**v0.5.6** — 771 tests, zero runtime dependencies.
 
 ---
 
@@ -237,7 +237,7 @@ Register known facts for claim verification:
     "factRegistries": [{
       "id": "system-live",
       "facts": [
-        { "subject": "governance-tests", "predicate": "count", "value": "767", "source": "vitest" },
+        { "subject": "governance-tests", "predicate": "count", "value": "771", "source": "vitest" },
         { "subject": "nats-events", "predicate": "count", "value": "255908", "source": "nats stream ls" }
       ]
     }],
