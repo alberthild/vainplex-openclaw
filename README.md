@@ -117,6 +117,29 @@ flowchart TD
 
 **The pipeline:** Governance gates every action (block or allow). Membrane injects relevant episodic context before the agent responds. After the response, Cortex and Knowledge Engine extract structured intelligence in parallel. Membrane ingests the conversation into long-term memory with salience-based decay. EventStore publishes every event to NATS JetStream for audit and replay. Sitrep aggregates system health on demand. Each plugin works independently — use one or all six.
 
+## Security: Closing the Gap Microsoft Identified
+
+In February 2026, [Microsoft's Security Blog](https://www.microsoft.com/en-us/security/blog/2026/02/19/running-openclaw-safely-identity-isolation-runtime-risk/) published a detailed threat analysis of OpenClaw deployments. Their core finding:
+
+> *"OpenClaw should be treated as untrusted code execution with persistent credentials."*
+
+They identified three compounding risks: credential exposure, memory/state manipulation, and host compromise through malicious input. Their recommendation: isolation, dedicated credentials, continuous monitoring, and a rebuild plan.
+
+**This suite is our answer to that.**
+
+| Microsoft's concern | Our plugin |
+|---|---|
+| *"Credentials and accessible data may be exposed"* | **Governance** — 3-layer credential redaction (17 patterns), blocks secrets before they reach the LLM or chat output |
+| *"Agent's persistent state can be modified"* | **Cortex** — pre-compaction snapshots preserve verifiable state; Trace Analyzer detects hallucination and unverified claims |
+| *"Monitor for state or memory manipulation"* | **Cortex + Sitrep** — thread health monitoring, anomaly detection, situation reports with drift alerts |
+| *"Treat rebuild as an expected control"* | **Cortex** — boot context generation means the agent recovers from a clean slate with verified continuity |
+| *"Log agent actions and treat abnormal tool use as an incident signal"* | **NATS EventStore** — every agent event published to JetStream for audit, replay, and forensic analysis |
+| *"Use dedicated identities, minimize permissions"* | **Governance** — per-agent trust scores, tool deny lists, production safeguards, rate limiting |
+
+These plugins don't replace proper isolation — you should still follow Microsoft's deployment guidance. But they add the defense-in-depth layers that OpenClaw's minimal security model intentionally leaves to the operator.
+
+See also: [OpenClaw Security Documentation](https://docs.openclaw.ai/gateway/security) · [SECURITY.md](https://github.com/openclaw/openclaw/blob/main/SECURITY.md)
+
 ## Why Not Just Use [X]?
 
 **vs. Sondera/SecureClaw (governance):** Cedar-based, extension-only. Our Governance plugin is a full trust system with per-agent scoring, learning policies, and cross-agent awareness — not just tool blocking.
