@@ -1,92 +1,65 @@
 # Vainplex OpenClaw Suite
 
-**Turn OpenClaw from a smart assistant into a self-governing, learning system.**
+**Plugins that give your OpenClaw agent memory, governance, and self-awareness.**
 
-Six plugins. One goal: turn your AI agent into a teammate you can actually trust.
+Seven plugins. Running in production 24/7. Built because we needed them — not as a product exercise, but as infrastructure for an AI agent that actually does its job across days, weeks, and months.
 
-Built by a team of one human and one AI. Running in production 24/7 since February 2026.
+## What's in it
 
----
+| Plugin | What it does | Version |
+|--------|-------------|---------|
+| **[Cortex](packages/openclaw-cortex)** | Tracks conversation threads, extracts decisions, generates boot context that survives compaction. 10 languages. | [`0.4.6`](https://www.npmjs.com/package/@vainplex/openclaw-cortex) |
+| **[Governance](packages/openclaw-governance)** | Per-agent trust scores, credential redaction, tool blocking, rate limiting, night mode. Deterministic. | [`0.5.5`](https://www.npmjs.com/package/@vainplex/openclaw-governance) |
+| **[Knowledge Engine](packages/openclaw-knowledge-engine)** | Entity and relationship extraction from conversations. No external APIs. | [`0.1.4`](https://www.npmjs.com/package/@vainplex/openclaw-knowledge-engine) |
+| **[NATS EventStore](packages/openclaw-nats-eventstore)** | Every agent event → NATS JetStream. Audit trail, replay, multi-agent correlation. | [`0.2.1`](https://www.npmjs.com/package/@vainplex/nats-eventstore) |
+| **[Sitrep](packages/openclaw-sitrep)** | Situation reports — health, goals, timers, events aggregated into one snapshot. | [`0.1.0`](https://www.npmjs.com/package/@vainplex/openclaw-sitrep) |
+| **[Leuko](https://github.com/alberthild/openclaw-leuko)** | Cognitive immune system — health checks, anomaly detection, self-healing with escalation. | [`0.1.0`](https://www.npmjs.com/package/@vainplex/openclaw-leuko) |
+| **[Membrane](https://github.com/alberthild/openclaw-membrane)** | Episodic memory via [GustyCube's Membrane](https://github.com/gustycube/membrane) — salience-based recall with organic decay. | [`0.3.0`](https://www.npmjs.com/package/@vainplex/openclaw-membrane) |
 
-## The Problem
+## Try it
 
-Out of the box, OpenClaw is powerful but stateless. Every conversation starts fresh. The agent can't learn from yesterday's mistakes, can't enforce its own safety boundaries, and there's no audit trail of what happened. You're trusting a system that doesn't remember and can't police itself.
-
-We built these plugins because we needed them. Not as a product exercise — as infrastructure for a Personal AGI that actually works.
-
-## The Suite
-
-| Plugin | What it does | Version | npm |
-|--------|-------------|---------|-----|
-| **[Cortex](packages/openclaw-cortex)** | Conversation intelligence — tracks discussion threads, extracts decisions, generates boot context that survives memory compaction | 0.4.6 | [`@vainplex/openclaw-cortex`](https://www.npmjs.com/package/@vainplex/openclaw-cortex) |
-| **[Governance](packages/openclaw-governance)** | Policy-as-code for AI agents — tool blocking, trust scoring, time-based rules, credential protection. Deterministic, not probabilistic. | 0.5.5 | [`@vainplex/openclaw-governance`](https://www.npmjs.com/package/@vainplex/openclaw-governance) |
-| **[Knowledge Engine](packages/openclaw-knowledge-engine)** | Real-time fact extraction from conversations — entities, relationships, structured knowledge, all without external APIs | 0.1.4 | [`@vainplex/openclaw-knowledge-engine`](https://www.npmjs.com/package/@vainplex/openclaw-knowledge-engine) |
-| **[NATS EventStore](packages/openclaw-nats-eventstore)** | Publish every agent event to NATS JetStream — full audit trail, replay capability, multi-agent event sharing | 0.2.1 | [`@vainplex/nats-eventstore`](https://www.npmjs.com/package/@vainplex/nats-eventstore) |
-| **[Sitrep](packages/openclaw-sitrep)** | Situation report generator — aggregates system health, goals, timers, events into a unified status snapshot | 0.1.0 | [`@vainplex/openclaw-sitrep`](https://www.npmjs.com/package/@vainplex/openclaw-sitrep) |
-| **[Membrane](https://github.com/alberthild/openclaw-membrane)** | Episodic memory bridge — gRPC integration with [GustyCube's Membrane](https://github.com/gustycube/membrane) for salience-based recall, rehearsal, and organic memory decay | 0.3.0 | [`@vainplex/openclaw-membrane`](https://www.npmjs.com/package/@vainplex/openclaw-membrane) |
-
-## Numbers
-
-- **19,556 lines** of TypeScript source
-- **23,743 lines** of tests
-- **1,975 tests** across 98 test files
-- **0** runtime dependencies (except NATS client for EventStore, gRPC for Membrane)
-- **0** `any` types — strict TypeScript throughout
-- **6 plugins** in production since February 2026
-
-## Quick Start
-
-Install any plugin individually:
-
-```bash
-# In your OpenClaw extensions directory
-npm install @vainplex/openclaw-cortex
-npm install @vainplex/openclaw-governance
-npm install @vainplex/openclaw-knowledge-engine
-npm install @vainplex/nats-eventstore
-npm install @vainplex/openclaw-sitrep
-npm install @vainplex/openclaw-membrane
-```
-
-Or clone the full suite:
+Cortex has an interactive demo — step through a bilingual conversation, see threads and decisions extracted in real-time, then try your own messages:
 
 ```bash
 git clone https://github.com/alberthild/vainplex-openclaw.git
-cd vainplex-openclaw
-npm install
-npm run build
+cd vainplex-openclaw/packages/openclaw-cortex
+npm install && npx tsx demo/demo.ts
 ```
 
-Each plugin registers itself with OpenClaw's plugin API. Add it to your `openclaw.json`:
+## Install
+
+```bash
+npm install @vainplex/openclaw-cortex
+```
+
+Then in `openclaw.json` under `plugins.entries`:
 
 ```json
 {
-  "plugins": [
-    { "name": "@vainplex/openclaw-cortex" },
-    { "name": "@vainplex/openclaw-governance" },
-    { "name": "@vainplex/openclaw-knowledge-engine" },
-    { "name": "@vainplex/nats-eventstore" },
-    { "name": "@vainplex/openclaw-sitrep" },
-    { "name": "@vainplex/openclaw-membrane" }
-  ]
+  "plugins": {
+    "entries": {
+      "openclaw-cortex": { "enabled": true }
+    }
+  }
 }
 ```
 
-## How They Work Together
+Same pattern for all plugins. Each works independently — use one or all seven.
+
+## How they work together
 
 ```mermaid
 flowchart TD
-    MSG(["💬 User Message"]) --> GOV
+    MSG(["💬 Message"]) --> GOV
 
     GOV["🛡️ Governance"]
-    GOV -->|"✅ allowed"| MEM_R
-    GOV -->|"🚫 blocked"| DENY["Denied + Audit"]
+    GOV -->|"✅ pass"| MEM_R
+    GOV -->|"🚫 deny"| DENY["Denied + Audit"]
 
-    MEM_R["🧬 Membrane Recall"]
-    MEM_R -->|"episodic context"| AGENT
+    MEM_R["🧬 Membrane"]
+    MEM_R -->|context| AGENT
 
-    AGENT["🤖 OpenClaw Agent"]
-
+    AGENT["🤖 Agent"]
     AGENT --> CTX & KE & MEM_I
 
     CTX["🧠 Cortex"]
@@ -96,12 +69,10 @@ flowchart TD
     GOV -.->|events| NATS
     AGENT -.->|events| NATS
     CTX -.->|events| NATS
-    KE -.->|events| NATS
-    MEM_I -.->|events| NATS
 
     NATS[("📡 NATS EventStore")]
-
     NATS -.-> SITREP["📊 Sitrep"]
+    NATS -.-> LEUKO["🛡️ Leuko"]
 
     style MSG fill:#1f2937,stroke:#6b7280,color:#f9fafb
     style GOV fill:#7c2d12,stroke:#e8782a,color:#fed7aa
@@ -112,57 +83,62 @@ flowchart TD
     style MEM_I fill:#1e3a5f,stroke:#3b82f6,color:#bfdbfe
     style NATS fill:#14532d,stroke:#22c55e,color:#bbf7d0
     style SITREP fill:#422006,stroke:#eab308,color:#fef9c3
+    style LEUKO fill:#422006,stroke:#eab308,color:#fef9c3
     style DENY fill:#7f1d1d,stroke:#ef4444,color:#fecaca
 ```
 
-**The pipeline:** Governance gates every action (block or allow). Membrane injects relevant episodic context before the agent responds. After the response, Cortex and Knowledge Engine extract structured intelligence in parallel. Membrane ingests the conversation into long-term memory with salience-based decay. EventStore publishes every event to NATS JetStream for audit and replay. Sitrep aggregates system health on demand. Each plugin works independently — use one or all six.
+Governance gates every message. Membrane injects episodic context before the agent responds. After the response, Cortex and Knowledge Engine extract structured intelligence. EventStore logs everything to NATS. Leuko monitors system health and escalates. Each plugin works alone.
 
-## Security: Defense-in-Depth for Operators
+## Security: defense-in-depth for operators
 
-OpenClaw's [security model](https://docs.openclaw.ai/gateway/security) is deliberately minimal: one trusted operator, host = trust boundary, plugins = trusted code. This is a [conscious design choice](https://github.com/openclaw/openclaw/blob/main/SECURITY.md), not a gap.
+OpenClaw's [security model](https://docs.openclaw.ai/gateway/security) is deliberately minimal: one trusted operator, host = trust boundary, plugins = trusted code. This is a [conscious design choice](https://github.com/openclaw/openclaw/blob/main/SECURITY.md), not a gap — [Peter's been clear about that](https://x.com/steipete/status/2026092642623201379).
 
-But as an operator running OpenClaw 24/7 with real credentials and real tools, we wanted additional layers. Microsoft's [threat analysis of self-hosted agent runtimes](https://www.microsoft.com/en-us/security/blog/2026/02/19/running-openclaw-safely-identity-isolation-runtime-risk/) (Feb 2026) validated the same concerns we'd already been building for.
+As operators running OpenClaw 24/7 with real credentials, we wanted additional layers. Microsoft's [threat analysis of self-hosted agent runtimes](https://www.microsoft.com/en-us/security/blog/2026/02/19/running-openclaw-safely-identity-isolation-runtime-risk/) (Feb 2026) validated the same concerns we'd already been building for.
 
-**These plugins add operator-side hardening that complements OpenClaw's trust model:**
-
-| Operational concern | Our plugin |
+| Operational concern | Plugin |
 |---|---|
-| Credentials leaking into LLM context or chat output | **Governance** — 3-layer credential redaction (17 patterns), deterministic blocking before output |
-| Agent state drift after memory compaction | **Cortex** — pre-compaction snapshots preserve verifiable state; boot context for verified continuity |
-| No audit trail of what agents actually did | **NATS EventStore** — every event to JetStream for replay, forensics, and multi-agent correlation |
-| Detecting when agents hallucinate or go off-track | **Cortex Trace Analyzer** — 7 failure signal detectors (doom-loop, hallucination, unverified claims) |
-| Knowing if the system is healthy right now | **Sitrep** — aggregated health snapshots with drift alerts |
-| Limiting what agents can do based on trust level | **Governance** — per-agent trust scores, tool deny lists, time-based rules, rate limiting |
+| Credentials leaking into LLM context or chat | **Governance** — 3-layer redaction, 17 patterns, deterministic |
+| State drift after memory compaction | **Cortex** — pre-compaction snapshots, verified boot context |
+| No audit trail | **NATS EventStore** — every event for replay and forensics |
+| Agent hallucination / going off-track | **Cortex Trace Analyzer** — 7 failure signal detectors |
+| System health visibility | **Sitrep** + **Leuko** — snapshots, anomaly detection, auto-escalation |
+| Limiting agent capabilities by trust level | **Governance** — per-agent trust scores, tool deny lists, rate limits |
 
-This suite works within OpenClaw's security model — it doesn't replace isolation, host hardening, or [the hardened baseline](https://docs.openclaw.ai/gateway/security#hardened-baseline-in-60-seconds). It adds the operational layers that make running a 24/7 agent deployment sustainable.
+This works within OpenClaw's model. Start with the [hardened baseline](https://docs.openclaw.ai/gateway/security#hardened-baseline-in-60-seconds) first, then add these on top.
 
-## Why Not Just Use [X]?
+## Compared to alternatives
 
-**vs. Sondera/SecureClaw (governance):** Cedar-based, extension-only. Our Governance plugin is a full trust system with per-agent scoring, learning policies, and cross-agent awareness — not just tool blocking.
+**vs. SecureClaw** — scanner and remediation tool, 33 checks. Our Governance plugin is runtime policy enforcement — it blocks in real-time, not after the fact.
 
-**vs. ClawHub Skills (memory/knowledge):** Skills are prompt-based. Our plugins hook into OpenClaw's plugin API at the infrastructure level — they run on every message automatically, not when invoked.
+**vs. Built-in memory (memory-core / memory-lancedb)** — OpenClaw's built-in memory handles storage and recall well. Cortex adds a layer on top: it *understands* what happened in conversations (threads, decisions, mood, blocking items) instead of just storing text. Knowledge Engine extracts entities and relationships. Different layer, works alongside.
 
-**vs. Built-in OpenClaw memory:** OpenClaw's native memory is good for simple recall. Cortex adds structured thread tracking, decision extraction, and compaction-resilient boot context. Knowledge Engine adds entity/relationship extraction. Different layer.
+**vs. ClawHub Skills** — Skills are prompt-triggered tools. Our plugins hook into OpenClaw's plugin API lifecycle — they run automatically on every message, not when someone asks.
 
-## Who Built This
+## Numbers
 
-**Albert Hild** — 30 years in tech, CTO, serial builder. Not in Silicon Valley. In a basement in Germany with a gigabit line and something to prove.
-
-**Claudia** — Albert's AI. Built on OpenClaw, running on Claude. The first user and co-developer of every plugin in this suite. These plugins exist because she needed them to do her job.
-
-**[GustyCube](https://github.com/gustycube)** — Creator of [Membrane](https://github.com/gustycube/membrane), the episodic memory substrate. The Membrane plugin bridges GustyCube's sidecar into OpenClaw's plugin ecosystem.
-
-This suite is what happens when you stop treating AI agents as toys and start treating them as teammates.
+- **23,433** lines of TypeScript source
+- **23,743** lines of tests
+- **1,848** tests across 98 test files
+- **0** runtime dependencies (except NATS client and gRPC where architecturally required)
+- **0** `any` types — strict TypeScript throughout
 
 ## Architecture
 
-Each plugin follows the same pattern:
+Every plugin follows the same pattern:
 
-- **TypeScript**, strict mode, zero `any`
-- **No runtime deps** (unless architecturally required, like NATS client)
-- **Full test coverage** with unit and integration tests
-- **OpenClaw Plugin API** — `register(api)` hook pattern
-- **Independent** — each plugin works alone, no cross-plugin dependencies
+- TypeScript strict mode
+- `register(api: OpenClawPluginApi)` hook pattern
+- Full test suite (unit + integration)
+- Independent — no cross-plugin dependencies
+- External config via `~/.openclaw/plugins/<id>/config.json`
+
+## Who built this
+
+[**Albert Hild**](https://github.com/alberthild) — CTO, 30 years in tech. Runs OpenClaw on a dedicated machine in Germany with a gigabit line and seven agents that help him work.
+
+**Claudia** — Albert's AI, running on Claude via OpenClaw. First user and co-developer of every plugin. These plugins exist because she needed them.
+
+[**GustyCube**](https://github.com/gustycube) — Creator of [Membrane](https://github.com/gustycube/membrane), the episodic memory sidecar. The Membrane plugin bridges it into OpenClaw's ecosystem.
 
 ## License
 
@@ -170,6 +146,5 @@ MIT
 
 ## Links
 
-- [OpenClaw](https://github.com/openclaw/openclaw)
-- [Vainplex](https://vainplex.de)
-- [@alberthild on GitHub](https://github.com/alberthild)
+- [OpenClaw](https://github.com/openclaw/openclaw) · [Docs](https://docs.openclaw.ai) · [Discord](https://discord.gg/openclaw)
+- [Vainplex](https://vainplex.de) · [@alberthild](https://github.com/alberthild)
