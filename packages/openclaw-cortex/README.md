@@ -30,7 +30,7 @@ The LLM runs **on top of regex** — it enhances, never replaces. If the LLM is 
 
 ## 🎬 Demo
 
-Try the interactive demo — it simulates a real bilingual dev conversation and shows every Cortex feature in action:
+Interactive step-by-step demo — walk through a bilingual conversation, see Cortex extract threads and decisions in real-time, then try your own messages:
 
 ```bash
 git clone https://github.com/alberthild/vainplex-openclaw.git
@@ -39,9 +39,16 @@ npm install
 npx tsx demo/demo.ts
 ```
 
-### What the demo shows
+The demo has 5 phases:
+1. **Step-by-step conversation** — press Enter to advance each message, see what Cortex detects
+2. **Thread & decision analysis** — view extracted threads, decisions, mood
+3. **Pre-compaction snapshot** — see how Cortex saves state before memory loss
+4. **Boot context generation** — the dense briefing assembled for the next session
+5. **Interactive sandbox** — type your own messages, use `/threads` `/decisions` `/mood` `/boot`
 
-A 13-message conversation between a developer (Albert) and an AI assistant (Claudia) covering 3 topics in English and German. Cortex processes every message in real-time:
+### Sample conversation
+
+A 13-message conversation between a developer and an AI assistant covering 3 topics in English and German:
 
 ```
 👤 Albert: Let's get back to the auth migration. We need to switch from JWT to OAuth2.
