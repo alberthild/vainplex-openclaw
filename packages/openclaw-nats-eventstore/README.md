@@ -1,6 +1,8 @@
-# @vainplex/openclaw-nats-eventstore
+# @vainplex/nats-eventstore
 
-OpenClaw plugin that publishes agent events to **NATS JetStream** for audit, replay, and multi-agent sharing.
+OpenClaw plugin that publishes every agent event to **NATS JetStream** — giving you a complete, replayable audit trail of what your agents actually did.
+
+Without this, agent actions vanish after the session ends. With it, you can trace any decision back to its source, replay conversations for debugging, correlate events across multiple agents, and feed structured data into external systems.
 
 ## Features
 
@@ -270,17 +272,19 @@ npm run test:watch
 npm run typecheck
 ```
 
-## Vainplex OpenClaw Plugin Suite
+## Part of the Vainplex OpenClaw Suite
 
-| # | Plugin | npm | Tests | Description |
-|---|--------|-----|-------|-------------|
-| 1 | [@vainplex/openclaw-nats-eventstore](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-nats-eventstore) | 0.2.1 | 55 | NATS JetStream event persistence + audit trail |
-| 2 | [@vainplex/openclaw-cortex](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-cortex) | 0.4.5 | 756 | Conversation intelligence — threads, decisions, boot context, trace analysis |
-| 3 | [@vainplex/openclaw-governance](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-governance) | 0.5.5 | 767 | Policy engine — trust scores, credential guard, production safeguards |
-| 4 | [@vainplex/openclaw-knowledge-engine](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-knowledge-engine) | 0.1.4 | 94 | LanceDB knowledge extraction + search |
-| 5 | [@vainplex/openclaw-membrane](https://github.com/alberthild/openclaw-membrane) | 0.3.0 | 44 | Membrane episodic memory bridge — gRPC sidecar |
+| Plugin | Description |
+|--------|-------------|
+| **[@vainplex/nats-eventstore](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-nats-eventstore)** | ← you are here |
+| [@vainplex/openclaw-cortex](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-cortex) | Conversation intelligence — threads, decisions, boot context, trace analysis |
+| [@vainplex/openclaw-governance](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-governance) | Policy engine — trust scores, credential redaction, production safeguards |
+| [@vainplex/openclaw-knowledge-engine](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-knowledge-engine) | Entity and relationship extraction from conversations |
+| [@vainplex/openclaw-sitrep](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-sitrep) | Situation reports — health, goals, timers aggregated |
+| [@vainplex/openclaw-leuko](https://github.com/alberthild/openclaw-leuko) | Cognitive immune system — health checks, anomaly detection |
+| [@vainplex/openclaw-membrane](https://github.com/alberthild/openclaw-membrane) | Episodic memory bridge via gRPC |
 
-All monorepo plugins: [alberthild/vainplex-openclaw](https://github.com/alberthild/vainplex-openclaw) · Membrane: [alberthild/openclaw-membrane](https://github.com/alberthild/openclaw-membrane)
+Full suite: [alberthild/vainplex-openclaw](https://github.com/alberthild/vainplex-openclaw)
 
 
 ## License
