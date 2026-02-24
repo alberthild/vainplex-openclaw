@@ -145,10 +145,11 @@ describe('FactStore', () => {
     });
 
     it('should return all facts when query is empty', () => {
+      const before = factStore.query({}).length;
       factStore.addFact({ subject: 'a', predicate: 'p', object: 'o1', source: 'ingested' });
       factStore.addFact({ subject: 'b', predicate: 'p', object: 'o2', source: 'ingested' });
       const results = factStore.query({});
-      assert.strictEqual(results.length, 2);
+      assert.strictEqual(results.length, before + 2);
     });
 
     it('should sort results by relevance descending', () => {
@@ -210,6 +211,12 @@ describe('FactStore', () => {
     });
 
     it('should return empty array when all facts are embedded', () => {
+      // Get any pre-existing unembedded facts and mark them
+      const preExisting = factStore.getUnembeddedFacts();
+      if (preExisting.length > 0) {
+        factStore.markFactsAsEmbedded(preExisting.map(f => f.id));
+      }
+
       const f1 = factStore.addFact({ subject: 'a', predicate: 'p', object: 'o', source: 'ingested' });
       factStore.markFactsAsEmbedded([f1.id]);
 
