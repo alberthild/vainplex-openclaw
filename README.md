@@ -18,13 +18,15 @@ Seven plugins. Running in production 24/7. Built because we needed them — not 
 
 ## Try it
 
-Cortex has an interactive demo — step through a bilingual conversation, see threads and decisions extracted in real-time, then try your own messages:
+Cortex has an interactive demo — step through a bilingual conversation and see threads, decisions, and mood extracted in real-time:
 
 ```bash
 git clone https://github.com/alberthild/vainplex-openclaw.git
 cd vainplex-openclaw/packages/openclaw-cortex
 npm install && npx tsx demo/demo.ts
 ```
+
+Press Enter to advance each message. After the walkthrough, a sandbox mode lets you type your own messages and see what Cortex detects.
 
 ## Install
 

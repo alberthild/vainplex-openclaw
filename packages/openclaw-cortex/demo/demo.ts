@@ -72,6 +72,10 @@ function ask(prompt: string): Promise<string> {
 }
 
 async function pressEnter(hint = "Press Enter to continue...") {
+  // Drain any buffered newlines from rapid Enter presses
+  rl.pause();
+  await new Promise(r => setTimeout(r, 50));
+  rl.resume();
   await ask(`\n  ${DIM}${hint}${RESET}`);
 }
 
@@ -237,21 +241,18 @@ ${DIM}Workspace: ${workspace}${RESET}
   await pressEnter("Press Enter to try your own messages...");
 
   heading("Phase 5: Interactive Sandbox");
-  console.log(`  Type messages as if you're chatting with an AI assistant.`);
-  console.log(`  Cortex processes each one in real-time.\n`);
-  console.log(`  ${BOLD}Commands:${RESET}`);
-  console.log(`    ${GREEN}/threads${RESET}    — show current threads`);
-  console.log(`    ${GREEN}/decisions${RESET}  — show extracted decisions`);
-  console.log(`    ${GREEN}/mood${RESET}       — show session mood`);
-  console.log(`    ${GREEN}/boot${RESET}       — regenerate boot context`);
-  console.log(`    ${GREEN}/files${RESET}      — list generated files`);
-  console.log(`    ${GREEN}/quit${RESET}       — exit demo\n`);
+  console.log(`  ${BOLD}${CYAN}Your turn!${RESET} Type a message and see what Cortex detects.`);
+  console.log(`  Try things like: "We decided to use PostgreSQL" or "Das Deployment ist kaputt"\n`);
+  console.log(`  ${BOLD}Commands:${RESET}  /threads  /decisions  /mood  /boot  /files  /quit\n`);
 
   while (true) {
     const input = await ask(`  ${GREEN}you ▸${RESET} `);
     const trimmed = input.trim();
 
-    if (!trimmed) continue;
+    if (!trimmed) {
+      console.log(`  ${DIM}(type a message or /threads /decisions /mood /quit)${RESET}`);
+      continue;
+    }
 
     if (trimmed === "/quit" || trimmed === "/exit" || trimmed === "/q") {
       break;
