@@ -9,7 +9,7 @@ Seven plugins. Running in production 24/7. Built because we needed them — not 
 | Plugin | What it does | Version |
 |--------|-------------|---------|
 | **[Cortex](packages/openclaw-cortex)** | Tracks conversation threads, extracts decisions, generates boot context that survives compaction. 10 languages. | [`0.4.6`](https://www.npmjs.com/package/@vainplex/openclaw-cortex) |
-| **[Governance](packages/openclaw-governance)** | Per-agent trust scores, credential redaction, tool blocking, rate limiting, night mode. Deterministic. | [`0.5.5`](https://www.npmjs.com/package/@vainplex/openclaw-governance) |
+| **[Governance](packages/openclaw-governance)** | Per-agent trust scores, credential redaction, tool blocking, rate limiting, night mode. Deterministic. | [`0.5.6`](https://www.npmjs.com/package/@vainplex/openclaw-governance) |
 | **[Knowledge Engine](packages/openclaw-knowledge-engine)** | Entity and relationship extraction from conversations. No external APIs. | [`0.1.4`](https://www.npmjs.com/package/@vainplex/openclaw-knowledge-engine) |
 | **[NATS EventStore](packages/openclaw-nats-eventstore)** | Every agent event → NATS JetStream. Audit trail, replay, multi-agent correlation. | [`0.2.1`](https://www.npmjs.com/package/@vainplex/nats-eventstore) |
 | **[Sitrep](packages/openclaw-sitrep)** | Situation reports — health, goals, timers, events aggregated into one snapshot. | [`0.1.0`](https://www.npmjs.com/package/@vainplex/openclaw-sitrep) |
