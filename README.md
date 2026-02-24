@@ -79,11 +79,11 @@ flowchart TD
     MSG(["💬 User Message"]) --> GOV
 
     GOV["🛡️ Governance"]
-    GOV -->|allowed| MEM_R
-    GOV -->|blocked| DENY["🚫 Denied"]
+    GOV -->|"✅ allowed"| MEM_R
+    GOV -->|"🚫 blocked"| DENY["Denied + Audit"]
 
-    MEM_R["🧬 Membrane · Recall"]
-    MEM_R -->|context| AGENT
+    MEM_R["🧬 Membrane Recall"]
+    MEM_R -->|"episodic context"| AGENT
 
     AGENT["🤖 OpenClaw Agent"]
 
@@ -91,16 +91,17 @@ flowchart TD
 
     CTX["🧠 Cortex"]
     KE["💡 Knowledge Engine"]
-    MEM_I["🧬 Membrane · Ingest"]
+    MEM_I["🧬 Membrane Ingest"]
 
-    PRE -.-> NATS
-    AGENT -.-> NATS
-    CTX -.-> NATS
-    KE -.-> NATS
-    MEM_I -.-> NATS
+    GOV -.->|events| NATS
+    AGENT -.->|events| NATS
+    CTX -.->|events| NATS
+    KE -.->|events| NATS
+    MEM_I -.->|events| NATS
 
     NATS[("📡 NATS EventStore")]
-    SITREP["📊 Sitrep"]
+
+    NATS -.-> SITREP["📊 Sitrep"]
 
     style MSG fill:#1f2937,stroke:#6b7280,color:#f9fafb
     style GOV fill:#7c2d12,stroke:#e8782a,color:#fed7aa
