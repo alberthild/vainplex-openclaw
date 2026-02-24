@@ -2,15 +2,7 @@
 
 **Situation Report Generator for OpenClaw** — aggregates system health, goals, timers, events, and agent activity into a unified `sitrep.json`.
 
-Part of the [Vainplex OpenClaw Plugin Suite](https://github.com/alberthild/vainplex-openclaw).
-
-| Plugin | Purpose | Version |
-|--------|---------|---------|
-| [@vainplex/nats-eventstore](../openclaw-nats-eventstore) | Event publishing to NATS JetStream | 0.2.1 |
-| [@vainplex/openclaw-governance](../openclaw-governance) | Policy engine, trust, redaction, fact-checking | 0.5.5 |
-| [@vainplex/openclaw-cortex](../openclaw-cortex) | Thread tracking, decisions, boot context | 0.4.5 |
-| [@vainplex/openclaw-knowledge-engine](../openclaw-knowledge-engine) | Entity/fact extraction | 0.1.4 |
-| **@vainplex/openclaw-sitrep** | **Situation report generator** | **0.1.0** |
+Part of the [Vainplex OpenClaw Suite](https://github.com/alberthild/vainplex-openclaw) — 7 plugins for memory, governance, and self-awareness.
 
 ## Features
 
