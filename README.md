@@ -2,7 +2,7 @@
 
 **Turn OpenClaw from a smart assistant into a self-governing, learning system.**
 
-Six plugins. One goal: give your AI agent memory that survives restarts, governance that enforces rules deterministically, knowledge extraction that runs in real-time, and an event backbone that makes everything auditable.
+Six plugins. One goal: turn your AI agent into a teammate you can actually trust.
 
 Built by a team of one human and one AI. Running in production 24/7 since February 2026.
 
