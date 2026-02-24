@@ -153,16 +153,29 @@ describe("nats-eventstore/config-loader", () => {
 
   describe("graceful defaults", () => {
     it("returns defaults when no config at all", () => {
-      const result = loadConfig(undefined, logger);
-      expect(result.source).toBe("file"); // will try default path and bootstrap
-      expect(result.config.enabled).toBe(true);
-      expect(result.config.natsUrl).toBe("nats://localhost:4222");
+      // Mock HOME to avoid picking up real production config
+      const originalHome = process.env.HOME;
+      process.env.HOME = TEST_DIR;
+      try {
+        const result = loadConfig(undefined, logger);
+        expect(result.source).toBe("file"); // will try default path and bootstrap
+        expect(result.config.enabled).toBe(true);
+        expect(result.config.natsUrl).toBe("nats://localhost:4222");
+      } finally {
+        process.env.HOME = originalHome;
+      }
     });
     
     it("returns defaults for empty object", () => {
-        const result = loadConfig({}, logger);
-        expect(result.source).toBe("file"); // will try default path and bootstrap
-        expect(result.config.enabled).toBe(true);
+        const originalHome = process.env.HOME;
+        process.env.HOME = TEST_DIR;
+        try {
+          const result = loadConfig({}, logger);
+          expect(result.source).toBe("file"); // will try default path and bootstrap
+          expect(result.config.enabled).toBe(true);
+        } finally {
+          process.env.HOME = originalHome;
+        }
     });
   });
 });

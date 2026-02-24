@@ -11,13 +11,15 @@ export interface InlineConfig {
   readonly configPath?: string;
 }
 
-const DEFAULT_CONFIG_DIR = join(
-  process.env["HOME"] ?? "/tmp",
-  ".openclaw",
-  "plugins",
-  "nats-eventstore",
-);
-const DEFAULT_CONFIG_FILENAME = "config.json";
+function getDefaultConfigPath(): string {
+  const dir = join(
+    process.env["HOME"] ?? "/tmp",
+    ".openclaw",
+    "plugins",
+    "nats-eventstore",
+  );
+  return join(dir, "config.json");
+}
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
@@ -126,7 +128,7 @@ export function loadConfig(
   const configPath =
     typeof raw["configPath"] === "string"
       ? raw["configPath"]
-      : join(DEFAULT_CONFIG_DIR, DEFAULT_CONFIG_FILENAME);
+      : getDefaultConfigPath();
 
   const fileConfig = readJsonFile(configPath, logger);
   if (fileConfig !== null) {
