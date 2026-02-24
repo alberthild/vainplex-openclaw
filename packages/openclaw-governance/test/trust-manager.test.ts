@@ -35,6 +35,34 @@ describe("TrustManager", () => {
     expect(agent.tier).toBe("trusted");
   });
 
+  it("should preserve default score after recordSuccess triggers recalculate", () => {
+    const tm = new TrustManager(makeConfig(), WORKSPACE, logger);
+    const agent = tm.getAgentTrust("main");
+    expect(agent.score).toBe(60);
+
+    // A single success should NOT drop score to 0
+    tm.recordSuccess("main");
+    const after = tm.getAgentTrust("main");
+    expect(after.score).toBeGreaterThanOrEqual(60);
+    expect(after.tier).toBe("trusted");
+  });
+
+  it("should preserve default score through save/load cycle and recalculate", () => {
+    const tm = new TrustManager(makeConfig(), WORKSPACE, logger);
+    tm.getAgentTrust("main");
+    tm.flush();
+
+    // Load in a new instance
+    const tm2 = new TrustManager(makeConfig(), WORKSPACE, logger);
+    tm2.load();
+
+    // Trigger a recalculate via recordSuccess
+    tm2.recordSuccess("main");
+    const agent = tm2.getAgentTrust("main");
+    expect(agent.score).toBeGreaterThanOrEqual(60);
+    expect(agent.tier).toBe("trusted");
+  });
+
   it("should use wildcard default for unknown agents", () => {
     const tm = new TrustManager(makeConfig(), WORKSPACE, logger);
     const agent = tm.getAgentTrust("unknown-agent");
@@ -160,6 +188,69 @@ describe("TrustManager", () => {
     const agent = tm.getAgentTrust("stale");
     expect(agent.score).toBeLessThan(50);
     expect(agent.score).toBe(Math.max(0, Math.min(100, 50 * 0.95)));
+  });
+
+  it("should migrate fresh agents with manualAdjustment=0 on load", () => {
+    const filePath = join(WORKSPACE, "governance", "trust.json");
+    // Simulate pre-fix trust.json: fresh agent with score=60 but manualAdjustment=0
+    writeFileSync(
+      filePath,
+      JSON.stringify({
+        version: 1,
+        updated: new Date().toISOString(),
+        agents: {
+          main: {
+            agentId: "main",
+            score: 60,
+            tier: "trusted",
+            signals: { successCount: 0, violationCount: 0, ageDays: 0, cleanStreak: 0, manualAdjustment: 0 },
+            history: [],
+            lastEvaluation: new Date().toISOString(),
+            created: new Date().toISOString(),
+          },
+        },
+      }),
+    );
+
+    const tm = new TrustManager(makeConfig(), WORKSPACE, logger);
+    tm.load();
+    const agent = tm.getAgentTrust("main");
+    // Migration should have set manualAdjustment = 60
+    expect(agent.signals.manualAdjustment).toBe(60);
+
+    // Score should survive a recalculate triggered by recordSuccess
+    tm.recordSuccess("main");
+    const after = tm.getAgentTrust("main");
+    expect(after.score).toBeGreaterThanOrEqual(60);
+    expect(after.tier).toBe("trusted");
+  });
+
+  it("should NOT migrate agents with existing activity", () => {
+    const filePath = join(WORKSPACE, "governance", "trust.json");
+    writeFileSync(
+      filePath,
+      JSON.stringify({
+        version: 1,
+        updated: new Date().toISOString(),
+        agents: {
+          active: {
+            agentId: "active",
+            score: 15,
+            tier: "restricted",
+            signals: { successCount: 50, violationCount: 5, ageDays: 10, cleanStreak: 3, manualAdjustment: 0 },
+            history: [],
+            lastEvaluation: new Date().toISOString(),
+            created: new Date().toISOString(),
+          },
+        },
+      }),
+    );
+
+    const tm = new TrustManager(makeConfig(), WORKSPACE, logger);
+    tm.load();
+    const agent = tm.getAgentTrust("active");
+    // Should NOT have been migrated (has activity)
+    expect(agent.signals.manualAdjustment).toBe(0);
   });
 
   it("should trim history to maxHistoryPerAgent", () => {

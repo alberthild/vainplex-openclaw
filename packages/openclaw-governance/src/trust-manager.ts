@@ -56,7 +56,7 @@ function createAgentTrust(
       violationCount: 0,
       ageDays: 0,
       cleanStreak: 0,
-      manualAdjustment: 0,
+      manualAdjustment: initialScore,
     },
     history: [],
     lastEvaluation: now,
@@ -89,6 +89,7 @@ export class TrustManager {
         this.store = parsed;
         this.applyDecay();
         this.migrateUnknownAgent();
+        this.migrateDefaultScores();
         this.refreshAgeDays();
         this.logger.info(
           `[governance] Trust store loaded: ${Object.keys(this.store.agents).length} agents`,
@@ -108,6 +109,25 @@ export class TrustManager {
       const created = new Date(agent.created).getTime();
       if (!Number.isNaN(created)) {
         agent.signals.ageDays = Math.floor((now - created) / (1000 * 60 * 60 * 24));
+      }
+    }
+  }
+
+  /**
+   * Migration: agents created with manualAdjustment=0 but a non-zero default score
+   * would drop to 0 on first recalculate(). Fix by backfilling manualAdjustment
+   * to match the configured default when signals are all zero (fresh agent).
+   */
+  private migrateDefaultScores(): void {
+    for (const agent of Object.values(this.store.agents)) {
+      const s = agent.signals;
+      const isFresh = s.successCount === 0 && s.violationCount === 0 && s.cleanStreak === 0;
+      if (isFresh && s.manualAdjustment === 0 && agent.score > 0) {
+        s.manualAdjustment = agent.score;
+        this.dirty = true;
+        this.logger.info(
+          `[governance] Trust migration: ${agent.agentId} manualAdjustment set to ${agent.score} (was 0, score would drop on recalculate)`,
+        );
       }
     }
   }
