@@ -520,6 +520,15 @@ npm run build       # Compile to dist/
 - Noise filter prevents garbage threads from polluting state
 - Tested with 850 unit + integration tests
 
+## Security Context
+
+Cortex adds two layers to OpenClaw's [defense-in-depth model](https://docs.openclaw.ai/gateway/security):
+
+- **Pre-compaction snapshots** ensure agent state survives memory compaction — preventing state drift that could lead to confused or conflicting actions
+- **Trace Analyzer** detects failure signals (hallucination, doom loops, unverified claims) across conversation chains — giving operators forensic visibility into what agents actually did
+
+Microsoft's [threat analysis of self-hosted agent runtimes](https://www.microsoft.com/en-us/security/blog/2026/02/19/running-openclaw-safely-identity-isolation-runtime-risk/) (Feb 2026) identifies state management and audit trail as key operational risks — exactly what Cortex and the companion [NATS EventStore](../openclaw-nats-eventstore) address.
+
 ## Architecture
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full design document including module diagrams, data flows, type definitions, and testing strategy.

@@ -4,11 +4,54 @@
 
 # @vainplex/openclaw-governance
 
-**Your AI agents are powerful. That's the problem.**
+In February 2026, UC Berkeley's Center for Long-Term Cybersecurity published a [67-page framework](https://ppc.land/uc-berkeley-unveils-framework-as-ai-agents-threaten-to-outrun-oversight/) for governing autonomous AI agents. The same month, [Microsoft's Cyber Pulse report](https://www.microsoft.com/en-us/security/blog/2026/02/10/80-of-fortune-500-use-active-ai-agents-observability-governance-and-security-shape-the-new-frontier/) revealed that 80% of Fortune 500 companies now run active AI agents — and 29% of employees use unsanctioned ones. Microsoft followed up with a [threat analysis specific to OpenClaw](https://www.microsoft.com/en-us/security/blog/2026/02/19/running-openclaw-safely-identity-isolation-runtime-risk/), outlining identity, isolation, and runtime risks for self-hosted agents.
 
-An agent that can `exec("rm -rf /")` at 3 AM because a prompt injection told it to? That's not a feature, that's a liability. This plugin adds contextual, learning governance to OpenClaw — so your agents stay powerful but accountable.
+The gap is clear: agents are everywhere, governance is nowhere. The Berkeley framework defines what's needed. The existing tools — scanners, input/output filters, output validators — cover fragments. None of them do contextual, learning, runtime governance across agents.
 
-**v0.5.4** — 767 tests, zero runtime dependencies.
+This plugin does. It implements 8 of Berkeley's 12 core requirements today, with the remaining 4 designed and scheduled.
+
+**v0.5.5** — 767 tests, zero runtime dependencies.
+
+---
+
+## Berkeley/Microsoft Compliance Mapping
+
+UC Berkeley's Agentic AI Risk-Management Standards Profile and Microsoft's governance requirements define what responsible agent infrastructure looks like. Here's where this plugin stands:
+
+| Requirement | Our Implementation | Status |
+|---|---|---|
+| **Agent Registry** | Trust config with per-agent scores, all 9 agents registered | ✅ Implemented |
+| **Access Control / Least Privilege** | Per-agent tool blocking, trust tier-based permissions | ✅ Implemented |
+| **Real-time Monitoring** | Every tool call evaluated against policies before execution | ✅ Implemented |
+| **Activity Logging / Audit Trail** | Append-only JSONL, ISO 27001 / SOC 2 / NIS2 control mapping | ✅ Implemented |
+| **Emergency Controls** | Night Mode (time-based blocking), Rate Limiter (frequency cap) | ✅ Implemented |
+| **Cascading Agent Policies** | Cross-agent governance — parent policies propagate to sub-agents | ✅ Implemented |
+| **Autonomy Levels** | Trust tiers (0–100, five levels) — functionally equivalent to Berkeley's L0–L5 | ✅ Implemented |
+| **Credential Protection** | 3-layer redaction with SHA-256 vault, 17 built-in patterns, fail-closed | ✅ Implemented |
+| **Human-in-the-Loop** | Approval Manager for high-risk operations | 📋 v0.6 |
+| **Semantic Intent Analysis** | LLM-powered intent classification before tool execution | 📋 v0.6 |
+| **Multi-Agent Interaction Monitoring** | Agent-to-agent message governance | 📋 v0.6 |
+| **Tamper-evident Audit** | Hash-chain audit trail for compliance verification | 📋 v0.6 |
+
+8 implemented. 4 planned. Production since 2026-02-18.
+
+---
+
+## They Scan. We Govern.
+
+Most tools in this space solve a piece of the problem. None of them solve the whole thing.
+
+| Tool | What It Does | What's Missing |
+|---|---|---|
+| **Invariant Labs → Snyk** | Runtime guardrails, MCP scanning, trace analysis | Acquired by Snyk — enterprise-only. No trust scores. No cross-agent governance. No compliance audit trail. |
+| **NVIDIA NeMo Guardrails** | Input/output filtering, topical control | Filters messages, not tool calls. No agent context. No trust awareness. No multi-agent policies. |
+| **GuardrailsAI** | Output validation, schema enforcement | Validates what comes out. No idea who called what, when, or whether they should have. Python-only. |
+| **SecureClaw** | 56 audit checks, 5 hardening modules, OWASP-aligned | Scanner, not runtime. Tells you what's wrong — doesn't prevent it. No policies, no trust. |
+| **OpenClaw built-in** | Tool allowlists, realpath containment, plugin sandboxing | Static config. No trust scoring. No time-awareness. No learning. No compliance mapping. |
+
+The difference: those tools operate on inputs and outputs. This plugin operates on **decisions** — which tool, which agent, what time, what trust level, what frequency, what context. Then it decides, logs, and learns.
+
+As [Peter Steinberger noted](https://x.com/steipete/status/2026092642623201379), this is what a trust model for AI agents should look like.
 
 ---
 

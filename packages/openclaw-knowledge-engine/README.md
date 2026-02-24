@@ -101,11 +101,15 @@ openclaw gateway restart
 
 ```json
 {
-  "openclaw-knowledge-engine": {
-    "enabled": true,
-    "config": {
-      "extraction": {
-        "llm": { "enabled": false }
+  "plugins": {
+    "entries": {
+      "openclaw-knowledge-engine": {
+        "enabled": true,
+        "config": {
+          "extraction": {
+            "llm": { "enabled": false }
+          }
+        }
       }
     }
   }
@@ -118,24 +122,28 @@ This gives you zero-cost entity extraction with no external dependencies.
 
 ```json
 {
-  "openclaw-knowledge-engine": {
-    "enabled": true,
-    "config": {
-      "workspace": "~/my-agent/knowledge",
-      "extraction": {
-        "llm": {
-          "enabled": true,
-          "endpoint": "http://localhost:11434/api/generate",
-          "model": "mistral:7b"
-        }
-      },
-      "embeddings": {
+  "plugins": {
+    "entries": {
+      "openclaw-knowledge-engine": {
         "enabled": true,
-        "endpoint": "http://localhost:8000/api/v1/collections/facts/add"
-      },
-      "decay": {
-        "intervalHours": 12,
-        "rate": 0.03
+        "config": {
+          "workspace": "~/my-agent/knowledge",
+          "extraction": {
+            "llm": {
+              "enabled": true,
+              "endpoint": "http://localhost:11434/api/generate",
+              "model": "mistral:7b"
+            }
+          },
+          "embeddings": {
+            "enabled": true,
+            "endpoint": "http://localhost:8000/api/v1/collections/facts/add"
+          },
+          "decay": {
+            "intervalHours": 12,
+            "rate": 0.03
+          }
+        }
       }
     }
   }
@@ -229,8 +237,7 @@ src/
 ## Testing
 
 ```bash
-npm test
-# Runs 94 tests across 11 test files
+npm test        # Unit + integration tests
 ```
 
 Tests cover: config validation, entity extraction, fact CRUD, decay, pruning, LLM batching, HTTP client, embeddings, storage atomicity, maintenance scheduling, hook orchestration.

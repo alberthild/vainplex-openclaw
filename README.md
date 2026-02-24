@@ -118,9 +118,9 @@ This works within OpenClaw's model. Start with the [hardened baseline](https://d
 
 ## Numbers
 
-- **23,433** lines of TypeScript source
-- **23,743** lines of tests
-- **1,848** tests across 98 test files
+- **24,400+** lines of TypeScript source
+- **23,700+** lines of tests
+- **1,800+** tests across 98 test files
 - **0** runtime dependencies (except NATS client and gRPC where architecturally required)
 - **0** `any` types — strict TypeScript throughout
 

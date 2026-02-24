@@ -202,6 +202,12 @@ const status = await gateway.call("eventstore.status");
 // { connected: true, stream: "openclaw-events", disconnectCount: 0, publishFailures: 0 }
 ```
 
+## Why Audit Trails Matter
+
+Without persistent event logging, agent actions are ephemeral — there's no way to trace what happened, when, or why. Microsoft's [threat analysis](https://www.microsoft.com/en-us/security/blog/2026/02/19/running-openclaw-safely-identity-isolation-runtime-risk/) of self-hosted agent runtimes identifies lack of audit trail as a key risk vector.
+
+This plugin fills that gap: every event is published to NATS JetStream with a structured envelope, giving you replay capability, multi-agent correlation, and a forensic record that survives session boundaries.
+
 ## Subscribing to Events
 
 Use the NATS CLI or any NATS client to subscribe:
@@ -259,7 +265,7 @@ A benchmark script is included in the repository — see `scripts/nats-benchmark
 ## Development
 
 ```bash
-# Run tests
+# Run tests (66 tests)
 npm test
 
 # Run with integration tests (requires NATS on localhost:14222)
