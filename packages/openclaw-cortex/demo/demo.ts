@@ -54,8 +54,8 @@ function subheading(text: string) {
 }
 
 function msgLine(sender: string, text: string) {
-  const color = sender === "albert" ? GREEN : MAGENTA;
-  const label = sender === "albert" ? "👤 Albert" : "🤖 Claudia";
+  const color = sender === "user" ? GREEN : MAGENTA;
+  const label = sender === "user" ? "👤 You" : "🤖 Agent";
   console.log(`  ${color}${label}:${RESET} ${text}`);
 }
 
@@ -127,19 +127,26 @@ function showMood() {
 // ── Sample Conversation ──
 
 const CONVERSATION: Array<{ sender: string; text: string; note?: string }> = [
-  { sender: "albert", text: "Let's get back to the auth migration. We need to switch from JWT to OAuth2.", note: "Thread 1 opens — Cortex detects 'auth migration' as a topic" },
-  { sender: "claudia", text: "I'll start with the token validation layer. The plan is to keep backward compatibility for 2 weeks.", note: "Decision detected: backward compat plan" },
-  { sender: "albert", text: "Agreed. We decided to use Auth0 as the provider.", note: "Decision detected: Auth0 choice" },
-  { sender: "albert", text: "Also, jetzt zu dem Performance-Bug. Die API braucht 3 Sekunden für simple Queries.", note: "Thread 2 opens — topic switch detected (German)" },
-  { sender: "claudia", text: "Ich hab den Profiler laufen lassen. Das Problem ist der N+1 Query im User-Resolver." },
-  { sender: "albert", text: "Mist, das ist nervig. Wir brauchen das bis Freitag gefixt.", note: "Mood shift: frustration detected" },
-  { sender: "claudia", text: "Wir machen Batched DataLoader. Der Plan ist erst den User-Resolver zu fixen, dann die restlichen.", note: "Decision: DataLoader approach" },
-  { sender: "albert", text: "Beschlossen. Und wir warten auf den Review von Alexey bevor wir deployen.", note: "Decision: review gate before deploy" },
-  { sender: "claudia", text: "Auth migration is done ✅ All tests green, backward compat verified.", note: "Thread 1 auto-closes — closure signal detected" },
-  { sender: "albert", text: "Nice! Perfekt gelaufen. 🚀" },
-  { sender: "albert", text: "Now about the Kubernetes cluster — we need to plan the migration from Docker Compose.", note: "Thread 3 opens" },
-  { sender: "claudia", text: "I'll draft an architecture doc. Waiting for the cost estimate from Hetzner first.", note: "Blocking item detected: waiting for Hetzner" },
-  { sender: "albert", text: "Guter Fortschritt heute. Lass uns morgen mit dem K8s-Plan weitermachen." },
+  // Thread 1: Auth Migration
+  { sender: "user", text: "Let's get back to the auth migration. We need to switch from JWT to OAuth2.", note: "Thread 1 opens — Cortex detects 'auth migration' as a topic" },
+  { sender: "assistant", text: "I'll start with the token validation layer. The plan is to keep backward compatibility for 2 weeks.", note: "Decision detected: backward compat plan" },
+  { sender: "user", text: "Agreed. We decided to use Auth0 as the provider.", note: "Decision detected: Auth0 choice" },
+
+  // Thread 2: Performance Bug
+  { sender: "user", text: "Now about the performance bug. The API takes 3 seconds for simple queries.", note: "Thread 2 opens — topic switch detected" },
+  { sender: "assistant", text: "I ran the profiler. The problem is an N+1 query in the user resolver." },
+  { sender: "user", text: "That's annoying. We need this fixed by Friday.", note: "Mood shift: frustration detected" },
+  { sender: "assistant", text: "We'll use a batched DataLoader. The plan is to fix the user resolver first, then the rest.", note: "Decision: DataLoader approach" },
+  { sender: "user", text: "Decided. And we wait for Alexey's review before we deploy.", note: "Decision: review gate before deploy" },
+
+  // Thread 1: Closure
+  { sender: "assistant", text: "Auth migration is done ✅ All tests green, backward compat verified.", note: "Thread 1 auto-closes — closure signal detected" },
+  { sender: "user", text: "Nice! That went perfectly. 🚀" },
+
+  // Thread 3: New topic
+  { sender: "user", text: "Now about the Kubernetes cluster — we need to plan the migration from Docker Compose.", note: "Thread 3 opens" },
+  { sender: "assistant", text: "I'll draft an architecture doc. Waiting for the cost estimate from Hetzner first.", note: "Blocking item detected: waiting for Hetzner" },
+  { sender: "user", text: "Good progress today. Let's continue with the K8s plan tomorrow." },
 ];
 
 // ── Main ──
@@ -163,7 +170,7 @@ ${DIM}Workspace: ${workspace}${RESET}
   // ═══════════════════════════════════════════════════
 
   heading("Phase 1: Sample Conversation (step-by-step)");
-  console.log(`${DIM}  Walk through a bilingual dev conversation.`);
+  console.log(`${DIM}  Walk through a dev conversation between a user and an AI agent.`);
   console.log(`  After each message, Cortex processes it in real-time.`);
   console.log(`  Press Enter to advance each message.${RESET}`);
 
@@ -242,7 +249,7 @@ ${DIM}Workspace: ${workspace}${RESET}
 
   heading("Phase 5: Interactive Sandbox");
   console.log(`  ${BOLD}${CYAN}Your turn!${RESET} Type a message and see what Cortex detects.`);
-  console.log(`  Try things like: "We decided to use PostgreSQL" or "Das Deployment ist kaputt"\n`);
+  console.log(`  Try: "We decided to use PostgreSQL" or "The deployment is broken, we need a fix ASAP"\n`);
   console.log(`  ${BOLD}Commands:${RESET}  /threads  /decisions  /mood  /boot  /files  /quit\n`);
 
   while (true) {

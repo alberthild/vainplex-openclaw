@@ -18,7 +18,7 @@ Seven plugins. Running in production 24/7. Built because we needed them — not 
 
 ## Try it
 
-Cortex has an interactive demo — step through a bilingual conversation and see threads, decisions, and mood extracted in real-time:
+Cortex has an interactive demo — step through a conversation and see threads, decisions, and mood extracted in real-time:
 
 ```bash
 git clone https://github.com/alberthild/vainplex-openclaw.git
