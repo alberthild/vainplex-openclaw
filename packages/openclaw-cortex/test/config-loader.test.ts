@@ -156,7 +156,8 @@ describe("cortex/config-loader", () => {
 
   describe("graceful defaults", () => {
     it("returns defaults when no config at all", () => {
-      const result = loadConfig(undefined, logger);
+      // Ensure environment doesn't leak into test
+      const result = loadConfig({ configPath: "/tmp/non-existent-config.json" }, logger);
       expect(result.source).toBe("file"); // will try default path and bootstrap
       expect(result.config.enabled).toBe(true);
       expect(result.config.workspace).toBe("");
