@@ -30,7 +30,7 @@ The LLM runs **on top of regex** — it enhances, never replaces. If the LLM is 
 
 ## 🎬 Demo
 
-Interactive step-by-step demo — walk through a bilingual conversation, see Cortex extract threads and decisions in real-time, then try your own messages:
+Interactive step-by-step demo — walk through a conversation, see Cortex extract threads and decisions in real-time:
 
 ```bash
 git clone https://github.com/alberthild/vainplex-openclaw.git
@@ -48,22 +48,22 @@ The demo has 5 phases:
 
 ### Sample conversation
 
-A 13-message conversation between a developer and an AI assistant covering 3 topics in English and German:
+A 13-message conversation between a developer and an AI assistant covering 3 topics:
 
 ```
-👤 Albert: Let's get back to the auth migration. We need to switch from JWT to OAuth2.
-🤖 Claudia: I'll start with the token validation layer. The plan is to keep backward compatibility for 2 weeks.
-👤 Albert: Agreed. We decided to use Auth0 as the provider.
-👤 Albert: Also, jetzt zu dem Performance-Bug. Die API braucht 3 Sekunden für simple Queries.
-🤖 Claudia: Ich hab den Profiler laufen lassen. Das Problem ist der N+1 Query im User-Resolver.
-👤 Albert: Mist, das ist nervig. Wir brauchen das bis Freitag gefixt.
-🤖 Claudia: Wir machen Batched DataLoader.
-👤 Albert: Beschlossen. Und wir warten auf den Review von Alexey bevor wir deployen.
-🤖 Claudia: Auth migration is done ✅ All tests green, backward compat verified.
-👤 Albert: Nice! Perfekt gelaufen. 🚀
-👤 Albert: Now about the Kubernetes cluster — we need to plan the migration from Docker Compose.
-🤖 Claudia: I'll draft an architecture doc. Waiting for the cost estimate from Hetzner first.
-👤 Albert: Guter Fortschritt heute. Lass uns morgen mit dem K8s-Plan weitermachen.
+👤 You:   Let's get back to the auth migration. We need to switch from JWT to OAuth2.
+🤖 Agent: I'll start with the token validation layer. The plan is to keep backward compatibility for 2 weeks.
+👤 You:   Agreed. We decided to use Auth0 as the provider.
+👤 You:   Now about the performance bug. The API takes 3 seconds for simple queries.
+🤖 Agent: I ran the profiler. The problem is an N+1 query in the user resolver.
+👤 You:   That's annoying. We need this fixed by Friday.
+🤖 Agent: We'll use a batched DataLoader. The plan is to fix the user resolver first, then the rest.
+👤 You:   Decided. And we wait for Alexey's review before we deploy.
+🤖 Agent: Auth migration is done ✅ All tests green, backward compat verified.
+👤 You:   Nice! That went perfectly. 🚀
+👤 You:   Now about the Kubernetes cluster — we need to plan the migration from Docker Compose.
+🤖 Agent: I'll draft an architecture doc. Waiting for the cost estimate from Hetzner first.
+👤 You:   Good progress today. Let's continue with the K8s plan tomorrow.
 ```
 
 <details>
@@ -77,7 +77,7 @@ Found 3 threads (2 open, 1 closed)
       Priority: high
       Mood: neutral
 
-  ● 🟡 dem Performance-Bug
+  ● 🟡 the performance bug
       Status: open
       Priority: medium
       Mood: neutral
@@ -92,23 +92,23 @@ Found 3 threads (2 open, 1 closed)
 </details>
 
 <details>
-<summary><b>🎯 Decision Extraction</b> — 4 decisions found across 2 languages</summary>
+<summary><b>🎯 Decision Extraction</b> — 4 decisions found</summary>
 
 ```
   🎯 The plan is to keep backward compatibility for 2 weeks
-      Impact: medium | Who: claudia
+      Impact: medium | Who: assistant
 
   🎯 We decided to use Auth0 as the provider
-      Impact: medium | Who: albert
+      Impact: medium | Who: user
 
-  🎯 Wir machen Batched DataLoader
-      Impact: medium | Who: claudia
+  🎯 We'll use a batched DataLoader
+      Impact: medium | Who: assistant
 
-  🎯 Beschlossen. Und wir warten auf den Review von Alexey bevor wir deployen.
-      Impact: high | Who: albert
+  🎯 Decided. And we wait for Alexey's review before we deploy.
+      Impact: high | Who: user
 ```
 
-Trigger patterns: `"the plan is"`, `"we decided"`, `"wir machen"`, `"beschlossen"`
+Trigger patterns: `"the plan is"`, `"we decided"`, `"we'll use"`, `"decided"`
 
 </details>
 
@@ -117,7 +117,7 @@ Trigger patterns: `"the plan is"`, `"we decided"`, `"wir machen"`, `"beschlossen
 
 ```
   Session mood: 🔥 excited
-  (Detected from "Nice!", "Perfekt gelaufen", "🚀")
+  (Detected from "Nice!", "That went perfectly", "🚀")
 ```
 
 Supported moods: `frustrated` 😤 · `excited` 🔥 · `tense` ⚡ · `productive` 🔧 · `exploratory` 🔬 · `neutral` 😐
@@ -140,7 +140,7 @@ Supported moods: `frustrated` 😤 · `excited` 🔥 · `tense` ⚡ · `producti
     - [user] Let's get back to the auth migration...
     - [assistant] I'll start with the token validation layer...
     - [user] Agreed. We decided to use Auth0 as the provider.
-    - [user] Also, jetzt zu dem Performance-Bug...
+    - [user] Now about the performance bug...
     - ...
 ```
 
@@ -159,17 +159,17 @@ Last session mood: excited 🔥
 
 ## 📖 Narrative (last 24h)
 **Completed:**
-- ✅ the auth migration: Topic detected from albert
+- ✅ the auth migration: Topic detected from user
 
 **Open:**
-- 🟡 dem Performance-Bug: Topic detected from albert
-- 🟡 the Kubernetes cluster: Topic detected from albert
+- 🟡 the performance bug: Topic detected from user
+- 🟡 the Kubernetes cluster: Topic detected from user
 
 **Decisions:**
-- 🎯 The plan is to keep backward compatibility for 2 weeks (claudia)
-- 🎯 We decided to use Auth0 as the provider (albert)
-- 🎯 Wir machen Batched DataLoader (claudia)
-- 🎯 Beschlossen. Warten auf Review von Alexey (albert)
+- 🎯 The plan is to keep backward compatibility for 2 weeks (assistant)
+- 🎯 We decided to use Auth0 as the provider (user)
+- 🎯 We'll use a batched DataLoader (assistant)
+- 🎯 Decided. Wait for Alexey's review before deploy (user)
 ```
 
 Total: 3,143 chars · ~786 tokens · regenerated every session start
