@@ -2,7 +2,7 @@
 
 **Turn OpenClaw from a smart assistant into a self-governing, learning system.**
 
-Five plugins. One goal: give your AI agent memory that survives restarts, governance that enforces rules deterministically, knowledge extraction that runs in real-time, and an event backbone that makes everything auditable.
+Six plugins. One goal: give your AI agent memory that survives restarts, governance that enforces rules deterministically, knowledge extraction that runs in real-time, and an event backbone that makes everything auditable.
 
 Built by a team of one human and one AI. Running in production 24/7 since February 2026.
 
@@ -18,20 +18,21 @@ We built these plugins because we needed them. Not as a product exercise — as 
 
 | Plugin | What it does | Version | npm |
 |--------|-------------|---------|-----|
-| **[Cortex](packages/openclaw-cortex)** | Conversation intelligence — tracks discussion threads, extracts decisions, generates boot context that survives memory compaction | 0.4.5 | [`@vainplex/openclaw-cortex`](https://www.npmjs.com/package/@vainplex/openclaw-cortex) |
+| **[Cortex](packages/openclaw-cortex)** | Conversation intelligence — tracks discussion threads, extracts decisions, generates boot context that survives memory compaction | 0.4.6 | [`@vainplex/openclaw-cortex`](https://www.npmjs.com/package/@vainplex/openclaw-cortex) |
 | **[Governance](packages/openclaw-governance)** | Policy-as-code for AI agents — tool blocking, trust scoring, time-based rules, credential protection. Deterministic, not probabilistic. | 0.5.5 | [`@vainplex/openclaw-governance`](https://www.npmjs.com/package/@vainplex/openclaw-governance) |
 | **[Knowledge Engine](packages/openclaw-knowledge-engine)** | Real-time fact extraction from conversations — entities, relationships, structured knowledge, all without external APIs | 0.1.4 | [`@vainplex/openclaw-knowledge-engine`](https://www.npmjs.com/package/@vainplex/openclaw-knowledge-engine) |
 | **[NATS EventStore](packages/openclaw-nats-eventstore)** | Publish every agent event to NATS JetStream — full audit trail, replay capability, multi-agent event sharing | 0.2.1 | [`@vainplex/nats-eventstore`](https://www.npmjs.com/package/@vainplex/nats-eventstore) |
+| **[Sitrep](packages/openclaw-sitrep)** | Situation report generator — aggregates system health, goals, timers, events into a unified status snapshot | 0.1.0 | [`@vainplex/openclaw-sitrep`](https://www.npmjs.com/package/@vainplex/openclaw-sitrep) |
 | **[Membrane](https://github.com/alberthild/openclaw-membrane)** | Episodic memory bridge — gRPC integration with [GustyCube's Membrane](https://github.com/gustycube/membrane) for salience-based recall, rehearsal, and organic memory decay | 0.3.0 | [`@vainplex/openclaw-membrane`](https://www.npmjs.com/package/@vainplex/openclaw-membrane) |
 
 ## Numbers
 
-- **18,174 lines** of TypeScript source
-- **23,588 lines** of tests
-- **1,813 tests** across 94 test files
+- **19,556 lines** of TypeScript source
+- **23,743 lines** of tests
+- **1,975 tests** across 98 test files
 - **0** runtime dependencies (except NATS client for EventStore, gRPC for Membrane)
 - **0** `any` types — strict TypeScript throughout
-- **5 plugins** in production since February 2026
+- **6 plugins** in production since February 2026
 
 ## Quick Start
 
@@ -43,6 +44,7 @@ npm install @vainplex/openclaw-cortex
 npm install @vainplex/openclaw-governance
 npm install @vainplex/openclaw-knowledge-engine
 npm install @vainplex/nats-eventstore
+npm install @vainplex/openclaw-sitrep
 npm install @vainplex/openclaw-membrane
 ```
 
@@ -64,6 +66,7 @@ Each plugin registers itself with OpenClaw's plugin API. Add it to your `opencla
     { "name": "@vainplex/openclaw-governance" },
     { "name": "@vainplex/openclaw-knowledge-engine" },
     { "name": "@vainplex/nats-eventstore" },
+    { "name": "@vainplex/openclaw-sitrep" },
     { "name": "@vainplex/openclaw-membrane" }
   ]
 }
@@ -108,6 +111,12 @@ User Message
 ┌─────────────┐     ┌──────────────┐
 │ NATS Event   │────▶│ Publish      │──▶ Audit, Replay, Sharing
 │ Store        │     └──────────────┘
+└─────────────┘
+    │
+    ▼
+┌─────────────┐     ┌──────────────┐
+│ Sitrep       │────▶│ Aggregate    │──▶ System Health, Goals, Status
+│ (on-demand)  │     └──────────────┘
 └─────────────┘
 ```
 
