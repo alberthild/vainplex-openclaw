@@ -74,53 +74,57 @@ Each plugin registers itself with OpenClaw's plugin API. Add it to your `opencla
 
 ## How They Work Together
 
-```
-User Message
-    │
-    ▼
-┌─────────────┐     ┌──────────────┐
-│ Governance   │────▶│ Policy Check │──▶ Block / Allow
-│ (pre-tool)   │     └──────────────┘
-└─────────────┘
-    │ (allowed)
-    ▼
-┌─────────────┐     ┌──────────────┐
-│ Membrane     │────▶│ Retrieve     │──▶ Episodic Context (salience-ranked)
-│ (pre-agent)  │     └──────────────┘
-└─────────────┘
-    │
-    ▼
-┌─────────────┐     ┌──────────────┐
-│ Cortex       │────▶│ Thread Track │──▶ Decisions, Boot Context
-│ (post-msg)   │     └──────────────┘
-└─────────────┘
-    │
-    ▼
-┌─────────────┐     ┌──────────────┐
-│ Knowledge    │────▶│ Fact Extract │──▶ Entities, Relations
-│ Engine       │     └──────────────┘
-└─────────────┘
-    │
-    ▼
-┌─────────────┐     ┌──────────────┐
-│ Membrane     │────▶│ Ingest       │──▶ Episodic Memory (decay + rehearsal)
-│ (post-msg)   │     └──────────────┘
-└─────────────┘
-    │
-    ▼
-┌─────────────┐     ┌──────────────┐
-│ NATS Event   │────▶│ Publish      │──▶ Audit, Replay, Sharing
-│ Store        │     └──────────────┘
-└─────────────┘
-    │
-    ▼
-┌─────────────┐     ┌──────────────┐
-│ Sitrep       │────▶│ Aggregate    │──▶ System Health, Goals, Status
-│ (on-demand)  │     └──────────────┘
-└─────────────┘
+```mermaid
+flowchart TD
+    MSG["💬 User Message"] --> GOV
+
+    subgraph PRE ["Pre-Processing (before agent)"]
+        GOV["🛡️ Governance\n<i>before_tool_call · before_agent_start</i>"]
+        GOV -->|"✅ allowed"| MEM_R
+        GOV -->|"🚫 blocked"| DENY["Policy Denial\n+ audit record"]
+        MEM_R["🧬 Membrane\n<i>before_agent_start</i>"]
+        MEM_R -->|"inject episodic context"| AGENT
+    end
+
+    AGENT["🤖 OpenClaw Agent\nLLM reasoning + tool use"]
+
+    subgraph POST ["Post-Processing (after agent)"]
+        direction LR
+        CTX["🧠 Cortex\n<i>message_received · message_sent</i>\nThreads · Decisions · Boot Context"]
+        KE["💡 Knowledge Engine\n<i>message_received · message_sent</i>\nEntities · Relationships"]
+        MEM_I["🧬 Membrane\n<i>event</i>\nIngest → episodic memory\nSalience · Decay · Rehearsal"]
+    end
+
+    AGENT --> CTX
+    AGENT --> KE
+    AGENT --> MEM_I
+
+    subgraph INFRA ["Infrastructure (all hooks)"]
+        NATS["📡 NATS EventStore\n<i>all 12 hooks</i>\nPublish to JetStream\nFull audit trail · Replay"]
+    end
+
+    PRE -.->|"events"| NATS
+    AGENT -.->|"events"| NATS
+    POST -.->|"events"| NATS
+
+    SITREP["📊 Sitrep\n<i>on-demand: /sitrep</i>\nAggregates health from all plugins"]
+
+    style MSG fill:#1f2937,stroke:#6b7280,color:#f9fafb
+    style GOV fill:#7c2d12,stroke:#e8782a,color:#fed7aa
+    style MEM_R fill:#1e3a5f,stroke:#3b82f6,color:#bfdbfe
+    style AGENT fill:#064e3b,stroke:#10b981,color:#d1fae5
+    style CTX fill:#134e4a,stroke:#198989,color:#ccfbf1
+    style KE fill:#3b0764,stroke:#8b5cf6,color:#e9d5ff
+    style MEM_I fill:#1e3a5f,stroke:#3b82f6,color:#bfdbfe
+    style NATS fill:#14532d,stroke:#22c55e,color:#bbf7d0
+    style SITREP fill:#422006,stroke:#eab308,color:#fef9c3
+    style DENY fill:#7f1d1d,stroke:#ef4444,color:#fecaca
+    style PRE fill:#111827,stroke:#374151,color:#9ca3af
+    style POST fill:#111827,stroke:#374151,color:#9ca3af
+    style INFRA fill:#111827,stroke:#374151,color:#9ca3af
 ```
 
-Governance checks before actions run. Membrane injects relevant episodic context before the agent responds. Cortex and Knowledge Engine extract intelligence after. Membrane ingests the conversation into long-term memory with salience tracking. EventStore records everything. Each plugin works independently — use one or all five.
+**The pipeline:** Governance gates every action (block or allow). Membrane injects relevant episodic context before the agent responds. After the response, Cortex and Knowledge Engine extract structured intelligence in parallel. Membrane ingests the conversation into long-term memory with salience-based decay. EventStore publishes every event to NATS JetStream for audit and replay. Sitrep aggregates system health on demand. Each plugin works independently — use one or all six.
 
 ## Why Not Just Use [X]?
 
