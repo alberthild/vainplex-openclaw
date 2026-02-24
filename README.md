@@ -117,28 +117,24 @@ flowchart TD
 
 **The pipeline:** Governance gates every action (block or allow). Membrane injects relevant episodic context before the agent responds. After the response, Cortex and Knowledge Engine extract structured intelligence in parallel. Membrane ingests the conversation into long-term memory with salience-based decay. EventStore publishes every event to NATS JetStream for audit and replay. Sitrep aggregates system health on demand. Each plugin works independently — use one or all six.
 
-## Security: Closing the Gap Microsoft Identified
+## Security: Defense-in-Depth for Operators
 
-In February 2026, [Microsoft's Security Blog](https://www.microsoft.com/en-us/security/blog/2026/02/19/running-openclaw-safely-identity-isolation-runtime-risk/) published a detailed threat analysis of OpenClaw deployments. Their core finding:
+OpenClaw's [security model](https://docs.openclaw.ai/gateway/security) is deliberately minimal: one trusted operator, host = trust boundary, plugins = trusted code. This is a [conscious design choice](https://github.com/openclaw/openclaw/blob/main/SECURITY.md), not a gap.
 
-> *"OpenClaw should be treated as untrusted code execution with persistent credentials."*
+But as an operator running OpenClaw 24/7 with real credentials and real tools, we wanted additional layers. Microsoft's [threat analysis of self-hosted agent runtimes](https://www.microsoft.com/en-us/security/blog/2026/02/19/running-openclaw-safely-identity-isolation-runtime-risk/) (Feb 2026) validated the same concerns we'd already been building for.
 
-They identified three compounding risks: credential exposure, memory/state manipulation, and host compromise through malicious input. Their recommendation: isolation, dedicated credentials, continuous monitoring, and a rebuild plan.
+**These plugins add operator-side hardening that complements OpenClaw's trust model:**
 
-**This suite is our answer to that.**
-
-| Microsoft's concern | Our plugin |
+| Operational concern | Our plugin |
 |---|---|
-| *"Credentials and accessible data may be exposed"* | **Governance** — 3-layer credential redaction (17 patterns), blocks secrets before they reach the LLM or chat output |
-| *"Agent's persistent state can be modified"* | **Cortex** — pre-compaction snapshots preserve verifiable state; Trace Analyzer detects hallucination and unverified claims |
-| *"Monitor for state or memory manipulation"* | **Cortex + Sitrep** — thread health monitoring, anomaly detection, situation reports with drift alerts |
-| *"Treat rebuild as an expected control"* | **Cortex** — boot context generation means the agent recovers from a clean slate with verified continuity |
-| *"Log agent actions and treat abnormal tool use as an incident signal"* | **NATS EventStore** — every agent event published to JetStream for audit, replay, and forensic analysis |
-| *"Use dedicated identities, minimize permissions"* | **Governance** — per-agent trust scores, tool deny lists, production safeguards, rate limiting |
+| Credentials leaking into LLM context or chat output | **Governance** — 3-layer credential redaction (17 patterns), deterministic blocking before output |
+| Agent state drift after memory compaction | **Cortex** — pre-compaction snapshots preserve verifiable state; boot context for verified continuity |
+| No audit trail of what agents actually did | **NATS EventStore** — every event to JetStream for replay, forensics, and multi-agent correlation |
+| Detecting when agents hallucinate or go off-track | **Cortex Trace Analyzer** — 7 failure signal detectors (doom-loop, hallucination, unverified claims) |
+| Knowing if the system is healthy right now | **Sitrep** — aggregated health snapshots with drift alerts |
+| Limiting what agents can do based on trust level | **Governance** — per-agent trust scores, tool deny lists, time-based rules, rate limiting |
 
-These plugins don't replace proper isolation — you should still follow Microsoft's deployment guidance. But they add the defense-in-depth layers that OpenClaw's minimal security model intentionally leaves to the operator.
-
-See also: [OpenClaw Security Documentation](https://docs.openclaw.ai/gateway/security) · [SECURITY.md](https://github.com/openclaw/openclaw/blob/main/SECURITY.md)
+This suite works within OpenClaw's security model — it doesn't replace isolation, host hardening, or [the hardened baseline](https://docs.openclaw.ai/gateway/security#hardened-baseline-in-60-seconds). It adds the operational layers that make running a 24/7 agent deployment sustainable.
 
 ## Why Not Just Use [X]?
 
