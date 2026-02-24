@@ -76,38 +76,31 @@ Each plugin registers itself with OpenClaw's plugin API. Add it to your `opencla
 
 ```mermaid
 flowchart TD
-    MSG["💬 User Message"] --> GOV
+    MSG(["💬 User Message"]) --> GOV
 
-    subgraph PRE ["Pre-Processing (before agent)"]
-        GOV["🛡️ Governance\n<i>before_tool_call · before_agent_start</i>"]
-        GOV -->|"✅ allowed"| MEM_R
-        GOV -->|"🚫 blocked"| DENY["Policy Denial\n+ audit record"]
-        MEM_R["🧬 Membrane\n<i>before_agent_start</i>"]
-        MEM_R -->|"inject episodic context"| AGENT
-    end
+    GOV["🛡️ Governance"]
+    GOV -->|allowed| MEM_R
+    GOV -->|blocked| DENY["🚫 Denied"]
 
-    AGENT["🤖 OpenClaw Agent\nLLM reasoning + tool use"]
+    MEM_R["🧬 Membrane · Recall"]
+    MEM_R -->|context| AGENT
 
-    subgraph POST ["Post-Processing (after agent)"]
-        direction LR
-        CTX["🧠 Cortex\n<i>message_received · message_sent</i>\nThreads · Decisions · Boot Context"]
-        KE["💡 Knowledge Engine\n<i>message_received · message_sent</i>\nEntities · Relationships"]
-        MEM_I["🧬 Membrane\n<i>event</i>\nIngest → episodic memory\nSalience · Decay · Rehearsal"]
-    end
+    AGENT["🤖 OpenClaw Agent"]
 
-    AGENT --> CTX
-    AGENT --> KE
-    AGENT --> MEM_I
+    AGENT --> CTX & KE & MEM_I
 
-    subgraph INFRA ["Infrastructure (all hooks)"]
-        NATS["📡 NATS EventStore\n<i>all 12 hooks</i>\nPublish to JetStream\nFull audit trail · Replay"]
-    end
+    CTX["🧠 Cortex"]
+    KE["💡 Knowledge Engine"]
+    MEM_I["🧬 Membrane · Ingest"]
 
-    PRE -.->|"events"| NATS
-    AGENT -.->|"events"| NATS
-    POST -.->|"events"| NATS
+    PRE -.-> NATS
+    AGENT -.-> NATS
+    CTX -.-> NATS
+    KE -.-> NATS
+    MEM_I -.-> NATS
 
-    SITREP["📊 Sitrep\n<i>on-demand: /sitrep</i>\nAggregates health from all plugins"]
+    NATS[("📡 NATS EventStore")]
+    SITREP["📊 Sitrep"]
 
     style MSG fill:#1f2937,stroke:#6b7280,color:#f9fafb
     style GOV fill:#7c2d12,stroke:#e8782a,color:#fed7aa
@@ -119,9 +112,6 @@ flowchart TD
     style NATS fill:#14532d,stroke:#22c55e,color:#bbf7d0
     style SITREP fill:#422006,stroke:#eab308,color:#fef9c3
     style DENY fill:#7f1d1d,stroke:#ef4444,color:#fecaca
-    style PRE fill:#111827,stroke:#374151,color:#9ca3af
-    style POST fill:#111827,stroke:#374151,color:#9ca3af
-    style INFRA fill:#111827,stroke:#374151,color:#9ca3af
 ```
 
 **The pipeline:** Governance gates every action (block or allow). Membrane injects relevant episodic context before the agent responds. After the response, Cortex and Knowledge Engine extract structured intelligence in parallel. Membrane ingests the conversation into long-term memory with salience-based decay. EventStore publishes every event to NATS JetStream for audit and replay. Sitrep aggregates system health on demand. Each plugin works independently — use one or all six.
