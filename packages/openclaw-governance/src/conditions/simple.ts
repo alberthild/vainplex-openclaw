@@ -47,15 +47,15 @@ export function evaluateAgentCondition(
     return false;
   }
 
-  if (c.trustTier !== undefined && !matchTrustTier(c.trustTier, ctx.trust.tier)) {
+  if (c.trustTier !== undefined && !matchTrustTier(c.trustTier, ctx.trust.session.tier)) {
     return false;
   }
 
-  if (c.minScore !== undefined && ctx.trust.score < c.minScore) {
+  if (c.minScore !== undefined && ctx.trust.session.score < c.minScore) {
     return false;
   }
 
-  if (c.maxScore !== undefined && ctx.trust.score > c.maxScore) {
+  if (c.maxScore !== undefined && ctx.trust.session.score > c.maxScore) {
     return false;
   }
 

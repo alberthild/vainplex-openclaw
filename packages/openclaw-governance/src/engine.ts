@@ -472,7 +472,7 @@ export class GovernanceEngine {
     agentId: string,
     sessionId?: string,
   ): { agent: AgentTrust; session: SessionTrust };
-  getTrust(agentId: undefined, sessionId: undefined): TrustStore;
+  getTrust(): TrustStore;
   getTrust(
     agentId?: string,
     sessionId?: string,

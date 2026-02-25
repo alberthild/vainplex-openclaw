@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { RiskAssessor } from "../src/risk-assessor.js";
-import type { EvaluationContext, FrequencyTracker } from "../src/types.js";
+import type { EvaluationContext, FrequencyTracker, TrustTier } from "../src/types.js";
+
+function makeTrust(score: number, tier: TrustTier) {
+  return {
+    agent: { agentId: "main", score, tier, signals: { successCount: 0, violationCount: 0, ageDays: 0, cleanStreak: 0, manualAdjustment: 0 }, history: [] as never[], lastEvaluation: "", created: "" },
+    session: { sessionId: "agent:main", agentId: "main", score, tier, cleanStreak: 0, createdAt: Date.now() },
+  };
+}
 
 function makeCtx(overrides: Partial<EvaluationContext> = {}): EvaluationContext {
   return {
@@ -9,7 +16,10 @@ function makeCtx(overrides: Partial<EvaluationContext> = {}): EvaluationContext 
     sessionKey: "agent:main",
     timestamp: Date.now(),
     time: { hour: 12, minute: 0, dayOfWeek: 3, date: "2026-02-18", timezone: "UTC" },
-    trust: { score: 60, tier: "trusted" },
+    trust: {
+      agent: { agentId: "main", score: 60, tier: "trusted" as const, signals: { successCount: 0, violationCount: 0, ageDays: 0, cleanStreak: 0, manualAdjustment: 0 }, history: [], lastEvaluation: "", created: "" },
+      session: { sessionId: "agent:main", agentId: "main", score: 60, tier: "trusted" as const, cleanStreak: 0, createdAt: Date.now() },
+    },
     toolName: "exec",
     ...overrides,
   };
@@ -46,8 +56,8 @@ describe("RiskAssessor", () => {
 
   it("should compute higher risk for low trust", () => {
     const ra = new RiskAssessor({});
-    const high = ra.assess(makeCtx({ trust: { score: 80, tier: "privileged" } }), noFreq);
-    const low = ra.assess(makeCtx({ trust: { score: 10, tier: "untrusted" } }), noFreq);
+    const high = ra.assess(makeCtx({ trust: makeTrust(80, "elevated") }), noFreq);
+    const low = ra.assess(makeCtx({ trust: makeTrust(10, "untrusted") }), noFreq);
 
     expect(low.score).toBeGreaterThan(high.score);
   });
@@ -113,7 +123,7 @@ describe("RiskAssessor", () => {
     // Low: read, trusted, business hours, no freq, internal
     const low = ra.assess(makeCtx({
       toolName: "read",
-      trust: { score: 80, tier: "privileged" },
+      trust: makeTrust(80, "elevated"),
     }), noFreq);
     expect(low.level).toBe("low");
 
@@ -121,7 +131,7 @@ describe("RiskAssessor", () => {
     const highFreq: FrequencyTracker = { record: () => {}, count: () => 30, clear: () => {} };
     const critical = ra.assess(makeCtx({
       toolName: "gateway",
-      trust: { score: 5, tier: "untrusted" },
+      trust: makeTrust(5, "untrusted"),
       time: { hour: 2, minute: 0, dayOfWeek: 3, date: "2026-02-18", timezone: "UTC" },
       toolParams: { elevated: true },
     }), highFreq);

@@ -165,8 +165,8 @@ describe("scoreToTier", () => {
     expect(scoreToTier(59)).toBe("standard");
     expect(scoreToTier(60)).toBe("trusted");
     expect(scoreToTier(79)).toBe("trusted");
-    expect(scoreToTier(80)).toBe("privileged");
-    expect(scoreToTier(100)).toBe("privileged");
+    expect(scoreToTier(80)).toBe("elevated");
+    expect(scoreToTier(100)).toBe("elevated");
   });
 });
 
@@ -176,7 +176,7 @@ describe("tierOrdinal", () => {
     expect(tierOrdinal("restricted")).toBe(1);
     expect(tierOrdinal("standard")).toBe(2);
     expect(tierOrdinal("trusted")).toBe(3);
-    expect(tierOrdinal("privileged")).toBe(4);
+    expect(tierOrdinal("elevated")).toBe(4);
   });
 });
 

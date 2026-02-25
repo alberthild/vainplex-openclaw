@@ -82,8 +82,8 @@ export class RiskAssessor {
       },
       {
         name: "trust_deficit", weight: 20,
-        value: ((100 - ctx.trust.score) / 100) * 20,
-        description: `Trust score ${ctx.trust.score}/100`,
+        value: ((100 - ctx.trust.session.score) / 100) * 20,
+        description: `Trust score ${ctx.trust.session.score}/100`,
       },
       {
         name: "frequency", weight: 15,

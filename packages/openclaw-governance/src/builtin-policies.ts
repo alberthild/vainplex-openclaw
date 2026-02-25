@@ -125,7 +125,7 @@ function resolveProductionSafeguard(
         id: "allow-production-ops-trusted",
         description: "Trusted and privileged agents may perform production operations",
         conditions: [
-          { type: "agent", trustTier: ["trusted", "privileged"] },
+          { type: "agent", trustTier: ["trusted", "elevated"] },
           { type: "any", conditions: productionOpsConditions() },
         ],
         effect: { action: "allow" },
@@ -136,7 +136,7 @@ function resolveProductionSafeguard(
         conditions: [
           {
             type: "not",
-            condition: { type: "agent", trustTier: ["trusted", "privileged"] },
+            condition: { type: "agent", trustTier: ["trusted", "elevated"] },
           },
           { type: "any", conditions: productionOpsConditions() },
         ],
@@ -171,7 +171,7 @@ function resolveRateLimiter(
         id: "rate-limit-trusted",
         description: "Trusted+ agents get double the rate limit",
         conditions: [
-          { type: "agent", trustTier: ["trusted", "privileged"] },
+          { type: "agent", trustTier: ["trusted", "elevated"] },
           { type: "frequency", maxCount: trustedLimit, windowSeconds: 60, scope: "agent" },
         ],
         effect: {
@@ -183,7 +183,7 @@ function resolveRateLimiter(
         id: "rate-limit-default",
         description: "Standard rate limit for untrusted/standard/restricted agents",
         conditions: [
-          { type: "not", condition: { type: "agent", trustTier: ["trusted", "privileged"] } },
+          { type: "not", condition: { type: "agent", trustTier: ["trusted", "elevated"] } },
           { type: "frequency", maxCount: maxPerMinute, windowSeconds: 60, scope: "agent" },
         ],
         effect: {

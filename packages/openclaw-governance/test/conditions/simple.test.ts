@@ -1,4 +1,5 @@
 import { describe, expect, it, beforeAll } from "vitest";
+import type { TrustTier } from "../../src/types.js";
 import {
   evaluateAgentCondition,
   evaluateCompositeCondition,
@@ -25,6 +26,13 @@ beforeAll(() => {
   createConditionEvaluators();
 });
 
+function makeTrust(score: number, tier: TrustTier) {
+  return {
+    agent: { agentId: "forge", score, tier, signals: { successCount: 0, violationCount: 0, ageDays: 0, cleanStreak: 0, manualAdjustment: 0 }, history: [] as never[], lastEvaluation: "", created: "" },
+    session: { sessionId: "agent:main:subagent:forge:abc", agentId: "forge", score, tier, cleanStreak: 0, createdAt: Date.now() },
+  };
+}
+
 function makeCtx(overrides: Partial<EvaluationContext> = {}): EvaluationContext {
   return {
     hook: "before_tool_call",
@@ -32,7 +40,10 @@ function makeCtx(overrides: Partial<EvaluationContext> = {}): EvaluationContext 
     sessionKey: "agent:main:subagent:forge:abc",
     timestamp: Date.now(),
     time: { hour: 12, minute: 0, dayOfWeek: 3, date: "2026-02-18", timezone: "UTC" },
-    trust: { score: 45, tier: "standard" },
+    trust: {
+      agent: { agentId: "forge", score: 45, tier: "standard" as const, signals: { successCount: 0, violationCount: 0, ageDays: 0, cleanStreak: 0, manualAdjustment: 0 }, history: [], lastEvaluation: "", created: "" },
+      session: { sessionId: "agent:main:subagent:forge:abc", agentId: "forge", score: 45, tier: "standard" as const, cleanStreak: 0, createdAt: Date.now() },
+    },
     toolName: "exec",
     ...overrides,
   };
@@ -71,7 +82,7 @@ describe("evaluateAgentCondition", () => {
   it("should match trust tier", () => {
     const cond: AgentCondition = { type: "agent", trustTier: "standard" };
     expect(evaluateAgentCondition(cond, makeCtx(), makeDeps())).toBe(true);
-    expect(evaluateAgentCondition(cond, makeCtx({ trust: { score: 80, tier: "privileged" } }), makeDeps())).toBe(false);
+    expect(evaluateAgentCondition(cond, makeCtx({ trust: makeTrust(80, "elevated") }), makeDeps())).toBe(false);
   });
 
   it("should match trust tier array", () => {
@@ -82,13 +93,13 @@ describe("evaluateAgentCondition", () => {
   it("should match minScore", () => {
     const cond: AgentCondition = { type: "agent", minScore: 40 };
     expect(evaluateAgentCondition(cond, makeCtx(), makeDeps())).toBe(true); // 45 >= 40
-    expect(evaluateAgentCondition(cond, makeCtx({ trust: { score: 30, tier: "restricted" } }), makeDeps())).toBe(false);
+    expect(evaluateAgentCondition(cond, makeCtx({ trust: makeTrust(30, "restricted") }), makeDeps())).toBe(false);
   });
 
   it("should match maxScore", () => {
     const cond: AgentCondition = { type: "agent", maxScore: 50 };
     expect(evaluateAgentCondition(cond, makeCtx(), makeDeps())).toBe(true); // 45 <= 50
-    expect(evaluateAgentCondition(cond, makeCtx({ trust: { score: 60, tier: "trusted" } }), makeDeps())).toBe(false);
+    expect(evaluateAgentCondition(cond, makeCtx({ trust: makeTrust(60, "trusted") }), makeDeps())).toBe(false);
   });
 
   it("should match empty condition (any agent)", () => {
@@ -214,6 +225,6 @@ describe("isTierAtLeast / isTierAtMost", () => {
 
   it("should check tier maximum", () => {
     expect(isTierAtMost("standard", "trusted")).toBe(true);
-    expect(isTierAtMost("privileged", "trusted")).toBe(false);
+    expect(isTierAtMost("elevated", "trusted")).toBe(false);
   });
 });

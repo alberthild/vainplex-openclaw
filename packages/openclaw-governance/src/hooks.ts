@@ -33,7 +33,7 @@ function buildToolEvalContext(
   logger: PluginLogger,
 ) {
   const agentId = resolveAgentId(hookCtx, undefined, logger);
-  const sessionId = hookCtx.sessionKey ?? hookCtx.sessionId ?? `agent:${agentId}`;
+  const sessionId = hookCtx.sessionKey ?? (hookCtx as any).sessionId ?? `agent:${agentId}`;
   const trust = engine.getTrust(agentId, sessionId);
 
   return {
@@ -316,7 +316,7 @@ function handleAfterToolCall(engine: GovernanceEngine, logger: PluginLogger) {
       const ev = event as HookAfterToolCallEvent;
       const ctx = hookCtx as HookToolContext;
       const agentId = resolveAgentId(ctx, undefined, logger);
-      const sessionId = ctx.sessionKey ?? ctx.sessionId ?? `agent:${agentId}`;
+      const sessionId = ctx.sessionKey ?? (ctx as any).sessionId ?? `agent:${agentId}`;
       const success = !ev.error;
 
       engine.recordOutcome(agentId, sessionId, success);
@@ -352,7 +352,7 @@ function handleBeforeAgentStart(
     try {
       const ctx = hookCtx as HookAgentContext;
       const agentId = resolveAgentId(ctx, undefined, logger);
-      const sessionId = ctx.sessionKey ?? ctx.sessionId ?? `agent:${agentId}`;
+      const sessionId = ctx.sessionKey ?? (ctx as any).sessionId ?? `agent:${agentId}`;
       const trust = engine.getTrust(agentId, sessionId);
 
       const status = engine.getStatus();
@@ -378,7 +378,7 @@ function handleSessionStart(engine: GovernanceEngine, logger: PluginLogger) {
     try {
       const ctx = hookCtx as HookSessionContext;
       const agentId = resolveAgentId(ctx, undefined, logger);
-      engine.handleSessionStart(ctx.sessionId, agentId);
+      engine.handleSessionStart((ctx as any).sessionId, agentId);
     } catch {
       // Don't break on session_start errors
     }
@@ -389,7 +389,7 @@ function handleSessionEnd(engine: GovernanceEngine) {
   return (_event: unknown, hookCtx: unknown): void => {
     try {
       const ctx = hookCtx as HookSessionContext;
-      engine.handleSessionEnd(ctx.sessionId);
+      engine.handleSessionEnd((ctx as any).sessionId);
     } catch {
       // Don't break on session_end errors
     }

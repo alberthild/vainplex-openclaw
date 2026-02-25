@@ -231,8 +231,8 @@ describe("Governance Integration", () => {
     const verdict2 = await engine.evaluate(
       makeCtx({
         trust: {
-          agent: { score: 80, tier: "privileged" } as any,
-          session: { score: 80, tier: "privileged" } as any,
+          agent: { score: 80, tier: "elevated" } as any,
+          session: { score: 80, tier: "elevated" } as any,
         },
       }),
     );

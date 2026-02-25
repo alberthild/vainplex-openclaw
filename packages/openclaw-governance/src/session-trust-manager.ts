@@ -1,13 +1,13 @@
 import type {
-  AgentTrust,
   SessionTrust,
   SessionTrustConfig,
-  TrustTier,
 } from "./types.js";
 import type { TrustManager } from "./trust-manager.js";
 import { scoreToTier } from "./util.js";
 
 type Signal = keyof SessionTrustConfig["signals"];
+
+const MAX_SESSIONS = 500;
 
 export class SessionTrustManager {
   readonly #config: SessionTrustConfig;
@@ -17,6 +17,20 @@ export class SessionTrustManager {
   constructor(config: SessionTrustConfig, agentTrustManager: TrustManager) {
     this.#config = config;
     this.#agentTrustManager = agentTrustManager;
+  }
+
+  /** Evict oldest sessions when exceeding MAX_SESSIONS to prevent memory leaks. */
+  private evictIfNeeded(): void {
+    if (this.#sessions.size <= MAX_SESSIONS) return;
+    let oldest: string | undefined;
+    let oldestTime = Infinity;
+    for (const [id, s] of this.#sessions) {
+      if (s.createdAt < oldestTime) {
+        oldestTime = s.createdAt;
+        oldest = id;
+      }
+    }
+    if (oldest) this.#sessions.delete(oldest);
   }
 
   /**
@@ -54,6 +68,7 @@ export class SessionTrustManager {
     };
 
     this.#sessions.set(sessionId, sessionTrust);
+    this.evictIfNeeded();
     return sessionTrust;
   }
 
@@ -80,7 +95,6 @@ export class SessionTrustManager {
     }
 
     const session = this.getSessionTrust(sessionId, agentId);
-    const agentTrust = this.#agentTrustManager.getAgentTrust(agentId);
 
     let delta = this.#config.signals[signal] ?? 0;
 
@@ -134,9 +148,9 @@ export class SessionTrustManager {
   }
 
   /**
-   * For testing purposes: get the raw session map.
+   * For testing purposes: get a shallow copy of the session map.
    */
-  _getSessions(): Map<string, SessionTrust> {
-    return this.#sessions;
+  _getSessions(): ReadonlyMap<string, SessionTrust> {
+    return new Map(this.#sessions);
   }
 }

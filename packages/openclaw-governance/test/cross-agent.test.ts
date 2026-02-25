@@ -106,7 +106,7 @@ describe("CrossAgentManager", () => {
     const ctx = makeCtx({ agentId: "main", sessionKey: "agent:main" });
     const enriched = cam.enrichContext(ctx);
     expect(enriched.crossAgent).toBeUndefined();
-    expect(enriched.trust.score).toBe(ctx.trust.score);
+    expect(enriched.trust.session.score).toBe(ctx.trust.session.score);
   });
 
   // ── Policy Inheritance ──
@@ -180,8 +180,8 @@ describe("CrossAgentManager", () => {
 
     // Artificially set forge score higher than parent
     const highTrust = {
-      agent: { agentId: "forge", score: 80, tier: "privileged" as const, signals: { successCount: 0, violationCount: 0, ageDays: 0, cleanStreak: 0, manualAdjustment: 0 }, history: [], lastEvaluation: "", created: "" },
-      session: { sessionId: "agent:main:subagent:forge:abc123", agentId: "forge", score: 80, tier: "privileged" as const, cleanStreak: 0, createdAt: Date.now() },
+      agent: { agentId: "forge", score: 80, tier: "elevated" as const, signals: { successCount: 0, violationCount: 0, ageDays: 0, cleanStreak: 0, manualAdjustment: 0 }, history: [], lastEvaluation: "", created: "" },
+      session: { sessionId: "agent:main:subagent:forge:abc123", agentId: "forge", score: 80, tier: "elevated" as const, cleanStreak: 0, createdAt: Date.now() },
     };
     const ctx2 = makeCtx({ trust: highTrust });
     const enriched2 = cam.enrichContext(ctx2);

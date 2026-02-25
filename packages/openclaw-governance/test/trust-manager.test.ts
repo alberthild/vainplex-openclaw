@@ -104,9 +104,9 @@ describe("TrustManager", () => {
 
   it("should lock/unlock tier", () => {
     const tm = new TrustManager(makeConfig(), WORKSPACE, logger);
-    tm.lockTier("test", "privileged");
-    expect(tm.getAgentTrust("test").tier).toBe("privileged");
-    expect(tm.getAgentTrust("test").locked).toBe("privileged");
+    tm.lockTier("test", "elevated");
+    expect(tm.getAgentTrust("test").tier).toBe("elevated");
+    expect(tm.getAgentTrust("test").locked).toBe("elevated");
 
     tm.unlockTier("test");
     expect(tm.getAgentTrust("test").locked).toBeUndefined();
@@ -287,7 +287,7 @@ describe("TrustManager", () => {
     expect(tm.getAgentTrust("t4").tier).toBe("trusted");
 
     tm.setScore("t5", 85);
-    expect(tm.getAgentTrust("t5").tier).toBe("privileged");
+    expect(tm.getAgentTrust("t5").tier).toBe("elevated");
   });
 
   it("should respect floor when decaying", () => {

@@ -120,8 +120,7 @@ export type TrustTier =
   | "restricted"
   | "standard"
   | "trusted"
-  | "elevated"
-  | "privileged";
+  | "elevated";
 
 export type SessionTrustSignalsConfig = {
   success: number;

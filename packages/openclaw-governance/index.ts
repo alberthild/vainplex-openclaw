@@ -4,7 +4,7 @@ import { extractAgentIds } from "./src/util.js";
 import { GovernanceEngine } from "./src/engine.js";
 import { registerGovernanceHooks } from "./src/hooks.js";
 
-type GovParams = { agentId?: string } | undefined;
+type GovParams = { agentId?: string, sessionId?: string } | undefined;
 
 const plugin = {
   id: "openclaw-governance",
@@ -52,7 +52,7 @@ const plugin = {
       "governance.trust",
       async (...args: unknown[]) => {
         const params = args[0] as GovParams;
-        return engine.getTrust(params?.agentId);
+        return params?.agentId ? engine.getTrust(params.agentId, params.sessionId || "") : engine.getTrust();
       },
     );
   },

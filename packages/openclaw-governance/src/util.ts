@@ -190,7 +190,7 @@ export function extractParentSessionKey(
 
 /** Map trust score to tier */
 export function scoreToTier(score: number): TrustTier {
-  if (score >= 80) return "privileged";
+  if (score >= 80) return "elevated";
   if (score >= 60) return "trusted";
   if (score >= 40) return "standard";
   if (score >= 20) return "restricted";
@@ -204,7 +204,7 @@ export function tierOrdinal(tier: TrustTier): number {
     restricted: 1,
     standard: 2,
     trusted: 3,
-    privileged: 4,
+    elevated: 4,
   };
   return map[tier];
 }
