@@ -10,7 +10,7 @@ The gap is clear: agents are everywhere, governance is nowhere. The Berkeley fra
 
 This plugin does. It implements 8 of Berkeley's 12 core requirements today, with the remaining 4 designed and scheduled.
 
-**v0.5.6** — 771 tests, zero runtime dependencies.
+**v0.6.0** — 781 tests, zero runtime dependencies.
 
 ---
 
@@ -71,6 +71,17 @@ Agent calls exec("git push origin main")
 - **Learning Trust** — Score 0–100, five tiers, decay on inactivity. Sub-agents can never exceed parent's trust.
 - **Cross-Agent Governance** — Parent policies cascade to sub-agents. Deny on main = deny on forge.
 - **Compliance Audit Trail** — Append-only JSONL with ISO 27001/SOC 2/NIS2 control mapping.
+
+### v0.6: Session Trust (RFC-008)
+
+Trust is not a config value. It's earned per conversation.
+
+- **Two-Tier Trust Model** — Persistent *agent trust* (configured baseline) + ephemeral *session trust* (earned in real-time). A fresh session starts at 70% of agent trust and climbs with successful tool calls.
+- **Session Signals** — Success (+1), policy block (−2), credential violation (−10). Clean streak bonus after 10 consecutive good calls.
+- **Ceiling & Floor** — Sessions can earn up to 120% of agent trust, but can always drop to zero.
+- **Adaptive Display** — `[Governance] Agent: main (60/trusted) | Session: 42/standard | Policies: 4`
+
+No existing governance tool implements session-level trust. Static per-agent allowlists don't capture that the same agent performs differently across sessions.
 
 ### v0.5 Features
 
