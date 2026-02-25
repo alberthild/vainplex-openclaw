@@ -436,6 +436,58 @@ function registerCommands(
         };
       },
     },
+    {
+      name: "trust",
+      description: "Show trust scores for all agents and active sessions",
+      handler: () => {
+        const store = engine.getTrust() as import("./types.js").TrustStore;
+        const sessionMap = engine.getSessionTrustMap();
+        const tierEmoji: Record<string, string> = {
+          untrusted: "🔴",
+          restricted: "🟠",
+          standard: "🟡",
+          trusted: "🟢",
+          elevated: "🔵",
+        };
+
+        const lines: string[] = ["🛡️ **Trust Dashboard**", ""];
+
+        // Agent Trust (persistent)
+        lines.push("**Agent Trust** (persistent)");
+        const agents = Object.values(store.agents).sort(
+          (a, b) => b.score - a.score,
+        );
+        for (const agent of agents) {
+          const emoji = tierEmoji[agent.tier] ?? "⚪";
+          const streak = agent.signals.cleanStreak > 0
+            ? ` 🔥${agent.signals.cleanStreak}`
+            : "";
+          lines.push(
+            `${emoji} **${agent.agentId}**: ${agent.score}/100 (${agent.tier})${streak}` +
+            ` — ✅${agent.signals.successCount} ❌${agent.signals.violationCount}`,
+          );
+        }
+
+        // Session Trust (ephemeral)
+        if (sessionMap.size > 0) {
+          lines.push("", "**Session Trust** (active sessions)");
+          for (const [sessionId, session] of sessionMap) {
+            const emoji = tierEmoji[session.tier] ?? "⚪";
+            const shortId = sessionId.length > 30
+              ? `...${sessionId.slice(-25)}`
+              : sessionId;
+            lines.push(
+              `${emoji} ${shortId}: ${session.score}/100 (${session.tier})` +
+              ` 🔥${session.cleanStreak}`,
+            );
+          }
+        } else {
+          lines.push("", "_No active sessions_");
+        }
+
+        return { text: lines.join("\n") };
+      },
+    },
   ];
 
   for (const cmd of commands) {

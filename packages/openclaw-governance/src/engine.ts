@@ -510,6 +510,11 @@ export class GovernanceEngine {
     this.trustManager.setScore(agentId, score);
   }
 
+  /** Get a read-only snapshot of all active session trust entries. */
+  getSessionTrustMap(): ReadonlyMap<string, SessionTrust> {
+    return this.sessionTrustManager._getSessions();
+  }
+
   private updateStats(action: "allow" | "deny", us: number): void {
     this.stats.totalEvaluations++;
     if (action === "allow") this.stats.allowCount++;
