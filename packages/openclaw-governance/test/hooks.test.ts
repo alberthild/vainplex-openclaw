@@ -1,10 +1,51 @@
-import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { GovernanceEngine } from "../src/engine.js";
 import { registerGovernanceHooks } from "../src/hooks.js";
 import { resolveConfig } from "../src/config.js";
-import type { GovernanceConfig, OpenClawPluginApi, PluginCommand, PluginLogger, PluginService } from "../src/types.js";
+import type { AgentTrust, GovernanceConfig, OpenClawPluginApi, PluginCommand, PluginLogger, PluginService } from "../src/types.js";
+import { TrustManager } from "../src/trust-manager.js";
+
+const WORKSPACE_HOOKS = "/tmp/governance-test-hooks";
+const loggerHooks: PluginLogger = { info: () => {}, warn: () => {}, error: () => {} };
+
+vi.mock("../src/trust-manager.js");
+
+const mockTrustStore: Record<string, AgentTrust> = {};
+
+vi.mocked(TrustManager).mockImplementation((() => {
+  return {
+    getAgentTrust: (agentId: string) => {
+      if (!mockTrustStore[agentId]) {
+        mockTrustStore[agentId] = {
+          agentId,
+          score: 60,
+          tier: "trusted",
+          signals: { successCount: 0, violationCount: 0, ageDays: 0, cleanStreak: 0, manualAdjustment: 0 },
+          history: [],
+          lastEvaluation: "",
+          created: "",
+        };
+      }
+      return mockTrustStore[agentId];
+    },
+    getTrust: (agentId: string) => mockTrustStore[agentId],
+    setScore: (agentId: string, score: number) => {
+      mockTrustStore[agentId].score = score;
+    },
+    recordSuccess: (agentId: string) => {
+      mockTrustStore[agentId].signals.successCount++;
+    },
+    recordViolation: (agentId: string) => {
+      mockTrustStore[agentId].signals.violationCount++;
+    },
+    load: () => {},
+    startPersistence: () => {},
+    stopPersistence: () => {},
+    getStore: () => ({ version: 1, updated: "", agents: mockTrustStore }),
+  } as any;
+}) as any);
 
 const WORKSPACE = "/tmp/governance-test-hooks";
 const logger: PluginLogger = { info: () => {}, warn: () => {}, error: () => {} };
@@ -37,19 +78,19 @@ function makeConfig(overrides: Partial<GovernanceConfig> = {}): GovernanceConfig
 }
 
 beforeEach(() => {
-  if (existsSync(WORKSPACE)) rmSync(WORKSPACE, { recursive: true });
-  mkdirSync(join(WORKSPACE, "governance", "audit"), { recursive: true });
+  if (existsSync(WORKSPACE_HOOKS)) rmSync(WORKSPACE_HOOKS, { recursive: true });
+  mkdirSync(join(WORKSPACE_HOOKS, "governance", "audit"), { recursive: true });
 });
 
 afterEach(() => {
-  if (existsSync(WORKSPACE)) rmSync(WORKSPACE, { recursive: true });
+  if (existsSync(WORKSPACE_HOOKS)) rmSync(WORKSPACE_HOOKS, { recursive: true });
 });
 
 describe("registerGovernanceHooks", () => {
   it("should register all expected hooks", async () => {
     const { api, hooks } = createMockApi();
     const config = makeConfig();
-    const engine = new GovernanceEngine(config, logger, WORKSPACE);
+    const engine = new GovernanceEngine(config, loggerHooks, WORKSPACE_HOOKS);
     await engine.start();
 
     registerGovernanceHooks(api, engine, config);
@@ -69,7 +110,7 @@ describe("registerGovernanceHooks", () => {
   it("should set correct priorities", async () => {
     const { api, hooks } = createMockApi();
     const config = makeConfig();
-    const engine = new GovernanceEngine(config, logger, WORKSPACE);
+    const engine = new GovernanceEngine(config, loggerHooks, WORKSPACE_HOOKS);
     await engine.start();
 
     registerGovernanceHooks(api, engine, config);
@@ -112,7 +153,7 @@ describe("registerGovernanceHooks", () => {
 
     const result = await handler!(
       { toolName: "exec", params: { command: "ls" } },
-      { agentId: "main", sessionKey: "agent:main", toolName: "exec" },
+      { agentId: "main", sessionKey: "agent:main", toolName: "exec", sessionId: "agent:main" },
     );
 
     expect(result).toEqual({ block: true, blockReason: "Blocked" });
@@ -183,12 +224,16 @@ describe("registerGovernanceHooks", () => {
     const handler = hooks.find((h) => h.name === "before_agent_start")?.handler;
     const result = handler!(
       { prompt: "test" },
-      { agentId: "main", sessionKey: "agent:main" },
+      { agentId: "main", sessionKey: "agent:main", sessionId: "agent:main" },
     );
 
     expect(result).toBeDefined();
     if (result && typeof result === "object" && "prependContext" in result) {
-      expect((result as { prependContext: string }).prependContext).toContain("Governance");
+      const context = (result as { prependContext: string }).prependContext;
+      expect(context).toContain("[Governance]");
+      expect(context).toContain("Agent: main");
+      expect(context).toContain("Session:");
+      expect(context).toContain("Policies:");
     }
 
     await engine.stop();
@@ -260,7 +305,7 @@ describe("registerGovernanceHooks", () => {
 
     const result = await handler!(
       { to: "user", content: "forbidden word", metadata: {} },
-      { channelId: "matrix" },
+      { channelId: "matrix", agentId: "main", sessionId: "s" },
     );
     expect(result).toEqual({ cancel: true });
 
@@ -394,13 +439,13 @@ describe("registerGovernanceHooks", () => {
 
     // Only sessionKey, no agentId
     handler!(
-      { toolName: "exec", params: {}, durationMs: 100 },
+      { toolName: "exec", params: {}, durationMs: 100, error: undefined },
       { sessionKey: "agent:forge:xyz", toolName: "exec" },
     );
 
     // Trust should update for "forge"
-    const trust = engine.getTrust("forge");
-    expect("signals" in trust && trust.signals.successCount).toBe(1);
+    const trust = engine.getTrust("forge", "agent:forge:xyz");
+    expect(trust.agent.signals.successCount).toBe(1);
 
     await engine.stop();
   });

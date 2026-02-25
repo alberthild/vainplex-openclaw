@@ -85,15 +85,20 @@ export class CrossAgentManager {
     if (!parent) return ctx;
 
     const ceiling = this.computeTrustCeiling(ctx.sessionKey);
-    const cappedScore = Math.min(ctx.trust.score, ceiling);
-    const cappedTier = scoreToTier(cappedScore);
+    const cappedSessionScore = Math.min(ctx.trust.session.score, ceiling);
+    const cappedSessionTier = scoreToTier(cappedSessionScore);
+    const cappedAgentScore = Math.min(ctx.trust.agent.score, ceiling);
+    const cappedAgentTier = scoreToTier(cappedAgentScore);
 
     // Collect inherited policy IDs (we'll resolve them later)
     const inheritedPolicyIds = this.getInheritedPolicyIds(parent);
 
     return {
       ...ctx,
-      trust: { score: cappedScore, tier: cappedTier },
+      trust: {
+        agent: { ...ctx.trust.agent, score: cappedAgentScore, tier: cappedAgentTier },
+        session: { ...ctx.trust.session, score: cappedSessionScore, tier: cappedSessionTier },
+      },
       crossAgent: {
         parentAgentId: parent.parentAgentId,
         parentSessionKey: parent.parentSessionKey,

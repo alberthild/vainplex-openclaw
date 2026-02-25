@@ -120,7 +120,32 @@ export type TrustTier =
   | "restricted"
   | "standard"
   | "trusted"
+  | "elevated"
   | "privileged";
+
+export type SessionTrustSignalsConfig = {
+  success: number;
+  policyBlock: number;
+  credentialViolation: number;
+  cleanStreakBonus: number;
+  cleanStreakThreshold: number;
+};
+
+export type SessionTrustConfig = {
+  enabled: boolean;
+  seedFactor: number;
+  ceilingFactor: number;
+  signals: SessionTrustSignalsConfig;
+};
+
+export type SessionTrust = {
+  sessionId: string;
+  agentId: string;
+  score: number;
+  tier: TrustTier;
+  cleanStreak: number;
+  createdAt: number;
+};
 
 export type TrustSignals = {
   successCount: number;
@@ -306,7 +331,10 @@ export type EvaluationContext = {
   messageTo?: string;
   timestamp: number;
   time: TimeContext;
-  trust: { score: number; tier: TrustTier };
+  trust: {
+    agent: AgentTrust;
+    session: SessionTrust;
+  };
   conversationContext?: string[];
   metadata?: Record<string, unknown>;
   crossAgent?: CrossAgentAuditContext;
@@ -411,6 +439,7 @@ export type TrustConfig = {
   decay: { enabled: boolean; inactivityDays: number; rate: number };
   weights?: Partial<TrustWeights>;
   maxHistoryPerAgent: number;
+  sessionTrust: SessionTrustConfig;
 };
 
 export type TrustWeights = {

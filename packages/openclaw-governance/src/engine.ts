@@ -12,6 +12,7 @@ import type {
   PolicyIndex,
   RiskAssessment,
   RiskLevel,
+  SessionTrust,
   TrustStore,
   Verdict,
 } from "./types.js";
@@ -20,6 +21,7 @@ import { PolicyEvaluator } from "./policy-evaluator.js";
 import { createConditionEvaluators } from "./conditions/index.js";
 import { RiskAssessor } from "./risk-assessor.js";
 import { TrustManager } from "./trust-manager.js";
+import { SessionTrustManager } from "./session-trust-manager.js";
 import { CrossAgentManager } from "./cross-agent.js";
 import { AuditTrail } from "./audit-trail.js";
 import { OutputValidator } from "./output-validator.js";
@@ -33,6 +35,7 @@ export class GovernanceEngine {
   private readonly evaluator: PolicyEvaluator;
   private readonly riskAssessor: RiskAssessor;
   private readonly trustManager: TrustManager;
+  private readonly sessionTrustManager: SessionTrustManager;
   private readonly crossAgentManager: CrossAgentManager;
   private readonly auditTrail: AuditTrail;
   private readonly outputValidator: OutputValidator;
@@ -50,7 +53,8 @@ export class GovernanceEngine {
     this.config = config;
     this.logger = logger;
     this.workspace =
-      workspace ?? `${process.env["HOME"] ?? "/tmp"}/.openclaw/plugins/openclaw-governance`;
+      workspace ??
+      `${process.env["HOME"] ?? "/tmp"}/.openclaw/plugins/openclaw-governance`;
 
     const conditionEvaluators = createConditionEvaluators();
     this.evaluator = new PolicyEvaluator(conditionEvaluators);
@@ -59,6 +63,10 @@ export class GovernanceEngine {
       config.trust,
       this.workspace,
       logger,
+    );
+    this.sessionTrustManager = new SessionTrustManager(
+      config.trust.sessionTrust,
+      this.trustManager,
     );
     this.crossAgentManager = new CrossAgentManager(this.trustManager, logger);
     this.auditTrail = new AuditTrail(config.audit, this.workspace, logger);
@@ -140,22 +148,40 @@ export class GovernanceEngine {
 
     if (added.length > 0) {
       this.logger.info(
-        `[governance] Auto-registered ${added.length} new agent(s): ${added.join(", ")}`,
+        `[governance] Auto-registered ${added.length} new agent(s): ${added.join(
+          ", ",
+        )}`,
       );
     }
     if (removed.length > 0) {
       this.logger.debug?.(
-        `[governance] ${removed.length} agent(s) not in current config (trust data kept): ${removed.join(", ")}`,
+        `[governance] ${
+          removed.length
+        } agent(s) not in current config (trust data kept): ${removed.join(
+          ", ",
+        )}`,
       );
     }
   }
 
   async stop(): Promise<void> {
-    try { this.trustManager.stopPersistence(); } catch (e) {
-      this.logger.error(`[governance] Error stopping trust persistence: ${e instanceof Error ? e.message : String(e)}`);
+    try {
+      this.trustManager.stopPersistence();
+    } catch (e) {
+      this.logger.error(
+        `[governance] Error stopping trust persistence: ${
+          e instanceof Error ? e.message : String(e)
+        }`,
+      );
     }
-    try { this.auditTrail.stopAutoFlush(); } catch (e) {
-      this.logger.error(`[governance] Error stopping audit flush: ${e instanceof Error ? e.message : String(e)}`);
+    try {
+      this.auditTrail.stopAutoFlush();
+    } catch (e) {
+      this.logger.error(
+        `[governance] Error stopping audit flush: ${
+          e instanceof Error ? e.message : String(e)
+        }`,
+      );
     }
     this.logger.info("[governance] Engine stopped");
   }
@@ -167,6 +193,7 @@ export class GovernanceEngine {
       this.updateStats(verdict.action, verdict.evaluationUs);
       return verdict;
     } catch (e) {
+      if (e instanceof Error) this.logger.error(`[governance] Pipeline crash: ${e.message}\n${e.stack}`);
       return this.handleEvalError(e, ctx, startUs);
     }
   }
@@ -191,17 +218,27 @@ export class GovernanceEngine {
 
     const risk = this.riskAssessor.assess(enrichedCtx, this.frequencyTracker);
     const policies = this.crossAgentManager.resolveEffectivePolicies(
-      enrichedCtx, this.policyIndex,
+      enrichedCtx,
+      this.policyIndex,
     );
     const evalResult = this.evaluator.evaluateWithDeps(
-      enrichedCtx, policies, risk, this.buildDeps(risk),
+      enrichedCtx,
+      policies,
+      risk,
+      this.buildDeps(risk),
     );
 
     const elapsedUs = nowUs() - startUs;
     const verdict: Verdict = {
-      action: evalResult.action, reason: evalResult.reason, risk,
+      action: evalResult.action,
+      reason: evalResult.reason,
+      risk,
       matchedPolicies: evalResult.matches,
-      trust: enrichedCtx.trust, evaluationUs: elapsedUs,
+      trust: {
+        score: enrichedCtx.trust.session.score,
+        tier: enrichedCtx.trust.session.tier,
+      },
+      evaluationUs: elapsedUs,
     };
 
     // Trust learning from governance denial
@@ -209,6 +246,11 @@ export class GovernanceEngine {
       this.trustManager.recordViolation(
         enrichedCtx.agentId,
         `Policy denial: ${verdict.reason}`,
+      );
+      this.sessionTrustManager.applySignal(
+        enrichedCtx.sessionKey,
+        enrichedCtx.agentId,
+        "policyBlock",
       );
     }
 
@@ -237,9 +279,14 @@ export class GovernanceEngine {
     this.auditTrail.record(
       verdict.action as AuditVerdict,
       verdict.reason,
-      auditCtx, verdict.trust,
+      auditCtx,
+      {
+        score: ctx.trust.session.score,
+        tier: ctx.trust.session.tier,
+      },
       { level: risk.level, score: risk.score },
-      verdict.matchedPolicies, elapsedUs,
+      verdict.matchedPolicies,
+      elapsedUs,
     );
   }
 
@@ -251,19 +298,33 @@ export class GovernanceEngine {
     const elapsedUs = nowUs() - startUs;
     this.stats.errorCount++;
     this.logger.error(
-      `[governance] Evaluation error: ${e instanceof Error ? e.message : String(e)}`,
+      `[governance] Evaluation error: ${
+        e instanceof Error ? e.message : String(e)
+      }`,
     );
     const fallback = this.config.failMode === "closed" ? "deny" : "allow";
-    const reason = fallback === "deny"
-      ? "Governance engine error (fail-closed)"
-      : "Governance engine error (fail-open)";
+    const reason =
+      fallback === "deny"
+        ? "Governance engine error (fail-closed)"
+        : "Governance engine error (fail-open)";
 
     if (this.config.audit.enabled) {
       this.auditTrail.record(
         "error_fallback",
         reason,
-        { hook: ctx.hook, agentId: ctx.agentId, sessionKey: ctx.sessionKey, toolName: ctx.toolName },
-        ctx.trust, { level: "critical", score: 100 }, [], elapsedUs,
+        {
+          hook: ctx.hook,
+          agentId: ctx.agentId,
+          sessionKey: ctx.sessionKey,
+          toolName: ctx.toolName,
+        },
+        {
+          score: ctx.trust.session.score,
+          tier: ctx.trust.session.tier,
+        },
+        { level: "critical", score: 100 },
+        [],
+        elapsedUs,
       );
     }
 
@@ -272,7 +333,10 @@ export class GovernanceEngine {
       reason,
       risk: { level: "critical", score: 100, factors: [] },
       matchedPolicies: [],
-      trust: ctx.trust,
+      trust: {
+        score: ctx.trust.session.score,
+        tier: ctx.trust.session.tier,
+      },
       evaluationUs: elapsedUs,
     };
   }
@@ -282,7 +346,9 @@ export class GovernanceEngine {
    */
   setLlmValidator(validator: unknown): void {
     // Delegate to output validator — import type avoidance
-    this.outputValidator.setLlmValidator(validator as Parameters<OutputValidator["setLlmValidator"]>[0]);
+    this.outputValidator.setLlmValidator(
+      validator as Parameters<OutputValidator["setLlmValidator"]>[0],
+    );
   }
 
   /**
@@ -307,11 +373,18 @@ export class GovernanceEngine {
     }
 
     const trust = this.trustManager.getAgentTrust(agentId);
-    const resultOrPromise = this.outputValidator.validate(text, trust.score, opts?.isExternal);
+    const resultOrPromise = this.outputValidator.validate(
+      text,
+      trust.score,
+      opts?.isExternal,
+    );
 
-    const recordAudit = (result: OutputValidationResult): OutputValidationResult => {
+    const recordAudit = (
+      result: OutputValidationResult,
+    ): OutputValidationResult => {
       if (this.config.audit.enabled) {
-        const auditVerdict = `output_${result.verdict}` as "output_pass" | "output_flag" | "output_block";
+        const auditVerdict =
+          `output_${result.verdict}` as "output_pass" | "output_flag" | "output_block";
         this.auditTrail.record(
           auditVerdict,
           result.reason,
@@ -319,7 +392,8 @@ export class GovernanceEngine {
             hook: "output_validation",
             agentId,
             sessionKey: `agent:${agentId}`,
-            messageContent: text.length > 200 ? text.substring(0, 200) + "..." : text,
+            messageContent:
+              text.length > 200 ? text.substring(0, 200) + "..." : text,
           },
           { score: trust.score, tier: trust.tier },
           { level: "low", score: 0 },
@@ -339,15 +413,27 @@ export class GovernanceEngine {
 
   recordOutcome(
     agentId: string,
-    _toolName: string,
+    sessionId: string,
     success: boolean,
   ): void {
     if (!this.config.trust.enabled) return;
+
     if (success) {
       this.trustManager.recordSuccess(agentId);
+      this.sessionTrustManager.applySignal(sessionId, agentId, "success");
     } else {
+      // Non-policy-related failures do not currently impact session trust.
+      // This could be a new signal type in the future.
       this.trustManager.recordViolation(agentId);
     }
+  }
+
+  handleSessionStart(sessionId: string, agentId: string): void {
+    this.sessionTrustManager.initializeSession(sessionId, agentId);
+  }
+
+  handleSessionEnd(sessionId: string): void {
+    this.sessionTrustManager.destroySession(sessionId);
   }
 
   registerSubAgent(
@@ -382,8 +468,41 @@ export class GovernanceEngine {
     };
   }
 
-  getTrust(agentId?: string): AgentTrust | TrustStore {
-    if (agentId) return this.trustManager.getAgentTrust(agentId);
+  getTrust(
+    agentId: string,
+    sessionId?: string,
+  ): { agent: AgentTrust; session: SessionTrust };
+  getTrust(agentId: undefined, sessionId: undefined): TrustStore;
+  getTrust(
+    agentId?: string,
+    sessionId?: string,
+  ): { agent: AgentTrust; session: SessionTrust } | TrustStore {
+    if (agentId && sessionId) {
+      const agent = this.trustManager.getAgentTrust(agentId);
+      const session = this.sessionTrustManager.getSessionTrust(
+        sessionId,
+        agentId,
+      );
+      return { agent, session };
+    }
+    if (agentId && !sessionId) {
+      // This case is ambiguous now. For backward compatibility of the CLI/API,
+      // just return agent trust. The core system should always pass both IDs.
+      this.logger.warn(
+        `[governance] getTrust called with only agentId. Returning agent trust only.`,
+      );
+      const agent = this.trustManager.getAgentTrust(agentId);
+      // Create a dummy session trust for type compatibility
+      const session = {
+        sessionId: "unknown",
+        agentId: agent.agentId,
+        score: agent.score,
+        tier: agent.tier,
+        cleanStreak: 0,
+        createdAt: 0,
+      };
+      return { agent, session };
+    }
     return this.trustManager.getStore();
   }
 

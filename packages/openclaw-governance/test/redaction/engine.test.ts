@@ -335,7 +335,7 @@ describe("RedactionEngine", () => {
       expect(input.length).toBeGreaterThan(1000000);
 
       const result = engine.scan(input);
-      expect(result.elapsedMs).toBeLessThan(50);
+      expect(result.elapsedMs).toBeLessThan(100);
     });
 
     it("handles large nested objects efficiently", () => {

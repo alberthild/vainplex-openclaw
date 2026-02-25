@@ -6,13 +6,47 @@ import type { EvaluationContext, Policy } from "../src/types.js";
 const evaluators = createConditionEvaluators();
 
 function makeCtx(overrides: Partial<EvaluationContext> = {}): EvaluationContext {
+  const agentTrust = {
+    agentId: "forge",
+    score: 60,
+    tier: "trusted" as const,
+    signals: {
+      successCount: 0,
+      violationCount: 0,
+      ageDays: 0,
+      cleanStreak: 0,
+      manualAdjustment: 0,
+    },
+    history: [],
+    lastEvaluation: "",
+    created: "",
+  };
+
+  const sessionTrust = {
+    sessionId: "agent:main:subagent:forge:abc",
+    agentId: "forge",
+    score: 45,
+    tier: "standard" as const,
+    cleanStreak: 0,
+    createdAt: Date.now(),
+  };
+
   return {
     hook: "before_tool_call",
     agentId: "forge",
     sessionKey: "agent:main:subagent:forge:abc",
     timestamp: Date.now(),
-    time: { hour: 12, minute: 0, dayOfWeek: 3, date: "2026-02-18", timezone: "UTC" },
-    trust: { score: 45, tier: "standard" },
+    time: {
+      hour: 12,
+      minute: 0,
+      dayOfWeek: 3,
+      date: "2026-02-18",
+      timezone: "UTC",
+    },
+    trust: {
+      agent: agentTrust,
+      session: sessionTrust,
+    },
     toolName: "exec",
     toolParams: { command: "docker rm container-x" },
     channel: "matrix",

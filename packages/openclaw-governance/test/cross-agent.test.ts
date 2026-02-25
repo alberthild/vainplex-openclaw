@@ -24,7 +24,10 @@ function makeCtx(overrides: Partial<EvaluationContext> = {}): EvaluationContext 
     sessionKey: "agent:main:subagent:forge:abc123",
     timestamp: Date.now(),
     time: { hour: 12, minute: 0, dayOfWeek: 3, date: "2026-02-18", timezone: "UTC" },
-    trust: { score: 45, tier: "standard" },
+    trust: {
+      agent: { agentId: "forge", score: 45, tier: "standard" as const, signals: { successCount: 0, violationCount: 0, ageDays: 0, cleanStreak: 0, manualAdjustment: 0 }, history: [], lastEvaluation: "", created: "" },
+      session: { sessionId: "agent:main:subagent:forge:abc123", agentId: "forge", score: 45, tier: "standard" as const, cleanStreak: 0, createdAt: Date.now() },
+    },
     toolName: "exec",
     ...overrides,
   };
@@ -171,15 +174,19 @@ describe("CrossAgentManager", () => {
     cam.registerRelationship("agent:main", "agent:main:subagent:forge:abc123");
 
     // Forge has score 45, main has score 60 → ceiling is 60
-    const ctx = makeCtx({ trust: { score: 45, tier: "standard" } });
+    const ctx = makeCtx();
     const enriched = cam.enrichContext(ctx);
-    expect(enriched.trust.score).toBe(45); // 45 < 60, not capped
+    expect(enriched.trust.session.score).toBe(45); // 45 < 60, not capped
 
     // Artificially set forge score higher than parent
-    const ctx2 = makeCtx({ trust: { score: 80, tier: "privileged" } });
+    const highTrust = {
+      agent: { agentId: "forge", score: 80, tier: "privileged" as const, signals: { successCount: 0, violationCount: 0, ageDays: 0, cleanStreak: 0, manualAdjustment: 0 }, history: [], lastEvaluation: "", created: "" },
+      session: { sessionId: "agent:main:subagent:forge:abc123", agentId: "forge", score: 80, tier: "privileged" as const, cleanStreak: 0, createdAt: Date.now() },
+    };
+    const ctx2 = makeCtx({ trust: highTrust });
     const enriched2 = cam.enrichContext(ctx2);
-    expect(enriched2.trust.score).toBe(60); // capped at parent's 60
-    expect(enriched2.trust.tier).toBe("trusted");
+    expect(enriched2.trust.session.score).toBe(60); // capped at parent's 60
+    expect(enriched2.trust.session.tier).toBe("trusted");
   });
 
   it("should not cap root agent trust", () => {

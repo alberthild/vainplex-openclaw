@@ -9,12 +9,42 @@ import type {
   PerformanceConfig,
   Policy,
   RedactionConfig,
+  SessionTrustConfig,
   TimeWindow,
   TrustConfig,
 } from "./types.js";
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
+}
+
+function resolveSessionTrust(raw: unknown): SessionTrustConfig {
+  const r = isRecord(raw) ? raw : {};
+  const signals = isRecord(r["signals"]) ? r["signals"] : {};
+
+  return {
+    enabled: typeof r["enabled"] === "boolean" ? r["enabled"] : true,
+    seedFactor: typeof r["seedFactor"] === "number" ? r["seedFactor"] : 0.7,
+    ceilingFactor:
+      typeof r["ceilingFactor"] === "number" ? r["ceilingFactor"] : 1.2,
+    signals: {
+      success: typeof signals["success"] === "number" ? signals["success"] : 1,
+      policyBlock:
+        typeof signals["policyBlock"] === "number" ? signals["policyBlock"] : -2,
+      credentialViolation:
+        typeof signals["credentialViolation"] === "number"
+          ? signals["credentialViolation"]
+          : -10,
+      cleanStreakBonus:
+        typeof signals["cleanStreakBonus"] === "number"
+          ? signals["cleanStreakBonus"]
+          : 3,
+      cleanStreakThreshold:
+        typeof signals["cleanStreakThreshold"] === "number"
+          ? signals["cleanStreakThreshold"]
+          : 10,
+    },
+  };
 }
 
 function resolveTrust(raw: unknown): TrustConfig {
@@ -49,6 +79,7 @@ function resolveTrust(raw: unknown): TrustConfig {
       typeof r["maxHistoryPerAgent"] === "number"
         ? r["maxHistoryPerAgent"]
         : 100,
+    sessionTrust: resolveSessionTrust(r["sessionTrust"]),
   };
 }
 

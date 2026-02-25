@@ -123,10 +123,10 @@ export class PolicyEvaluator {
     deps: ConditionDeps,
   ): MatchedPolicy | null {
     for (const rule of policy.rules) {
-      if (rule.minTrust && !isTierAtLeast(ctx.trust.tier, rule.minTrust)) {
+      if (rule.minTrust && !isTierAtLeast(ctx.trust.session.tier, rule.minTrust)) {
         continue;
       }
-      if (rule.maxTrust && !isTierAtMost(ctx.trust.tier, rule.maxTrust)) {
+      if (rule.maxTrust && !isTierAtMost(ctx.trust.session.tier, rule.maxTrust)) {
         continue;
       }
       if (evaluateConditions(rule.conditions, ctx, deps, this.evaluators)) {

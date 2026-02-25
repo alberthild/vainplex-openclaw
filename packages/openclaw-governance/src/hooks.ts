@@ -33,20 +33,18 @@ function buildToolEvalContext(
   logger: PluginLogger,
 ) {
   const agentId = resolveAgentId(hookCtx, undefined, logger);
-  const trust = engine.getTrust(agentId);
-  const trustData = "score" in trust
-    ? { score: trust.score, tier: trust.tier }
-    : { score: 10, tier: "untrusted" as const };
+  const sessionId = hookCtx.sessionKey ?? hookCtx.sessionId ?? `agent:${agentId}`;
+  const trust = engine.getTrust(agentId, sessionId);
 
   return {
     hook: "before_tool_call" as const,
     agentId,
-    sessionKey: hookCtx.sessionKey ?? `agent:${agentId}`,
+    sessionKey: sessionId,
     toolName: event.toolName,
     toolParams: event.params,
     timestamp: Date.now(),
     time: getCurrentTime(config.timezone),
-    trust: trustData,
+    trust,
   };
 }
 
@@ -62,21 +60,19 @@ function buildMessageEvalContext(
     event as { metadata?: Record<string, unknown> },
     logger,
   );
-  const trust = engine.getTrust(agentId);
-  const trustData = "score" in trust
-    ? { score: trust.score, tier: trust.tier }
-    : { score: 10, tier: "untrusted" as const };
+  const sessionId = `agent:${agentId}`; // Message sending is not always in a session context
+  const trust = engine.getTrust(agentId, sessionId);
 
   return {
     hook: "message_sending" as const,
     agentId,
-    sessionKey: `agent:${agentId}`,
+    sessionKey: sessionId,
     channel: hookCtx.channelId,
     messageContent: event.content,
     messageTo: event.to,
     timestamp: Date.now(),
     time: getCurrentTime(config.timezone),
-    trust: trustData,
+    trust,
     metadata: event.metadata as Record<string, unknown> | undefined,
   };
 }
@@ -320,9 +316,10 @@ function handleAfterToolCall(engine: GovernanceEngine, logger: PluginLogger) {
       const ev = event as HookAfterToolCallEvent;
       const ctx = hookCtx as HookToolContext;
       const agentId = resolveAgentId(ctx, undefined, logger);
+      const sessionId = ctx.sessionKey ?? ctx.sessionId ?? `agent:${agentId}`;
       const success = !ev.error;
 
-      engine.recordOutcome(agentId, ev.toolName, success);
+      engine.recordOutcome(agentId, sessionId, success);
 
       // Detect sub-agent spawn
       if (
@@ -333,8 +330,8 @@ function handleAfterToolCall(engine: GovernanceEngine, logger: PluginLogger) {
       ) {
         const result = ev.result as Record<string, unknown>;
         const childSessionId = result["sessionId"] ?? result["sessionKey"];
-        if (typeof childSessionId === "string" && ctx.sessionKey) {
-          engine.registerSubAgent(ctx.sessionKey, childSessionId);
+        if (typeof childSessionId === "string" && sessionId) {
+          engine.registerSubAgent(sessionId, childSessionId);
         }
       }
     } catch {
@@ -355,21 +352,22 @@ function handleBeforeAgentStart(
     try {
       const ctx = hookCtx as HookAgentContext;
       const agentId = resolveAgentId(ctx, undefined, logger);
-      const trust = engine.getTrust(agentId);
-
-      if (!("score" in trust)) return undefined;
+      const sessionId = ctx.sessionKey ?? ctx.sessionId ?? `agent:${agentId}`;
+      const trust = engine.getTrust(agentId, sessionId);
 
       const status = engine.getStatus();
+      const agentTrustText = `${agentId} (${trust.agent.score}/${trust.agent.tier})`;
+      const sessionTrustText = `${trust.session.score}/${trust.session.tier}`;
+
       const context = [
-        `\n[Governance] Trust: ${trust.tier} (${trust.score}/100)`,
-        `Policies: ${status.policyCount} active`,
-        status.failMode === "closed" ? "Mode: fail-closed" : "",
-      ]
-        .filter(Boolean)
-        .join(" | ");
+        `\n[Governance] Agent: ${agentTrustText}`,
+        `Session: ${sessionTrustText}`,
+        `Policies: ${status.policyCount}`,
+      ].join(" | ");
 
       return { prependContext: context };
-    } catch {
+    } catch (e) {
+      logger.error(`[governance] Error in before_agent_start: ${e}`);
       return undefined;
     }
   };
@@ -380,10 +378,20 @@ function handleSessionStart(engine: GovernanceEngine, logger: PluginLogger) {
     try {
       const ctx = hookCtx as HookSessionContext;
       const agentId = resolveAgentId(ctx, undefined, logger);
-      // Ensure trust state is initialized for this agent
-      engine.getTrust(agentId);
+      engine.handleSessionStart(ctx.sessionId, agentId);
     } catch {
       // Don't break on session_start errors
+    }
+  };
+}
+
+function handleSessionEnd(engine: GovernanceEngine) {
+  return (_event: unknown, hookCtx: unknown): void => {
+    try {
+      const ctx = hookCtx as HookSessionContext;
+      engine.handleSessionEnd(ctx.sessionId);
+    } catch {
+      // Don't break on session_end errors
     }
   };
 }
@@ -488,6 +496,7 @@ export function registerGovernanceHooks(
 
   // Lifecycle
   api.on("session_start", handleSessionStart(engine, logger), { priority: 1 });
+  api.on("session_end", handleSessionEnd(engine), { priority: 999 });
   api.on("gateway_start", handleGatewayStart(engine), { priority: 1 });
   api.on("gateway_stop", handleGatewayStop(engine, redactionState), { priority: 999 });
 

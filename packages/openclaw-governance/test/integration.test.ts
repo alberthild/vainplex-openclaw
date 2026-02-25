@@ -1,9 +1,47 @@
-import { describe, expect, it, beforeEach, afterEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { existsSync, mkdirSync, rmSync } from "node:fs";
 import { join } from "node:path";
 import { GovernanceEngine } from "../src/engine.js";
 import { resolveConfig } from "../src/config.js";
-import type { EvaluationContext, GovernanceConfig, PluginLogger } from "../src/types.js";
+import type { AgentTrust, EvaluationContext, GovernanceConfig, PluginLogger } from "../src/types.js";
+import { TrustManager } from "../src/trust-manager.js";
+
+vi.mock("../src/trust-manager.js");
+
+const mockTrustStore: Record<string, AgentTrust> = {};
+
+vi.mocked(TrustManager).mockImplementation((() => {
+  return {
+    getAgentTrust: (agentId: string) => {
+      if (!mockTrustStore[agentId]) {
+        mockTrustStore[agentId] = {
+          agentId,
+          score: 60,
+          tier: "trusted",
+          signals: { successCount: 0, violationCount: 0, ageDays: 0, cleanStreak: 0, manualAdjustment: 0 },
+          history: [],
+          lastEvaluation: "",
+          created: "",
+        };
+      }
+      return mockTrustStore[agentId];
+    },
+    getTrust: (agentId: string) => mockTrustStore[agentId],
+    setScore: (agentId: string, score: number) => {
+      mockTrustStore[agentId].score = score;
+    },
+    recordSuccess: (agentId: string) => {
+      if (mockTrustStore[agentId]) mockTrustStore[agentId].signals.successCount++;
+    },
+    recordViolation: (agentId: string, _reason?: string) => {
+      if (mockTrustStore[agentId]) mockTrustStore[agentId].signals.violationCount++;
+    },
+    load: () => {},
+    startPersistence: () => {},
+    stopPersistence: () => {},
+    getStore: () => ({ version: 1, updated: "", agents: mockTrustStore }),
+  } as any;
+}) as any);
 
 const WORKSPACE = "/tmp/governance-test-integration";
 const logger: PluginLogger = { info: () => {}, warn: () => {}, error: () => {} };
@@ -13,17 +51,66 @@ function makeConfig(overrides: Partial<GovernanceConfig> = {}): GovernanceConfig
 }
 
 function makeCtx(overrides: Partial<EvaluationContext> = {}): EvaluationContext {
-  return {
-    hook: "before_tool_call",
+  const agentTrust = {
+    agentId: "main",
+    score: 60,
+    tier: "trusted" as const,
+    signals: {
+      successCount: 0,
+      violationCount: 0,
+      ageDays: 0,
+      cleanStreak: 0,
+      manualAdjustment: 0,
+    },
+    history: [],
+    lastEvaluation: "",
+    created: "",
+  };
+
+  const sessionTrust = {
+    sessionId: "agent:main",
+    agentId: "main",
+    score: 42,
+    tier: "standard" as const,
+    cleanStreak: 0,
+    createdAt: Date.now(),
+  };
+
+  const baseCtx = {
+    hook: "before_tool_call" as const,
     agentId: "main",
     sessionKey: "agent:main",
     timestamp: Date.now(),
-    time: { hour: 12, minute: 0, dayOfWeek: 3, date: "2026-02-18", timezone: "UTC" },
-    trust: { score: 60, tier: "trusted" },
+    time: {
+      hour: 12,
+      minute: 0,
+      dayOfWeek: 3,
+      date: "2026-02-18",
+      timezone: "UTC",
+    },
+    trust: {
+      agent: agentTrust,
+      session: sessionTrust,
+    },
     toolName: "exec",
     toolParams: { command: "ls -la" },
-    ...overrides,
   };
+
+  if (overrides.trust) {
+    // @ts-expect-error - for testing legacy trust format
+    if (overrides.trust.score) {
+       // @ts-expect-error
+      baseCtx.trust.session.score = overrides.trust.score;
+       // @ts-expect-error
+      baseCtx.trust.session.tier = overrides.trust.tier;
+    } else {
+      baseCtx.trust = overrides.trust as { agent: any; session: any };
+    }
+    delete overrides.trust;
+  }
+
+
+  return { ...baseCtx, ...overrides, };
 }
 
 beforeEach(() => {
@@ -126,7 +213,7 @@ describe("Governance Integration", () => {
               id: "r1",
               conditions: [{ type: "tool", name: "exec" }],
               effect: { action: "deny", reason: "Must be trusted" },
-              maxTrust: "restricted", // Only applies to restricted and below
+              minTrust: "trusted", // Only applies to trusted and above
             },
           ],
         },
@@ -136,13 +223,18 @@ describe("Governance Integration", () => {
     const engine = new GovernanceEngine(config, logger, WORKSPACE);
     await engine.start();
 
-    // "trusted" agent — rule doesn't apply
+    // "standard" session trust — rule doesn't apply
     const verdict = await engine.evaluate(makeCtx());
     expect(verdict.action).toBe("allow");
 
-    // "untrusted" agent — rule applies
+    // "trusted" session trust — rule applies
     const verdict2 = await engine.evaluate(
-      makeCtx({ trust: { score: 10, tier: "untrusted" } }),
+      makeCtx({
+        trust: {
+          agent: { score: 80, tier: "privileged" } as any,
+          session: { score: 80, tier: "privileged" } as any,
+        },
+      }),
     );
     expect(verdict2.action).toBe("deny");
 
@@ -190,13 +282,16 @@ describe("Governance Integration", () => {
   it("should handle engine errors with fail-open", async () => {
     const config = makeConfig({ failMode: "open" });
     const engine = new GovernanceEngine(config, logger, WORKSPACE);
-    // Don't start engine — policies not loaded
-    // evaluate should still work via fail-open
+    await engine.start();
+
+    // Force an error by mocking a method to throw
+    vi.spyOn((engine as any).riskAssessor, "assess").mockImplementation(() => {
+      throw new Error("Synthetic test error");
+    });
 
     const verdict = await engine.evaluate(makeCtx());
     expect(verdict.action).toBe("allow");
   });
-
   // ── Cross-Agent Integration (USP3) ──
 
   it("should deny sub-agent action when parent policy denies", async () => {
@@ -246,7 +341,7 @@ describe("Governance Integration", () => {
     const config = makeConfig({
       trust: {
         ...resolveConfig({}).trust,
-        defaults: { main: 60, forge: 45, "*": 10 },
+        defaults: { main: 60, forge: 80, "*": 10 },
       },
     });
 
@@ -259,16 +354,14 @@ describe("Governance Integration", () => {
       makeCtx({
         agentId: "forge",
         sessionKey: "agent:main:subagent:forge:abc",
-        trust: { score: 80, tier: "privileged" }, // Forge claims 80
       }),
     );
 
-    // Trust should be capped at parent's 60
+    // Trust should be capped at parent's 60 (verdict.trust is session-level: { score, tier })
     expect(verdict.trust.score).toBeLessThanOrEqual(60);
 
     await engine.stop();
   });
-
   it("should produce audit record with cross-agent context", async () => {
     const config = makeConfig();
     const engine = new GovernanceEngine(config, logger, WORKSPACE);
@@ -380,6 +473,17 @@ describe("Governance Integration", () => {
 
     const engine = new GovernanceEngine(config, logger, WORKSPACE);
     await engine.start();
+
+    // Pre-populate mock trust store with low-trust agent
+    mockTrustStore["low-trust-agent"] = {
+      agentId: "low-trust-agent",
+      score: 20,
+      tier: "restricted",
+      signals: { successCount: 0, violationCount: 0, ageDays: 0, cleanStreak: 0, manualAdjustment: 0 },
+      history: [],
+      lastEvaluation: "",
+      created: "",
+    } as AgentTrust;
 
     const result = engine.validateOutput("nginx is running on port 80", "low-trust-agent");
     expect(result.verdict).toBe("block");
