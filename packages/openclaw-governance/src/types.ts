@@ -35,6 +35,7 @@ export type PluginCommand = {
   name: string;
   description: string;
   requireAuth?: boolean;
+  acceptsArgs?: boolean;
   handler: (ctx?: unknown) => { text: string } | Promise<{ text: string }>;
 };
 

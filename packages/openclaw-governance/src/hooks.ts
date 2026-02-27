@@ -494,6 +494,7 @@ function registerCommands(
     {
       name: "trust",
       description: "Show trust scores, or manage: /trust reset [agent], /trust set <agent> <score>",
+      acceptsArgs: true,
       handler: (ctx?: unknown) => {
         const args = (ctx as { args?: string })?.args?.trim() ?? "";
 
