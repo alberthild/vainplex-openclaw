@@ -47,15 +47,18 @@ export function evaluateAgentCondition(
     return false;
   }
 
-  if (c.trustTier !== undefined && !matchTrustTier(c.trustTier, ctx.trust.session.tier)) {
+  // trustTier checks the persistent agent tier (not ephemeral session tier)
+  // Agent trust represents the configured trust level; session trust is for
+  // intra-session signal tracking, not production access decisions.
+  if (c.trustTier !== undefined && !matchTrustTier(c.trustTier, ctx.trust.agent.tier)) {
     return false;
   }
 
-  if (c.minScore !== undefined && ctx.trust.session.score < c.minScore) {
+  if (c.minScore !== undefined && ctx.trust.agent.score < c.minScore) {
     return false;
   }
 
-  if (c.maxScore !== undefined && ctx.trust.session.score > c.maxScore) {
+  if (c.maxScore !== undefined && ctx.trust.agent.score > c.maxScore) {
     return false;
   }
 
