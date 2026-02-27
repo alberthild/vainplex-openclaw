@@ -443,9 +443,33 @@ function handleGatewayStop(engine: GovernanceEngine, redactionState?: RedactionS
   };
 }
 
+function handleTrustReset(
+  engine: GovernanceEngine,
+  config: GovernanceConfig,
+  targetAgent?: string,
+): { text: string } {
+  const defaults = config.trust.defaults;
+  const store = engine.getTrust() as import("./types.js").TrustStore;
+  const lines: string[] = ["🔄 **Trust Reset**", ""];
+
+  const agentsToReset = targetAgent
+    ? [targetAgent]
+    : Object.keys(store.agents);
+
+  for (const agentId of agentsToReset) {
+    const defaultScore = defaults[agentId] ?? defaults["*"] ?? 10;
+    engine.resetAgentTrust(agentId, defaultScore);
+    const updated = engine.getTrust(agentId, `agent:${agentId}`);
+    lines.push(`✅ **${agentId}**: → ${updated.agent.score}/${updated.agent.tier}`);
+  }
+
+  return { text: lines.join("\n") };
+}
+
 function registerCommands(
   api: OpenClawPluginApi,
   engine: GovernanceEngine,
+  config: GovernanceConfig,
 ): void {
   const commands: PluginCommand[] = [
     {
@@ -469,8 +493,31 @@ function registerCommands(
     },
     {
       name: "trust",
-      description: "Show trust scores for all agents and active sessions",
-      handler: () => {
+      description: "Show trust scores, or manage: /trust reset [agent], /trust set <agent> <score>",
+      handler: (ctx?: unknown) => {
+        const args = (ctx as { args?: string })?.args?.trim() ?? "";
+
+        // /trust reset [agentId] — reset one or all agents to config defaults
+        if (args.startsWith("reset")) {
+          const targetAgent = args.replace("reset", "").trim() || undefined;
+          return handleTrustReset(engine, config, targetAgent);
+        }
+
+        // /trust set <agentId> <score> — manually set an agent's score
+        if (args.startsWith("set ")) {
+          const parts = args.replace("set ", "").trim().split(/\s+/);
+          const agentId = parts[0];
+          const score = parseInt(parts[1] ?? "", 10);
+          if (!agentId || Number.isNaN(score)) {
+            return { text: "Usage: `/trust set <agentId> <score>`" };
+          }
+          engine.setTrustScore(agentId, score);
+          const updated = engine.getTrust(agentId, `agent:${agentId}`);
+          return {
+            text: `✅ **${agentId}** score set to ${updated.agent.score} (${updated.agent.tier})`,
+          };
+        }
+
         const store = engine.getTrust() as import("./types.js").TrustStore;
         const sessionMap = engine.getSessionTrustMap();
         const tierEmoji: Record<string, string> = {
@@ -584,5 +631,5 @@ export function registerGovernanceHooks(
   api.on("gateway_stop", handleGatewayStop(engine, redactionState), { priority: 999 });
 
   // Commands
-  registerCommands(api, engine);
+  registerCommands(api, engine, config);
 }

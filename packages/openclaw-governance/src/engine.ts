@@ -518,6 +518,15 @@ export class GovernanceEngine {
     this.trustManager.setScore(agentId, score);
   }
 
+  setTrustScore(agentId: string, score: number): void {
+    this.trustManager.setScore(agentId, score);
+  }
+
+  resetAgentTrust(agentId: string, defaultScore: number): void {
+    this.trustManager.resetHistory(agentId);
+    this.trustManager.setScore(agentId, defaultScore);
+  }
+
   /** Get a read-only snapshot of all active session trust entries. */
   getSessionTrustMap(): ReadonlyMap<string, SessionTrust> {
     return this.sessionTrustManager._getSessions();
