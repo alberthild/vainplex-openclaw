@@ -242,16 +242,24 @@ export class GovernanceEngine {
     };
 
     // Trust learning from governance denial
+    // Skip violation recording for time-based policy blocks (e.g. night mode)
+    // — timer-triggered agents can't control when they run, penalizing them
+    // creates an unrecoverable trust death spiral.
     if (verdict.action === "deny" && this.config.trust.enabled) {
-      this.trustManager.recordViolation(
-        enrichedCtx.agentId,
-        `Policy denial: ${verdict.reason}`,
+      const isTimeBasedDeny = evalResult.matches.some(
+        (m) => m.policyId === "builtin-night-mode",
       );
-      this.sessionTrustManager.applySignal(
-        enrichedCtx.sessionKey,
-        enrichedCtx.agentId,
-        "policyBlock",
-      );
+      if (!isTimeBasedDeny) {
+        this.trustManager.recordViolation(
+          enrichedCtx.agentId,
+          `Policy denial: ${verdict.reason}`,
+        );
+        this.sessionTrustManager.applySignal(
+          enrichedCtx.sessionKey,
+          enrichedCtx.agentId,
+          "policyBlock",
+        );
+      }
     }
 
     this.recordAudit(enrichedCtx, verdict, risk, elapsedUs);

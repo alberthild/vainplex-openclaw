@@ -148,6 +148,15 @@ function extractTextParam(params: Record<string, unknown>): string | null {
   return null;
 }
 
+/**
+ * Cache of recently resolved agentIds from before_tool_call.
+ * Used by after_tool_call as a fallback when OpenClaw's hookCtx
+ * doesn't include agentId/sessionKey (known upstream limitation).
+ * Keyed by toolName — imperfect but sufficient for sequential tool calls.
+ */
+const recentAgentCtx = new Map<string, { agentId: string; sessionId: string }>();
+const MAX_AGENT_CTX_ENTRIES = 64;
+
 function handleBeforeToolCall(
   engine: GovernanceEngine,
   config: GovernanceConfig,
@@ -161,6 +170,16 @@ function handleBeforeToolCall(
       const ev = event as HookBeforeToolCallEvent;
       const ctx = hookCtx as HookToolContext;
       const evalCtx = buildToolEvalContext(ev, ctx, config, engine, logger);
+
+      // Cache resolved agentId for after_tool_call fallback
+      recentAgentCtx.set(ev.toolName, {
+        agentId: evalCtx.agentId,
+        sessionId: evalCtx.sessionKey,
+      });
+      if (recentAgentCtx.size > MAX_AGENT_CTX_ENTRIES) {
+        const oldest = recentAgentCtx.keys().next().value;
+        if (oldest) recentAgentCtx.delete(oldest);
+      }
       const verdict = await engine.evaluate(evalCtx);
 
       if (verdict.action === "deny") {
@@ -315,10 +334,22 @@ function handleAfterToolCall(engine: GovernanceEngine, logger: PluginLogger) {
     try {
       const ev = event as HookAfterToolCallEvent;
       const ctx = hookCtx as HookToolContext;
-      const agentId = resolveAgentId(ctx, undefined, logger);
-      const sessionId = ctx.sessionKey ?? (ctx as any).sessionId ?? `agent:${agentId}`;
-      const success = !ev.error;
 
+      // Primary resolution from hookCtx
+      let agentId = resolveAgentId(ctx, undefined, logger);
+      let sessionId = ctx.sessionKey ?? (ctx as any).sessionId ?? `agent:${agentId}`;
+
+      // Fallback: use cached context from before_tool_call
+      // OpenClaw's after_tool_call hookCtx often lacks agentId/sessionKey
+      if (agentId === "unresolved") {
+        const cached = recentAgentCtx.get(ev.toolName);
+        if (cached) {
+          agentId = cached.agentId;
+          sessionId = cached.sessionId;
+        }
+      }
+
+      const success = !ev.error;
       engine.recordOutcome(agentId, sessionId, success);
 
       // Detect sub-agent spawn

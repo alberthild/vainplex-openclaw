@@ -400,6 +400,62 @@ describe("GovernanceEngine", () => {
   });
 });
 
+describe("Night mode trust exemption", () => {
+  it("should NOT record violation when night mode blocks a tool call", async () => {
+    const config = makeConfig({
+      builtinPolicies: {
+        nightMode: { start: "23:00", end: "06:00" },
+      },
+    });
+
+    const engine = new GovernanceEngine(config, logger, WORKSPACE);
+    await engine.start();
+
+    // Simulate a tool call at 2am (inside night window)
+    const verdict = await engine.evaluate(
+      makeCtx({
+        toolName: "exec",
+        time: { hour: 2, minute: 0, dayOfWeek: 3, date: "2026-02-27", timezone: "UTC" },
+      }),
+    );
+
+    expect(verdict.action).toBe("deny");
+    expect(verdict.reason).toContain("Night mode");
+
+    // Violation should NOT have been recorded (time-based deny exempt)
+    const after = engine.getTrust("main", "s");
+    expect(after.agent.signals.violationCount).toBe(0);
+
+    await engine.stop();
+  });
+
+  it("should still record violation for non-time denials at night", async () => {
+    const config = makeConfig({
+      builtinPolicies: {
+        credentialGuard: true,
+      },
+    });
+
+    const engine = new GovernanceEngine(config, logger, WORKSPACE);
+    await engine.start();
+
+    const verdict = await engine.evaluate(
+      makeCtx({
+        toolName: "read",
+        toolParams: { path: "secrets.env" },
+      }),
+    );
+
+    expect(verdict.action).toBe("deny");
+
+    // Credential guard violation SHOULD be recorded
+    const after = engine.getTrust("main", "s");
+    expect(after.agent.signals.violationCount).toBe(1);
+
+    await engine.stop();
+  });
+});
+
 describe("Agent trust sync", () => {
   it("should auto-register known agents on start", async () => {
     const config = makeConfig({
