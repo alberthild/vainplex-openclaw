@@ -2,19 +2,18 @@
 
 **Plugins that give your OpenClaw agent memory, governance, and self-awareness.**
 
-Seven plugins. Running in production 24/7. Built because we needed them — not as a product exercise, but as infrastructure for an AI agent that actually does its job across days, weeks, and months.
+Six plugins. Running in production 24/7. Built because we needed them — not as a product exercise, but as infrastructure for an AI agent that actually does its job across days, weeks, and months.
 
 ## What's in it
 
 | Plugin | What it does | Version |
 |--------|-------------|---------|
-| **[Cortex](packages/openclaw-cortex)** | Tracks conversation threads, extracts decisions, generates boot context that survives compaction. 10 languages. | [`0.4.6`](https://www.npmjs.com/package/@vainplex/openclaw-cortex) |
-| **[Governance](packages/openclaw-governance)** | Per-agent trust scores, credential redaction, tool blocking, rate limiting, night mode. Deterministic. | [`0.5.6`](https://www.npmjs.com/package/@vainplex/openclaw-governance) |
-| **[Knowledge Engine](packages/openclaw-knowledge-engine)** | Entity and relationship extraction from conversations. No external APIs. | [`0.1.4`](https://www.npmjs.com/package/@vainplex/openclaw-knowledge-engine) |
-| **[NATS EventStore](packages/openclaw-nats-eventstore)** | Every agent event → NATS JetStream. Audit trail, replay, multi-agent correlation. | [`0.2.1`](https://www.npmjs.com/package/@vainplex/nats-eventstore) |
-| **[Sitrep](packages/openclaw-sitrep)** | Situation reports — health, goals, timers, events aggregated into one snapshot. | [`0.1.0`](https://www.npmjs.com/package/@vainplex/openclaw-sitrep) |
-| **[Leuko](https://github.com/alberthild/openclaw-leuko)** | Cognitive immune system — health checks, anomaly detection, self-healing with escalation. | [`0.1.0`](https://www.npmjs.com/package/@vainplex/openclaw-leuko) |
-| **[Membrane](https://github.com/alberthild/openclaw-membrane)** | Episodic memory via [GustyCube's Membrane](https://github.com/gustycube/membrane) — salience-based recall with organic decay. | [`0.3.0`](https://www.npmjs.com/package/@vainplex/openclaw-membrane) |
+| **[Governance](packages/openclaw-governance)** | Per-agent trust scores, credential redaction, tool blocking, rate limiting, night mode. Deterministic. | [![npm](https://img.shields.io/npm/v/@vainplex/openclaw-governance)](https://www.npmjs.com/package/@vainplex/openclaw-governance) |
+| **[Membrane](https://github.com/alberthild/openclaw-membrane)** | Episodic memory via [GustyCube's Membrane](https://github.com/gustycube/membrane) — salience-based recall with organic decay. | [![npm](https://img.shields.io/npm/v/@vainplex/openclaw-membrane)](https://www.npmjs.com/package/@vainplex/openclaw-membrane) |
+| **[Cortex](packages/openclaw-cortex)** | Tracks conversation threads, extracts decisions, generates boot context that survives compaction. 10 languages. | [![npm](https://img.shields.io/npm/v/@vainplex/openclaw-cortex)](https://www.npmjs.com/package/@vainplex/openclaw-cortex) |
+| **[Leuko](https://github.com/alberthild/openclaw-leuko)** | Cognitive immune system — health checks, anomaly detection, self-healing with escalation. | [![npm](https://img.shields.io/npm/v/@vainplex/openclaw-leuko)](https://www.npmjs.com/package/@vainplex/openclaw-leuko) |
+| **[Knowledge Engine](packages/openclaw-knowledge-engine)** | Entity and relationship extraction from conversations. No external APIs. | [![npm](https://img.shields.io/npm/v/@vainplex/openclaw-knowledge-engine)](https://www.npmjs.com/package/@vainplex/openclaw-knowledge-engine) |
+| **[NATS EventStore](packages/openclaw-nats-eventstore)** | Every agent event → NATS JetStream. Audit trail, replay, multi-agent correlation. | [![npm](https://img.shields.io/npm/v/@vainplex/nats-eventstore)](https://www.npmjs.com/package/@vainplex/nats-eventstore) |
 
 ## Try it
 
@@ -46,7 +45,7 @@ Then in `openclaw.json` under `plugins.entries`:
 }
 ```
 
-Same pattern for all plugins. Each works independently — use one or all seven.
+Same pattern for all plugins. Each works independently — use one or all six.
 
 ## How they work together
 
@@ -73,7 +72,6 @@ flowchart TD
     CTX -.->|events| NATS
 
     NATS[("📡 NATS EventStore")]
-    NATS -.-> SITREP["📊 Sitrep"]
     NATS -.-> LEUKO["🛡️ Leuko"]
 
     style MSG fill:#1f2937,stroke:#6b7280,color:#f9fafb
@@ -84,7 +82,6 @@ flowchart TD
     style KE fill:#3b0764,stroke:#8b5cf6,color:#e9d5ff
     style MEM_I fill:#1e3a5f,stroke:#3b82f6,color:#bfdbfe
     style NATS fill:#14532d,stroke:#22c55e,color:#bbf7d0
-    style SITREP fill:#422006,stroke:#eab308,color:#fef9c3
     style LEUKO fill:#422006,stroke:#eab308,color:#fef9c3
     style DENY fill:#7f1d1d,stroke:#ef4444,color:#fecaca
 ```
@@ -103,7 +100,7 @@ As operators running OpenClaw 24/7 with real credentials, we wanted additional l
 | State drift after memory compaction | **Cortex** — pre-compaction snapshots, verified boot context |
 | No audit trail | **NATS EventStore** — every event for replay and forensics |
 | Agent hallucination / going off-track | **Cortex Trace Analyzer** — 7 failure signal detectors |
-| System health visibility | **Sitrep** + **Leuko** — snapshots, anomaly detection, auto-escalation |
+| System health visibility | **Leuko** — cognitive immune system, anomaly detection, auto-escalation |
 | Limiting agent capabilities by trust level | **Governance** — per-agent trust scores, tool deny lists, rate limits |
 
 This works within OpenClaw's model. Start with the [hardened baseline](https://docs.openclaw.ai/gateway/security#hardened-baseline-in-60-seconds) first, then add these on top.
