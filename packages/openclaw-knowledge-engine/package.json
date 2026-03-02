@@ -14,8 +14,14 @@
     "openclaw",
     "plugin",
     "knowledge-extraction",
+    "knowledge-graph",
+    "entity-extraction",
     "nlp",
-    "entity-extraction"
+    "rag",
+    "ai-memory",
+    "fact-extraction",
+    "conversational-ai",
+    "openclaw-plugin"
   ],
   "author": "Albert Hild <a.hild@vainplex.de>",
   "license": "MIT",

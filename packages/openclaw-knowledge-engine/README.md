@@ -1,8 +1,39 @@
+> **📦 This plugin is part of the [Vainplex OpenClaw Suite](https://github.com/alberthild/vainplex-openclaw)** — a collection of production plugins that turn OpenClaw into a self-governing, learning system. See the monorepo for the full picture.
+
+---
+
 # @vainplex/openclaw-knowledge-engine
 
-A real-time knowledge extraction plugin for [OpenClaw](https://github.com/openclaw/openclaw). Automatically extracts entities, facts, and relationships from conversations — building a persistent, queryable knowledge base that grows with every message.
+Your AI agent processes hundreds of messages a day. Names, companies, decisions, technical details — all of it flows through and disappears after compaction. The agent forgets what it learned yesterday.
 
-## What it does
+The Knowledge Engine fixes this. It extracts entities, facts, and relationships from every conversation in real-time — building a persistent, queryable knowledge base that grows with every message. Zero runtime dependencies. Works with or without an LLM.
+
+**v0.1.4** — 12 modules, zero runtime dependencies, TypeScript strict.
+
+---
+
+## The Problem
+
+OpenClaw agents are stateless by design. Context windows compress. Compaction drops details. After a week, your agent doesn't know:
+
+- Who "Alex from Acme" is (mentioned 14 times last month)
+- That your team decided to use PostgreSQL over MongoDB (discussed Tuesday)
+- Which vendors quoted what price (3 different conversations)
+
+Memory plugins like [Membrane](https://github.com/alberthild/openclaw-membrane) store conversation history. But raw history isn't knowledge — it's noise with signal buried inside. You need extraction.
+
+### How Others Approach This
+
+| Approach | Limitation |
+|----------|-----------|
+| **RAG over chat logs** | Retrieves raw messages, not structured facts. Noisy. |
+| **Vector search** | Good for similarity, bad for "Who works at Acme?" |
+| **Manual tagging** | Doesn't scale. Agents process 100+ messages/day. |
+| **Knowledge Engine** | Extracts structured triples automatically. Regex (free) + LLM (optional). Queryable. Decays gracefully. |
+
+---
+
+## What It Does
 
 Every message your OpenClaw agent processes flows through the Knowledge Engine:
 
@@ -20,6 +51,15 @@ User: "We're meeting with Alex from Acme Corp next Tuesday"
   └─ LLM   → facts:   [Alex — works-at — Acme Corp]
                        [Meeting — scheduled-with — Acme Corp]
 ```
+
+### Use Cases
+
+- **Multi-agent teams** — Agent A learns "client prefers email over Slack". Agent B (via shared knowledge store) respects the preference without being told.
+- **Long-running projects** — After 3 months of conversations, your agent still knows every stakeholder, every decision, every constraint.
+- **Support/Sales** — Automatically builds a contact graph: who works where, who reports to whom, which companies are in your pipeline.
+- **Compliance** — Structured fact triples create an auditable record of what your agent "knows" and where it learned it.
+
+---
 
 ## Quick Start
 
@@ -74,6 +114,10 @@ Add to your `openclaw.json`:
 openclaw gateway restart
 ```
 
+That's it. Every message now builds your knowledge base automatically.
+
+---
+
 ## Configuration
 
 | Key | Type | Default | Description |
@@ -116,7 +160,7 @@ openclaw gateway restart
 }
 ```
 
-This gives you zero-cost entity extraction with no external dependencies.
+This gives you zero-cost entity extraction with no external dependencies. No Ollama, no API keys, no GPU. Just install and go.
 
 ### Full config (LLM + ChromaDB)
 
@@ -150,7 +194,9 @@ This gives you zero-cost entity extraction with no external dependencies.
 }
 ```
 
-## How it works
+---
+
+## How It Works
 
 ### Extraction Pipeline
 
@@ -202,6 +248,8 @@ workspace/
 
 Writes use atomic file operations (write to `.tmp`, then rename) to prevent corruption.
 
+---
+
 ## Architecture
 
 ```
@@ -242,20 +290,31 @@ npm test        # Unit + integration tests
 
 Tests cover: config validation, entity extraction, fact CRUD, decay, pruning, LLM batching, HTTP client, embeddings, storage atomicity, maintenance scheduling, hook orchestration.
 
+---
+
+## Works Great With
+
+| Plugin | Why |
+|--------|-----|
+| [**@vainplex/openclaw-membrane**](https://github.com/alberthild/openclaw-membrane) | Membrane stores conversation history. Knowledge Engine extracts the signal from it. Together: memory + understanding. |
+| [**@vainplex/openclaw-governance**](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-governance) | Governance controls what agents can do. Knowledge Engine tracks what agents know. Together: controlled intelligence. |
+| [**@vainplex/openclaw-cortex**](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-cortex) | Cortex tracks conversation threads and decisions. Knowledge Engine persists the entities behind those decisions. |
+
+---
+
 ## Part of the Vainplex OpenClaw Suite
 
 | Plugin | Description |
 |--------|-------------|
-| [@vainplex/nats-eventstore](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-nats-eventstore) | NATS JetStream event persistence + audit trail |
-| [@vainplex/openclaw-cortex](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-cortex) | Conversation intelligence — threads, decisions, boot context, trace analysis |
 | [@vainplex/openclaw-governance](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-governance) | Policy engine — trust scores, credential redaction, production safeguards |
+| [@vainplex/openclaw-cortex](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-cortex) | Conversation intelligence — threads, decisions, boot context, trace analysis |
 | [@vainplex/openclaw-knowledge-engine](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-knowledge-engine) | Entity and relationship extraction from conversations |
-| [@vainplex/openclaw-sitrep](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-sitrep) | Situation reports — health, goals, timers aggregated |
-| [@vainplex/openclaw-leuko](https://github.com/alberthild/openclaw-leuko) | Cognitive immune system — health checks, anomaly detection |
 | [@vainplex/openclaw-membrane](https://github.com/alberthild/openclaw-membrane) | Episodic memory bridge via gRPC |
+| [@vainplex/openclaw-leuko](https://github.com/alberthild/openclaw-leuko) | Cognitive immune system — health checks, anomaly detection |
+| [@vainplex/nats-eventstore](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-nats-eventstore) | NATS JetStream event persistence + audit trail |
+| [@vainplex/openclaw-sitrep](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-sitrep) | Situation reports — health, goals, timers aggregated |
 
 Full suite: [alberthild/vainplex-openclaw](https://github.com/alberthild/vainplex-openclaw)
-
 
 ## License
 
