@@ -48,6 +48,66 @@ By default, Cortex uses fast regex patterns (zero cost, instant). Optionally, yo
 
 The LLM runs **on top of regex** — it enhances, never replaces. If the LLM is down, Cortex falls back silently to regex-only.
 
+## 🛠️ Agent Tools (v0.5.0)
+
+Cortex registers **5 agent tools** that let your AI agent query its own memory directly. No manual lookups, no stale context — the agent asks, Cortex answers.
+
+All tools are **read-only**, **optional** (opt-in via `tools.allow`), and respond in **<100ms**.
+
+| Tool | Description | Example Use |
+|------|-------------|-------------|
+| `cortex_threads` | List and filter conversation threads | *"What threads are still open?"* |
+| `cortex_decisions` | Query tracked decisions | *"What did we decide about auth?"* |
+| `cortex_search` | Cross-search threads + decisions | *"Find everything related to deployment"* |
+| `cortex_commitments` | View tracked commitments from messages | *"What did I promise to do?"* |
+| `cortex_status` | Plugin health — thread/decision counts, mood | *"How's Cortex doing?"* |
+
+### Enable Agent Tools
+
+Add the tools to your agent's allowlist in `openclaw.json`:
+
+```json5
+{
+  agents: {
+    list: [
+      {
+        id: "main",
+        tools: {
+          allow: [
+            "cortex_threads",
+            "cortex_decisions",
+            "cortex_search",
+            "cortex_commitments",
+            "cortex_status"
+          ]
+        }
+      }
+    ]
+  }
+}
+```
+
+### Commitment Tracking
+
+Cortex automatically detects commitments from conversation messages in **10 languages**:
+
+```
+"I'll fix the auth bug tomorrow"     → ✅ Detected (EN)
+"Ich werde das morgen fixen"         → ✅ Detected (DE)
+"Je vais corriger ça demain"         → ✅ Detected (FR)
+"sounds good"                        → ❌ Ignored (casual acknowledgment)
+```
+
+Commitments are tracked with:
+- **who** — who made the commitment
+- **what** — the specific promise (captured from regex, not full message)
+- **status** — `open` → `overdue` (after 7 days) → `done`
+- **deduplication** — same commitment from same message won't create duplicates
+
+Query with `cortex_commitments`, or let the agent check what's overdue.
+
+---
+
 ## 🎬 Demo
 
 Interactive step-by-step demo — walk through a conversation, see Cortex extract threads and decisions in real-time:
@@ -526,7 +586,7 @@ import {
 
 ```bash
 npm install
-npm test            # 850 tests
+npm test            # 879 tests
 npm run typecheck   # TypeScript strict mode
 npm run build       # Compile to dist/
 ```
@@ -538,7 +598,7 @@ npm run build       # Compile to dist/
 - LLM enhancement: async, batched, fire-and-forget (never blocks hooks)
 - Atomic file writes via `.tmp` + rename
 - Noise filter prevents garbage threads from polluting state
-- Tested with 850 unit + integration tests
+- Tested with 879 unit + integration tests
 
 ## Security Context
 
