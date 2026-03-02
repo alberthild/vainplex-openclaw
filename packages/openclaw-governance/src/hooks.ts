@@ -16,6 +16,8 @@ import type {
 } from "./types.js";
 import type { GovernanceEngine } from "./engine.js";
 import { getCurrentTime, resolveAgentId } from "./util.js";
+import { ResponseGate } from "./response-gate.js";
+
 import {
   initRedaction,
   parseRedactionConfig,
@@ -279,14 +281,14 @@ function handleBeforeMessageWrite(
   engine: GovernanceEngine,
   config: GovernanceConfig,
   logger: PluginLogger,
+  responseGate: ResponseGate | null,
+  toolCallLog: Map<string, Array<{ toolName: string; output: string }>>,
 ) {
   return (
     event: unknown,
     hookCtx: unknown,
   ): { block?: boolean; blockReason?: string } | undefined => {
     try {
-      if (!config.outputValidation.enabled) return undefined;
-
       const ev = event as { content?: string };
       const ctx = hookCtx as { agentId?: string; sessionKey?: string };
       if (!ev.content) return undefined;
@@ -296,6 +298,32 @@ function handleBeforeMessageWrite(
         undefined,
         logger,
       );
+
+      // ── Response Gate (v0.7.0) — runs independently of outputValidation ──
+      if (responseGate) {
+        const sessionId = (ctx as { sessionKey?: string; sessionId?: string }).sessionKey
+          ?? (ctx as { sessionId?: string }).sessionId
+          ?? `agent:${agentId}`;
+        const sessionTools = toolCallLog?.get(sessionId) || [];
+        const gateResult = responseGate.validate(ev.content, agentId, sessionTools);
+        if (!gateResult.passed) {
+          const reason = `Response Gate blocked: ${gateResult.reasons.join("; ")}`;
+          logger.warn(`[governance] ${reason} (agent=${agentId}, failed=${gateResult.failedValidators.join(",")})`);
+
+          // v0.7.1: If fallback configured, replace message content instead of silent block
+          if (gateResult.fallbackMessage) {
+            const originalMsg = (event as { message?: Record<string, unknown> }).message;
+            if (originalMsg) {
+              const fallbackMsg = { ...originalMsg, content: gateResult.fallbackMessage };
+              return { message: fallbackMsg } as { block?: boolean; message?: unknown };
+            }
+          }
+          return { block: true, blockReason: reason };
+        }
+      }
+
+      // Stage 1-4 output validation (separate feature from Response Gate)
+      if (!config.outputValidation.enabled) return undefined;
 
       // before_message_write is synchronous — only Stage 1+2 (no isExternal)
       const resultOrPromise = engine.validateOutput(ev.content, agentId);
@@ -329,7 +357,7 @@ function handleBeforeMessageWrite(
   };
 }
 
-function handleAfterToolCall(engine: GovernanceEngine, logger: PluginLogger) {
+function handleAfterToolCall(engine: GovernanceEngine, logger: PluginLogger, toolCallLog: Map<string, Array<{ toolName: string; output: string }>>) {
   return (event: unknown, hookCtx: unknown): void => {
     try {
       const ev = event as HookAfterToolCallEvent;
@@ -351,6 +379,15 @@ function handleAfterToolCall(engine: GovernanceEngine, logger: PluginLogger) {
 
       const success = !ev.error;
       engine.recordOutcome(agentId, sessionId, success);
+
+      // Track tool calls for Response Gate (v0.7.0)
+      if (success && ev.result !== undefined) {
+        const output = typeof ev.result === "string" ? ev.result : JSON.stringify(ev.result);
+        let log = toolCallLog.get(sessionId);
+        if (!log) { log = []; toolCallLog.set(sessionId, log); }
+        log.push({ toolName: ev.toolName, output });
+        if (log.length > 50) log.splice(0, log.length - 50);
+      }
 
       // Detect sub-agent spawn
       if (
@@ -416,11 +453,15 @@ function handleSessionStart(engine: GovernanceEngine, logger: PluginLogger) {
   };
 }
 
-function handleSessionEnd(engine: GovernanceEngine) {
+function handleSessionEnd(
+  engine: GovernanceEngine,
+  toolCallLog: Map<string, Array<{ toolName: string; output: string }>>,
+) {
   return (_event: unknown, hookCtx: unknown): void => {
     try {
       const ctx = hookCtx as HookSessionContext;
       engine.handleSessionEnd((ctx as any).sessionId);
+      toolCallLog.delete((ctx as any).sessionId);
     } catch {
       // Don't break on session_end errors
     }
@@ -582,6 +623,15 @@ export function registerGovernanceHooks(
 ): void {
   const logger = api.logger;
 
+  // ── Response Gate (v0.7.0) ──
+  const responseGate = config.responseGate?.enabled
+    ? new ResponseGate(config.responseGate)
+    : null;
+  const toolCallLog = new Map<string, Array<{ toolName: string; output: string }>>();
+  if (responseGate) {
+    logger.info(`[governance] Response Gate initialized with ${config.responseGate!.rules.length} rule(s)`);
+  }
+
   // ── Redaction Subsystem ──
   // Read from GovernanceConfig.redaction (loaded from external config file),
   // not api.pluginConfig (which is just { enabled: true } from openclaw.json)
@@ -613,12 +663,12 @@ export function registerGovernanceHooks(
   });
 
   // Output validation (synchronous, before message write)
-  api.on("before_message_write", handleBeforeMessageWrite(engine, config, logger), {
+  api.on("before_message_write", handleBeforeMessageWrite(engine, config, logger, responseGate, toolCallLog), {
     priority: 1000,
   });
 
   // Trust feedback
-  api.on("after_tool_call", handleAfterToolCall(engine, logger), { priority: 900 });
+  api.on("after_tool_call", handleAfterToolCall(engine, logger, toolCallLog), { priority: 900 });
 
   // Context injection
   api.on("before_agent_start", handleBeforeAgentStart(engine, config, logger), {
@@ -627,7 +677,7 @@ export function registerGovernanceHooks(
 
   // Lifecycle
   api.on("session_start", handleSessionStart(engine, logger), { priority: 1 });
-  api.on("session_end", handleSessionEnd(engine), { priority: 999 });
+  api.on("session_end", handleSessionEnd(engine, toolCallLog), { priority: 999 });
   api.on("gateway_start", handleGatewayStart(engine), { priority: 1 });
   api.on("gateway_stop", handleGatewayStop(engine, redactionState), { priority: 999 });
 

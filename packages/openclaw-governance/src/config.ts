@@ -14,6 +14,8 @@ import type {
   TrustConfig,
 } from "./types.js";
 
+import { resolveResponseGate } from "./response-gate.js";
+
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
 }
@@ -227,5 +229,6 @@ export function resolveConfig(
     redaction: isRecord(r["redaction"])
       ? (r["redaction"] as unknown as RedactionConfig)
       : undefined,
+    responseGate: resolveResponseGate(r["responseGate"]),
   };
 }

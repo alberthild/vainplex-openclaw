@@ -487,6 +487,7 @@ export type GovernanceConfig = {
   performance: PerformanceConfig;
   outputValidation: OutputValidationConfig;
   redaction?: RedactionConfig;
+  responseGate?: ResponseGateConfig;
 };
 
 // ── Policy Index (internal) ──
@@ -736,6 +737,36 @@ export type RedactionConfig = {
   customPatterns: CustomPatternConfig[];
   allowlist: RedactionAllowlist;
   performanceBudgetMs: number;
+};
+
+
+// ── Response Gate (v0.7.0) ──
+
+export type ResponseGateValidator =
+  | { type: "requiredTools"; tools: string[]; message?: string }
+  | { type: "mustMatch"; pattern: string; message?: string }
+  | { type: "mustNotMatch"; pattern: string; message?: string };
+
+export type ResponseGateRule = {
+  agentId?: string | string[];
+  validators: ResponseGateValidator[];
+};
+
+export type ResponseGateConfig = {
+  enabled: boolean;
+  rules: ResponseGateRule[];
+  /** Message sent to user when gate blocks. If unset, response is silently blocked. */
+  fallbackMessage?: string;
+  /** Template variables: {reasons}, {validators}, {agent} are replaced at runtime */
+  fallbackTemplate?: string;
+};
+
+export type ResponseGateValidationResult = {
+  passed: boolean;
+  failedValidators: string[];
+  reasons: string[];
+  /** Pre-rendered fallback message (if configured), ready to send to user */
+  fallbackMessage?: string;
 };
 
 export type VaultEntry = {
