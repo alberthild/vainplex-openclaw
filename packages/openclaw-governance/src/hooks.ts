@@ -289,9 +289,18 @@ function handleBeforeMessageWrite(
     hookCtx: unknown,
   ): { block?: boolean; blockReason?: string } | undefined => {
     try {
-      const ev = event as { content?: string };
-      const ctx = hookCtx as { agentId?: string; sessionKey?: string };
-      if (!ev.content) return undefined;
+      const ev = event as { message?: { role?: string; content?: string | unknown[] } };
+      const ctx = hookCtx as { agentId?: string; sessionKey?: string; sessionId?: string };
+      // Extract text content from AgentMessage
+      const msgContent = typeof ev.message?.content === "string"
+        ? ev.message.content
+        : Array.isArray(ev.message?.content)
+          ? ev.message.content
+              .filter((b: unknown) => typeof b === "object" && b !== null && (b as Record<string,unknown>).type === "text")
+              .map((b: unknown) => (b as Record<string,unknown>).text as string)
+              .join("\n")
+          : undefined;
+      if (!msgContent) return undefined;
 
       const agentId = resolveAgentId(
         ctx as { agentId?: string; sessionKey?: string; sessionId?: string },
@@ -305,16 +314,21 @@ function handleBeforeMessageWrite(
           ?? (ctx as { sessionId?: string }).sessionId
           ?? `agent:${agentId}`;
         const sessionTools = toolCallLog?.get(sessionId) || [];
-        const gateResult = responseGate.validate(ev.content, agentId, sessionTools);
+        const gateResult = responseGate.validate(msgContent, agentId, sessionTools);
         if (!gateResult.passed) {
           const reason = `Response Gate blocked: ${gateResult.reasons.join("; ")}`;
           logger.warn(`[governance] ${reason} (agent=${agentId}, failed=${gateResult.failedValidators.join(",")})`);
 
           // v0.7.1: If fallback configured, replace message content instead of silent block
+          // Must preserve content format: pi-ai's transform-messages.js expects content
+          // as an array of ContentBlocks, not a plain string.
           if (gateResult.fallbackMessage) {
             const originalMsg = (event as { message?: Record<string, unknown> }).message;
             if (originalMsg) {
-              const fallbackMsg = { ...originalMsg, content: gateResult.fallbackMessage };
+              const fallbackContent = Array.isArray(originalMsg.content)
+                ? [{ type: "text", text: gateResult.fallbackMessage }]
+                : gateResult.fallbackMessage;
+              const fallbackMsg = { ...originalMsg, content: fallbackContent };
               return { message: fallbackMsg } as { block?: boolean; message?: unknown };
             }
           }
@@ -326,7 +340,7 @@ function handleBeforeMessageWrite(
       if (!config.outputValidation.enabled) return undefined;
 
       // before_message_write is synchronous — only Stage 1+2 (no isExternal)
-      const resultOrPromise = engine.validateOutput(ev.content, agentId);
+      const resultOrPromise = engine.validateOutput(msgContent, agentId);
       // This should be synchronous (no isExternal), but guard against Promise
       if (resultOrPromise instanceof Promise) {
         logger.warn("[governance] before_message_write got async result, skipping");

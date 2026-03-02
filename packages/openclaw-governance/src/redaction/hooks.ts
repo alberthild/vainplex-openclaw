@@ -415,6 +415,13 @@ function handleBeforeMessageWrite(
       const ev = event as { content?: string };
       if (!ev.content) return undefined;
 
+      // Respect exemptAgents list — exempt agents (e.g. main in direct chat
+      // with owner) should not have their messages redacted/blocked.
+      const agentId = resolveAgentId(_hookCtx as { agentId?: string; sessionKey?: string; sessionId?: string }, undefined, logger);
+      if (config.allowlist?.exemptAgents?.includes(agentId)) {
+        return undefined;
+      }
+
       // Only credential + financial patterns for before_message_write
       // (PII may be needed in conversation context per RFC-007 §5.4)
       const scanResult = engine.scanString(ev.content);

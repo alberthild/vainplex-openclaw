@@ -10,7 +10,10 @@ The gap is clear: agents are everywhere, governance is nowhere. The Berkeley fra
 
 This plugin does. It implements 8 of Berkeley's 12 core requirements today, with the remaining 4 designed and scheduled.
 
-**v0.6.0** — 781 tests, zero runtime dependencies.
+[![npm](https://img.shields.io/npm/v/@vainplex/openclaw-governance)](https://www.npmjs.com/package/@vainplex/openclaw-governance)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+Zero runtime dependencies. Hundreds of tests. Production since February 2026.
 
 ---
 
@@ -28,10 +31,10 @@ UC Berkeley's Agentic AI Risk-Management Standards Profile and Microsoft's gover
 | **Cascading Agent Policies** | Cross-agent governance — parent policies propagate to sub-agents | ✅ Implemented |
 | **Autonomy Levels** | Trust tiers (0–100, five levels) — functionally equivalent to Berkeley's L0–L5 | ✅ Implemented |
 | **Credential Protection** | 3-layer redaction with SHA-256 vault, 17 built-in patterns, fail-closed | ✅ Implemented |
-| **Human-in-the-Loop** | Approval Manager for high-risk operations | 📋 v0.6 |
-| **Semantic Intent Analysis** | LLM-powered intent classification before tool execution | 📋 v0.6 |
-| **Multi-Agent Interaction Monitoring** | Agent-to-agent message governance | 📋 v0.6 |
-| **Tamper-evident Audit** | Hash-chain audit trail for compliance verification | 📋 v0.6 |
+| **Human-in-the-Loop** | Approval Manager for high-risk operations | 📋 Planned |
+| **Semantic Intent Analysis** | LLM-powered intent classification before tool execution | 📋 Planned |
+| **Multi-Agent Interaction Monitoring** | Agent-to-agent message governance | 📋 Planned |
+| **Tamper-evident Audit** | Hash-chain audit trail for compliance verification | 📋 Planned |
 
 8 implemented. 4 planned. Production since 2026-02-18.
 
