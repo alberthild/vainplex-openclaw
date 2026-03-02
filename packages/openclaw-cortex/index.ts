@@ -1,4 +1,5 @@
 import { registerCortexHooks, getHookDiagnostics } from "./src/hooks.js";
+import { registerCortexTools } from "./src/tools/index.js";
 import { resolveWorkspace } from "./src/config.js";
 import { loadConfig } from "./src/config-loader.js";
 import { loadJson, rebootDir } from "./src/storage.js";
@@ -12,7 +13,7 @@ const plugin = {
   name: "OpenClaw Cortex",
   description:
     "Conversation intelligence — thread tracking, decision extraction, boot context, pre-compaction snapshots",
-  version: "0.1.0",
+  version: "0.5.0",
 
   register(api: OpenClawPluginApi) {
     const { config } = loadConfig(api.pluginConfig, api.logger);
@@ -76,6 +77,11 @@ const plugin = {
         }
       },
     });
+
+    // Register agent tools (if API supports it)
+    if (typeof api.registerTool === "function") {
+      registerCortexTools(api, config);
+    }
 
     api.logger.info("[cortex] Ready");
   },

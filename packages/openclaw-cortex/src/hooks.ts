@@ -11,6 +11,7 @@ import { BootContextGenerator } from "./boot-context.js";
 import { PreCompaction } from "./pre-compaction.js";
 import { LlmEnhancer, resolveLlmConfig } from "./llm-enhance.js";
 import { registerTraceAnalyzerHooks, cleanupTraceAnalyzerHooks, type TraceAnalyzerHookState } from "./trace-analyzer/index.js";
+import { CommitmentTracker } from "./commitment-tracker.js";
 
 /**
  * Extract message content from a hook event using the fallback chain.
@@ -40,6 +41,7 @@ type HookState = {
   threadTracker: ThreadTracker | null;
   decisionTracker: DecisionTracker | null;
   llmEnhancer: LlmEnhancer | null;
+  commitmentTracker: CommitmentTracker | null;
   diagnostics: HookDiagnostics;
 };
 
@@ -52,6 +54,9 @@ function ensureInit(state: HookState, config: CortexConfig, logger: OpenClawPlug
   }
   if (!state.decisionTracker && config.decisionTracker.enabled) {
     state.decisionTracker = new DecisionTracker(state.workspace, config.decisionTracker, config.patterns.language, logger);
+  }
+  if (!state.commitmentTracker && state.workspace) {
+    state.commitmentTracker = new CommitmentTracker(state.workspace, logger);
   }
   if (!state.llmEnhancer && config.llm.enabled) {
     state.llmEnhancer = new LlmEnhancer(config.llm, logger);
@@ -81,6 +86,9 @@ async function processMessage(
   // Regex-based processing (always runs — zero cost)
   if (config.threadTracker.enabled && state.threadTracker) state.threadTracker.processMessage(content, sender);
   if (config.decisionTracker.enabled && state.decisionTracker) state.decisionTracker.processMessage(content, sender);
+
+  // Commitment tracking (regex-based, zero cost)
+  if (state.commitmentTracker) state.commitmentTracker.processMessage(content, sender);
 
   // LLM enhancement (optional — batched, async, fire-and-forget)
   if (state.llmEnhancer) {
@@ -216,7 +224,7 @@ export function registerCortexHooks(api: OpenClawPluginApi, config: CortexConfig
   };
   _globalDiagnostics = diagnostics;
 
-  const state: HookState = { workspace: null, threadTracker: null, decisionTracker: null, llmEnhancer: null, diagnostics };
+  const state: HookState = { workspace: null, threadTracker: null, decisionTracker: null, llmEnhancer: null, commitmentTracker: null, diagnostics };
 
   registerMessageHooks(api, config, state);
   registerSessionHooks(api, config, state);

@@ -16,6 +16,7 @@ export type OpenClawPluginApi = {
   config: Record<string, unknown>;
   registerService: (service: PluginService) => void;
   registerCommand: (command: PluginCommand) => void;
+  registerTool?: (tool: ToolDefinition, opts?: { optional?: boolean }) => void;
   on: (
     hookName: string,
     handler: (event: HookEvent, ctx: HookContext) => void,
@@ -301,3 +302,40 @@ export const PRIORITY_ORDER: Record<ThreadPriority, number> = {
   medium: 2,
   low: 3,
 };
+
+// ── Agent Tool Types ──────────────────────────────────────
+
+export type ToolDefinition = {
+  name: string;
+  description: string;
+  parameters: {
+    type: string;
+    properties: Record<string, unknown>;
+    required?: string[];
+  };
+  execute(toolCallId: string, params: Record<string, unknown>): Promise<ToolResult>;
+};
+
+export type ToolResult = {
+  content: Array<{ type: string; text: string }>;
+};
+
+export type CommitmentsData = {
+  version: number;
+  updated: string;
+  commitments: Commitment[];
+};
+
+export type Commitment = {
+  id: string;
+  what: string;
+  who: string;
+  status: "open" | "done" | "overdue";
+  created: string;
+  due?: string;
+  completed?: string;
+  source_message: string;
+};
+
+/** API type for tool registration functions — guaranteed to have registerTool. */
+export type ToolCapableApi = OpenClawPluginApi & { registerTool: NonNullable<OpenClawPluginApi["registerTool"]> };
