@@ -8,7 +8,10 @@ Your AI agent processes hundreds of messages a day. Names, companies, decisions,
 
 The Knowledge Engine fixes this. It extracts entities, facts, and relationships from every conversation in real-time — building a persistent, queryable knowledge base that grows with every message. Zero runtime dependencies. Works with or without an LLM.
 
-**v0.1.4** — 12 modules, zero runtime dependencies, TypeScript strict.
+[![npm](https://img.shields.io/npm/v/@vainplex/openclaw-knowledge-engine)](https://www.npmjs.com/package/@vainplex/openclaw-knowledge-engine)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+Zero runtime dependencies. TypeScript strict. 12 modules, each with a single responsibility.
 
 ---
 

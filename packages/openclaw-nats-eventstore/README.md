@@ -1,5 +1,8 @@
 # @vainplex/nats-eventstore
 
+[![npm](https://img.shields.io/npm/v/@vainplex/nats-eventstore)](https://www.npmjs.com/package/@vainplex/nats-eventstore)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 OpenClaw plugin that publishes every agent event to **NATS JetStream** — giving you a complete, replayable audit trail of what your agents actually did.
 
 Without this, agent actions vanish after the session ends. With it, you can trace any decision back to its source, replay conversations for debugging, correlate events across multiple agents, and feed structured data into external systems.

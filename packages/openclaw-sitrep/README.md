@@ -1,5 +1,8 @@
 # @vainplex/openclaw-sitrep
 
+[![npm](https://img.shields.io/npm/v/@vainplex/openclaw-sitrep)](https://www.npmjs.com/package/@vainplex/openclaw-sitrep)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
 **Situation Report Generator for OpenClaw** — aggregates system health, goals, timers, events, and agent activity into a unified `sitrep.json`.
 
 Part of the [Vainplex OpenClaw Suite](https://github.com/alberthild/vainplex-openclaw) — 7 plugins for memory, governance, and self-awareness.
