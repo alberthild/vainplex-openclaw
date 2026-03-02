@@ -81,32 +81,19 @@ cp -r node_modules/@vainplex/openclaw-knowledge-engine/{dist,package.json,opencl
 
 ### 3. Configure
 
-Add to your `openclaw.json`:
+Add to your `openclaw.json` — just enable the plugin:
 
 ```json
 {
   "plugins": {
     "entries": {
-      "openclaw-knowledge-engine": {
-        "enabled": true,
-        "config": {
-          "workspace": "/path/to/your/workspace",
-          "extraction": {
-            "regex": { "enabled": true },
-            "llm": {
-              "enabled": true,
-              "endpoint": "http://localhost:11434/api/generate",
-              "model": "mistral:7b",
-              "batchSize": 10,
-              "cooldownMs": 30000
-            }
-          }
-        }
-      }
+      "openclaw-knowledge-engine": { "enabled": true }
     }
   }
 }
 ```
+
+That's it. The plugin creates its own config file at `~/.openclaw/plugins/openclaw-knowledge-engine/config.json` on first run with sensible defaults. Edit that file to customize — syntax errors there won't crash your gateway.
 
 ### 4. Restart gateway
 
@@ -141,7 +128,11 @@ That's it. Every message now builds your knowledge base automatically.
 | `storage.maxFacts` | number | `10000` | Max facts before pruning |
 | `storage.writeDebounceMs` | number | `15000` | Debounce delay for disk writes |
 
-### Minimal config (regex only, no LLM)
+### Plugin Config File
+
+The plugin stores its config at `~/.openclaw/plugins/openclaw-knowledge-engine/config.json`. This is separate from `openclaw.json` by design — a syntax error here won't crash your gateway.
+
+To point to a custom location, set `configPath` in `openclaw.json`:
 
 ```json
 {
@@ -149,47 +140,48 @@ That's it. Every message now builds your knowledge base automatically.
     "entries": {
       "openclaw-knowledge-engine": {
         "enabled": true,
-        "config": {
-          "extraction": {
-            "llm": { "enabled": false }
-          }
-        }
+        "configPath": "/path/to/my/ke-config.json"
       }
     }
   }
 }
 ```
 
-This gives you zero-cost entity extraction with no external dependencies. No Ollama, no API keys, no GPU. Just install and go.
+### Minimal config (regex only, no LLM)
+
+In `~/.openclaw/plugins/openclaw-knowledge-engine/config.json`:
+
+```json
+{
+  "enabled": true,
+  "extraction": {
+    "llm": { "enabled": false }
+  }
+}
+```
+
+Zero-cost entity extraction. No Ollama, no API keys, no GPU. Just install and go.
 
 ### Full config (LLM + ChromaDB)
 
 ```json
 {
-  "plugins": {
-    "entries": {
-      "openclaw-knowledge-engine": {
-        "enabled": true,
-        "config": {
-          "workspace": "~/my-agent/knowledge",
-          "extraction": {
-            "llm": {
-              "enabled": true,
-              "endpoint": "http://localhost:11434/api/generate",
-              "model": "mistral:7b"
-            }
-          },
-          "embeddings": {
-            "enabled": true,
-            "endpoint": "http://localhost:8000/api/v1/collections/facts/add"
-          },
-          "decay": {
-            "intervalHours": 12,
-            "rate": 0.03
-          }
-        }
-      }
+  "enabled": true,
+  "workspace": "~/my-agent/knowledge",
+  "extraction": {
+    "llm": {
+      "enabled": true,
+      "endpoint": "http://localhost:11434/api/generate",
+      "model": "mistral:7b"
     }
+  },
+  "embeddings": {
+    "enabled": true,
+    "endpoint": "http://localhost:8000/api/v1/collections/facts/add"
+  },
+  "decay": {
+    "intervalHours": 12,
+    "rate": 0.03
   }
 }
 ```
