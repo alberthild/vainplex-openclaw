@@ -1,9 +1,29 @@
+> **📦 This plugin is part of the [Vainplex OpenClaw Suite](https://github.com/alberthild/vainplex-openclaw)** — a collection of production plugins that turn OpenClaw into a self-governing, learning system. See the monorepo for the full picture.
+
+---
+
 # @vainplex/openclaw-cortex
 
-> Conversation intelligence layer for [OpenClaw](https://github.com/openclaw/openclaw) — automated thread tracking, decision extraction, boot context generation, pre-compaction snapshots, and trace analysis.
+Your AI agent has a 200k token context window. Sounds like a lot — until compaction hits and everything before the last 20 messages disappears. Every thread you discussed, every decision you made, every commitment your agent agreed to. Gone.
+
+Cortex fixes this. It listens to every conversation, extracts the structure (threads, decisions, mood, blocking items), and generates a dense boot context that survives compaction. Your agent wakes up knowing what happened — not starting from zero.
 
 [![npm](https://img.shields.io/npm/v/@vainplex/openclaw-cortex)](https://www.npmjs.com/package/@vainplex/openclaw-cortex)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+---
+
+## The Problem
+
+OpenClaw agents lose context in three ways:
+
+1. **Compaction** — When the context window fills up, older messages get compressed or dropped. Decisions from yesterday? Gone.
+2. **Session boundaries** — New session, new agent. No memory of what was discussed 4 hours ago.
+3. **State drift** — After a few compaction cycles, the agent confidently acts on outdated information it can no longer verify.
+
+Memory plugins store raw conversation history. But raw history doesn't tell you *what was decided*, *which threads are still open*, or *what the agent was waiting for*. You need conversation intelligence.
+
+---
 
 ## What It Does
 
@@ -18,7 +38,7 @@
 
 Works **alongside** `memory-core` (OpenClaw's built-in memory) — doesn't replace it.
 
-### Regex + LLM Hybrid (v0.2.0)
+### Regex + LLM Hybrid
 
 By default, Cortex uses fast regex patterns (zero cost, instant). Optionally, you can plug in **any OpenAI-compatible LLM** for deeper analysis:
 
@@ -336,7 +356,7 @@ Restart OpenClaw after configuring.
         └── hot-snapshot.md         # Pre-compaction snapshot
 ```
 
-### Pattern Languages (v0.3.0)
+### Pattern Languages
 
 Thread and decision detection supports **10 languages** out of the box:
 
@@ -401,7 +421,7 @@ The LLM sees a conversation snippet (configurable batch size) and returns:
 - Hook errors → caught and logged, never crashes the gateway
 - LLM timeout/error → falls back to regex-only, no data loss
 
-## Trace Analyzer (v0.4.0)
+## Trace Analyzer
 
 The Trace Analyzer is a **3-stage pipeline** that processes NATS event streams to detect failure patterns in AI agent conversations. It reconstructs conversation chains, runs signal detection, classifies findings with an optional LLM triage step, applies PII redaction, and generates structured reports.
 
@@ -537,6 +557,17 @@ See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full design document in
 
 MIT — see [LICENSE](LICENSE)
 
+## Works Great With
+
+| Plugin | Why |
+|--------|-----|
+| [**@vainplex/openclaw-governance**](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-governance) | Governance controls what agents can do. Cortex ensures they remember what they did. Together: governed continuity. |
+| [**@vainplex/openclaw-knowledge-engine**](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-knowledge-engine) | Knowledge Engine extracts entities and facts. Cortex tracks threads and decisions. Together: structured understanding. |
+| [**@vainplex/openclaw-membrane**](https://github.com/alberthild/openclaw-membrane) | Membrane stores episodic memories. Cortex pre-compaction snapshots ensure the best moments get preserved. |
+| [**@vainplex/nats-eventstore**](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-nats-eventstore) | EventStore logs all events to NATS. Cortex Trace Analyzer reads them back for failure signal detection. |
+
+---
+
 ## Part of the Vainplex OpenClaw Suite
 
 | Plugin | Description |
@@ -545,7 +576,6 @@ MIT — see [LICENSE](LICENSE)
 | [@vainplex/openclaw-cortex](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-cortex) | Conversation intelligence — threads, decisions, boot context, trace analysis |
 | [@vainplex/openclaw-governance](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-governance) | Policy engine — trust scores, credential redaction, production safeguards |
 | [@vainplex/openclaw-knowledge-engine](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-knowledge-engine) | Entity and relationship extraction from conversations |
-| [@vainplex/openclaw-sitrep](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-sitrep) | Situation reports — health, goals, timers aggregated |
 | [@vainplex/openclaw-leuko](https://github.com/alberthild/openclaw-leuko) | Cognitive immune system — health checks, anomaly detection |
 | [@vainplex/openclaw-membrane](https://github.com/alberthild/openclaw-membrane) | Episodic memory bridge via gRPC |
 
