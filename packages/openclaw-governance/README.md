@@ -1,65 +1,49 @@
-> **📦 This plugin is part of the [Vainplex OpenClaw Suite](https://github.com/alberthild/vainplex-openclaw)** — a collection of production plugins that turn OpenClaw into a self-governing, learning system. See the monorepo for the full picture.
+> **📦 This plugin is part of the [Vainplex OpenClaw Suite](https://github.com/alberthild/vainplex-openclaw)** — production plugins that turn OpenClaw into a self-governing, learning system.
 
 ---
 
 # @vainplex/openclaw-governance
 
-In February 2026, UC Berkeley's Center for Long-Term Cybersecurity published a [67-page framework](https://ppc.land/uc-berkeley-unveils-framework-as-ai-agents-threaten-to-outrun-oversight/) for governing autonomous AI agents. The same month, [Microsoft's Cyber Pulse report](https://www.microsoft.com/en-us/security/blog/2026/02/10/80-of-fortune-500-use-active-ai-agents-observability-governance-and-security-shape-the-new-frontier/) revealed that 80% of Fortune 500 companies now run active AI agents — and 29% of employees use unsanctioned ones. Microsoft followed up with a [threat analysis specific to OpenClaw](https://www.microsoft.com/en-us/security/blog/2026/02/19/running-openclaw-safely-identity-isolation-runtime-risk/), outlining identity, isolation, and runtime risks for self-hosted agents.
-
-The gap is clear: agents are everywhere, governance is nowhere. The Berkeley framework defines what's needed. The existing tools — scanners, input/output filters, output validators — cover fragments. None of them do contextual, learning, runtime governance across agents.
-
-This plugin does. It implements 10 of Berkeley's 13 core requirements today, with the remaining 3 designed and scheduled.
+Runtime governance for autonomous AI agents. Not a scanner. Not an output filter. A decision layer that evaluates **which tool, which agent, what time, what trust level** — then decides, logs, and learns.
 
 [![npm](https://img.shields.io/npm/v/@vainplex/openclaw-governance)](https://www.npmjs.com/package/@vainplex/openclaw-governance)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Zero runtime dependencies. 810 tests. Production since February 2026.
+848 tests. Zero runtime dependencies. Production since February 2026.
+
+```bash
+npm install @vainplex/openclaw-governance
+```
 
 ---
 
-## Berkeley/Microsoft Compliance Mapping
+## Why This Exists
 
-UC Berkeley's Agentic AI Risk-Management Standards Profile and Microsoft's governance requirements define what responsible agent infrastructure looks like. Here's where this plugin stands:
+UC Berkeley's [67-page framework](https://ppc.land/uc-berkeley-unveils-framework-as-ai-agents-threaten-to-outrun-oversight/) defines what governing AI agents requires. [Microsoft's Cyber Pulse report](https://www.microsoft.com/en-us/security/blog/2026/02/10/80-of-fortune-500-use-active-ai-agents-observability-governance-and-security-shape-the-new-frontier/) revealed 80% of Fortune 500 run active AI agents. Their [OpenClaw-specific threat analysis](https://www.microsoft.com/en-us/security/blog/2026/02/19/running-openclaw-safely-identity-isolation-runtime-risk/) outlines identity, isolation, and runtime risks.
 
-| Requirement | Our Implementation | Status |
+The gap: agents are everywhere, governance is nowhere. Existing tools scan inputs or filter outputs. None of them do contextual, learning, runtime governance across agents.
+
+This plugin implements **10 of 13** Berkeley governance requirements:
+
+| Requirement | Implementation | Status |
 |---|---|---|
-| **Agent Registry** | Trust config with per-agent scores, all 9 agents registered | ✅ Implemented |
-| **Access Control / Least Privilege** | Per-agent tool blocking, trust tier-based permissions | ✅ Implemented |
-| **Real-time Monitoring** | Every tool call evaluated against policies before execution | ✅ Implemented |
-| **Activity Logging / Audit Trail** | Append-only JSONL, ISO 27001 / SOC 2 / NIS2 control mapping | ✅ Implemented |
-| **Emergency Controls** | Night Mode (time-based blocking), Rate Limiter (frequency cap) | ✅ Implemented |
-| **Cascading Agent Policies** | Cross-agent governance — parent policies propagate to sub-agents | ✅ Implemented |
-| **Autonomy Levels** | Trust tiers (0–100, five levels) — functionally equivalent to Berkeley's L0–L5 | ✅ Implemented |
-| **Credential Protection** | 3-layer redaction with SHA-256 vault, 17 built-in patterns, fail-closed | ✅ Implemented |
-| **Output Integrity** | Response Gate — enforce tool usage, content patterns, block non-compliant output | ✅ Implemented |
-| **Human-in-the-Loop** | Approval Manager — `/approve`, `/deny`, timeout, trust bypass | ✅ Implemented |
-| **Semantic Intent Analysis** | LLM-powered intent classification before tool execution | 📋 Planned |
-| **Multi-Agent Interaction Monitoring** | Agent-to-agent message governance | 📋 Planned |
-| **Tamper-evident Audit** | Hash-chain audit trail for compliance verification | 📋 Planned |
-
-10 implemented. 3 planned. Production since 2026-02-18.
+| Agent Registry | Trust config with per-agent scores | ✅ |
+| Access Control / Least Privilege | Per-agent tool blocking, trust tier permissions | ✅ |
+| Real-time Monitoring | Every tool call evaluated before execution | ✅ |
+| Activity Logging / Audit Trail | Append-only JSONL, ISO 27001 / SOC 2 / NIS2 mapping | ✅ |
+| Emergency Controls | Night Mode, Rate Limiter | ✅ |
+| Cascading Agent Policies | Parent policies propagate to sub-agents | ✅ |
+| Autonomy Levels | Trust tiers 0–100, five levels (≈ Berkeley L0–L5) | ✅ |
+| Credential Protection | 3-layer redaction, SHA-256 vault, 17 built-in patterns | ✅ |
+| Output Integrity | Response Gate — enforce tool usage + content patterns | ✅ |
+| Human-in-the-Loop | Approval Manager — `/approve`, `/deny`, timeout, trust bypass | ✅ |
+| Semantic Intent Analysis | LLM-powered intent classification | 📋 Planned |
+| Multi-Agent Interaction Monitoring | Agent-to-agent message governance | 📋 Planned |
+| Tamper-evident Audit | Hash-chain audit trail | 📋 Planned |
 
 ---
 
-## They Scan. We Govern.
-
-Most tools in this space solve a piece of the problem. None of them solve the whole thing.
-
-| Tool | What It Does | What's Missing |
-|---|---|---|
-| **Invariant Labs → Snyk** | Runtime guardrails, MCP scanning, trace analysis | Acquired by Snyk — enterprise-only. No trust scores. No cross-agent governance. No compliance audit trail. |
-| **NVIDIA NeMo Guardrails** | Input/output filtering, topical control | Filters messages, not tool calls. No agent context. No trust awareness. No multi-agent policies. |
-| **GuardrailsAI** | Output validation, schema enforcement | Validates what comes out. No idea who called what, when, or whether they should have. Python-only. |
-| **SecureClaw** | 56 audit checks, 5 hardening modules, OWASP-aligned | Scanner, not runtime. Tells you what's wrong — doesn't prevent it. No policies, no trust. |
-| **OpenClaw built-in** | Tool allowlists, realpath containment, plugin sandboxing | Static config. No trust scoring. No time-awareness. No learning. No compliance mapping. |
-
-The difference: those tools operate on inputs and outputs. This plugin operates on **decisions** — which tool, which agent, what time, what trust level, what frequency, what context. Then it decides, logs, and learns.
-
-As [Peter Steinberger noted](https://x.com/steipete/status/2026092642623201379), this is what a trust model for AI agents should look like.
-
----
-
-## What It Does
+## How It Works
 
 ```
 Agent calls exec("git push origin main")
@@ -69,346 +53,25 @@ Agent calls exec("git push origin main")
   → Agent gets a clear rejection reason
 ```
 
-### Core Features
+---
 
-- **Contextual Policies** — Not just "which tool" but "which tool, when, by whom, at what risk level"
-- **Learning Trust** — Score 0–100, five tiers, decay on inactivity. Sub-agents can never exceed parent's trust.
-- **Cross-Agent Governance** — Parent policies cascade to sub-agents. Deny on main = deny on forge.
-- **Compliance Audit Trail** — Append-only JSONL with ISO 27001/SOC 2/NIS2 control mapping.
+## Features
 
-### v0.6: Session Trust (RFC-008)
+### Contextual Policies
 
-Trust is not a config value. It's earned per conversation.
+Not just "which tool" but "which tool, when, by whom, at what risk level." Conditions are AND-combined; use `any` for OR logic.
 
-- **Two-Tier Trust Model** — Persistent *agent trust* (configured baseline) + ephemeral *session trust* (earned in real-time). A fresh session starts at 70% of agent trust and climbs with successful tool calls.
-- **Session Signals** — Success (+1), policy block (−2), credential violation (−10). Clean streak bonus after 10 consecutive good calls.
-- **Ceiling & Floor** — Sessions can earn up to 120% of agent trust, but can always drop to zero.
-- **Adaptive Display** — `[Governance] Agent: main (60/trusted) | Session: 42/standard | Policies: 4`
+| Condition Type | What It Checks |
+|---|---|
+| `tool` | Tool name, parameters (exact, glob, regex) |
+| `time` | Hour, day-of-week, named time windows |
+| `agent` | Agent ID, trust tier, score range |
+| `context` | Conversation, message content, channel |
+| `risk` | Computed risk level |
+| `frequency` | Actions per time window |
+| `any` / `not` | OR logic, negation |
 
-No existing governance tool implements session-level trust. Static per-agent allowlists don't capture that the same agent performs differently across sessions.
-
-### v0.8: Approval Manager (Human-in-the-Loop)
-
-AI agents shouldn't run `npm publish` or `git push origin main` without asking. The Approval Manager pauses agent execution for high-risk tool calls and waits for a human decision.
-
-```
-Agent calls exec("npm publish")
-  → Governance: policy match → action: "approve"
-  → Agent paused ⏸️
-  → Human receives: "⚠️ Approval Required [a1b2c3] — forge wants to exec"
-  → Human types: /approve a1b2c3
-  → Agent resumes ▶️
-```
-
-**Configuration:**
-
-```json
-{
-  "approvalManager": {
-    "enabled": true,
-    "defaultTimeoutSeconds": 300,
-    "defaultAction": "deny",
-    "approvers": ["@albert:vainplex.dev"]
-  },
-  "policies": [
-    {
-      "id": "approve-publish",
-      "name": "Require approval for publishing",
-      "version": "1.0.0",
-      "scope": {},
-      "rules": [
-        {
-          "id": "r-approve-publish",
-          "conditions": [{ "type": "tool", "name": "exec" }],
-          "effect": {
-            "action": "approve",
-            "reason": "Publishing requires human approval",
-            "timeoutSeconds": 300,
-            "defaultAction": "deny",
-            "minTrust": 90
-          }
-        }
-      ]
-    }
-  ]
-}
-```
-
-**Key features:**
-- New policy effect `approve` — alongside allow/deny
-- Async Promise-based: agent waits, nothing else blocks
-- Configurable timeout with auto-deny (or auto-allow)
-- Trust bypass: agents above `minTrust` skip approval automatically
-- Self-approval prevention: agents cannot approve their own requests
-- Approver allowlist: only authorized users can `/approve`
-- `/approve [id]` — approve or list all pending approvals
-- `/deny <id> [reason]` — deny with optional reason
-- Notification failure safety: auto-deny if notification delivery fails and `defaultAction` is `allow`
-
-### v0.7: Response Gate
-
-Output validation catches hallucinations. Response Gate enforces **structural requirements** — did the agent actually do the work before answering?
-
-```
-User: "What's the weather in Berlin?"
-Agent responds without calling weather tool
-  → Response Gate: requiredTools check failed — "weather" not called
-  → Message blocked, fallback sent: "I need to check the weather first."
-```
-
-**Three validator types:**
-
-| Validator | What It Enforces |
-|-----------|-----------------|
-| `requiredTools` | Specific tools must have been called before responding |
-| `mustMatch` | Response must match regex pattern(s) |
-| `mustNotMatch` | Response must NOT match regex pattern(s) |
-
-**Configuration:**
-
-```json
-{
-  "responseGate": {
-    "enabled": true,
-    "rules": [
-      {
-        "agentId": "research-agent",
-        "validators": [
-          {
-            "type": "requiredTools",
-            "tools": ["web_search", "web_fetch"],
-            "message": "Research agent must search before answering."
-          }
-        ]
-      },
-      {
-        "validators": [
-          {
-            "type": "mustNotMatch",
-            "pattern": "(?i)as an ai|i cannot|i'm sorry",
-            "message": "No generic AI refusals — give a real answer or escalate."
-          }
-        ]
-      }
-    ],
-    "fallbackMessage": "⚠️ Response blocked by governance. Reason: {reasons}"
-  }
-}
-```
-
-**Key design decisions:**
-- Runs in `before_message_write` — synchronous, zero latency overhead
-- Tracks tool calls per session via `after_tool_call` — no config needed
-- Fail-closed on invalid regex patterns (blocks, doesn't silently pass)
-- Preserves ContentBlock arrays — compatible with all message transforms
-- Fallback messages replace blocked content instead of silent drops (v0.7.1)
-
-No other governance tool validates that an agent actually used its tools before responding. Output validators check *what* the agent said. Response Gate checks *whether the agent did the work*.
-
-### v0.5 Features
-
-- **Output Validation (RFC-006)** — Detects unverified numeric claims, contradictions, and hallucinated system states. Configurable LLM gate for external communications.
-- **Redaction Layer (RFC-007)** — 3-layer defense-in-depth for credentials, PII, and financial data. SHA-256 vault, fail-closed mode, 17 built-in patterns.
-- **Fact Registry** — Register known facts (from live systems or static files). Claims are checked against facts with fuzzy numeric matching.
-
-## Quick Start
-
-### Install
-
-```bash
-npm install @vainplex/openclaw-governance
-```
-
-### Minimal Config (`openclaw.json`)
-
-```json
-{
-  "plugins": {
-    "entries": {
-      "openclaw-governance": { "enabled": true }
-    }
-  }
-}
-```
-
-### External Config (`~/.openclaw/plugins/openclaw-governance/config.json`)
-
-```json
-{
-  "enabled": true,
-  "timezone": "Europe/Berlin",
-  "failMode": "open",
-  "trust": {
-    "defaults": {
-      "main": 60,
-      "forge": 45,
-      "*": 10
-    }
-  },
-  "builtinPolicies": {
-    "nightMode": { "start": "23:00", "end": "06:00" },
-    "credentialGuard": true,
-    "productionSafeguard": true,
-    "rateLimiter": { "maxPerMinute": 15 }
-  },
-  "outputValidation": {
-    "enabled": true,
-    "unverifiedClaimPolicy": "flag"
-  },
-  "redaction": {
-    "enabled": true,
-    "categories": ["credential", "pii", "financial"],
-    "failMode": "closed"
-  }
-}
-```
-
-## Redaction Layer (RFC-007)
-
-3-layer defense-in-depth against credential, PII, and financial data leakage.
-
-### What It Protects
-
-| Layer | Hook | When | Can Modify? |
-|-------|------|------|-------------|
-| **Layer 1** | `tool_result_persist` | Before tool output is written to transcript | ✅ Yes (sync) |
-| **Layer 2** | `message_sending` | Before outbound messages to channels | ✅ Yes (modifying) |
-| **Layer 2b** | `before_message_write` | Before message persistence | ✅ Yes (sync) |
-
-### 17 Built-in Patterns
-
-| Category | Patterns |
-|----------|----------|
-| **Credential** | OpenAI API key, Anthropic key, Google API key, GitHub PAT/server token, GitLab PAT, Private key headers, Bearer tokens, Key-value credentials, AWS access key, Generic API key (`sk-*`), Basic Auth |
-| **PII** | Email addresses, Phone numbers (international) |
-| **Financial** | Credit card numbers (Luhn-valid), IBAN, US SSN |
-
-### How It Works
-
-```
-Tool returns: "Found key sk_test_51Ss4R2..."
-  → Layer 1: Pattern match → Replace with [REDACTED:api_key:a3f2]
-  → SHA-256 hash stored in vault (1h TTL)
-  → Transcript gets redacted version
-  → If agent needs the real value later: vault resolves placeholder in before_tool_call
-```
-
-### Configuration
-
-```json
-{
-  "redaction": {
-    "enabled": true,
-    "categories": ["credential", "pii", "financial"],
-    "vaultExpirySeconds": 3600,
-    "failMode": "closed",
-    "customPatterns": [
-      {
-        "name": "internal-token",
-        "regex": "MYAPP_[A-Z0-9]{32}",
-        "category": "credential"
-      }
-    ],
-    "allowlist": {
-      "piiAllowedChannels": [],
-      "financialAllowedChannels": [],
-      "exemptTools": ["web_search"],
-      "exemptAgents": []
-    },
-    "performanceBudgetMs": 5
-  }
-}
-```
-
-### Security Invariants
-
-- **Credentials can NEVER be allowlisted** — even exempt tools get credential-only scanning
-- **fail-closed** — on redaction errors, output is suppressed entirely
-- **SHA-256 vault** — no plaintext storage, hash collision handling, TTL-based expiry
-- **No secrets in logs** — audit entries log categories and counts, never values
-
-### Known Limitations
-
-> **Be honest about what this does and doesn't protect.**
-
-| ✅ Protected | ❌ Not Protected |
-|-------------|-----------------|
-| Tool outputs written to transcript | Live-streamed tool output (before persist) |
-| Outbound messages to channels | Inbound user messages |
-| Audit log entries | LLM context window (keys sent by user) |
-| Persisted conversation history | Third-party tool-internal logging |
-
-**Why?** OpenClaw streams tool output to the LLM in real-time for responsiveness. The `tool_result_persist` hook fires after streaming but before writing to the transcript. This means:
-
-1. If a tool returns a secret, the LLM **sees it during the current turn** (streaming)
-2. But the **transcript** and **audit logs** get the redacted version
-3. The LLM's response goes through Layer 2 (`message_sending`) — so secrets won't appear in outbound messages
-
-**For maximum protection:** Don't store secrets in files that agents can `cat`. Use a vault (Vaultwarden, 1Password CLI) and let agents fetch secrets via dedicated tools that you exempt from redaction.
-
-## Output Validation (RFC-006)
-
-Detects and flags potentially hallucinated or unverified claims in agent output.
-
-### Detectors
-
-| Detector | What It Catches |
-|----------|----------------|
-| `system_state` | "The server is running" without live verification |
-| `entity_name` | Incorrect names for known entities |
-| `existence` | "Feature X exists" claims without evidence |
-| `operational_status` | "Service Y is healthy" without live check |
-
-### Fact Registry
-
-Register known facts for claim verification:
-
-```json
-{
-  "outputValidation": {
-    "enabled": true,
-    "factRegistries": [{
-      "id": "system-live",
-      "facts": [
-        { "subject": "governance-tests", "predicate": "count", "value": "771", "source": "vitest" },
-        { "subject": "nats-events", "predicate": "count", "value": "255908", "source": "nats stream ls" }
-      ]
-    }],
-    "unverifiedClaimPolicy": "flag"
-  }
-}
-```
-
-### Policies
-
-| Policy | Effect |
-|--------|--------|
-| `ignore` | No action on unverified claims |
-| `flag` | Add `[UNVERIFIED]` annotation |
-| `warn` | Log warning |
-| `block` | Block the message entirely |
-
-### LLM Gate (Optional)
-
-For external communications (email, message tool, sessions_send), an optional LLM validator can verify claims against the fact registry before sending:
-
-```json
-{
-  "outputValidation": {
-    "llmValidator": {
-      "enabled": true,
-      "model": "gemini/gemini-3-flash-preview",
-      "failMode": "open",
-      "maxRetries": 2,
-      "cacheSeconds": 300
-    }
-  }
-}
-```
-
-## Policy Examples
-
-### "No dangerous commands at night"
+**Example: No dangerous commands at night**
 
 ```json
 {
@@ -424,64 +87,204 @@ For external communications (email, message tool, sessions_send), an optional LL
 }
 ```
 
-### "Only trusted agents can spawn sub-agents"
+### Trust System
 
-```json
-{
-  "id": "spawn-control",
-  "rules": [{
-    "id": "require-trust",
-    "conditions": [
-      { "type": "tool", "name": "sessions_spawn" },
-      { "type": "agent", "maxScore": 39 }
-    ],
-    "effect": { "action": "deny", "reason": "Agents below score 40 cannot spawn sub-agents" }
-  }]
-}
-```
-
-## Condition Types
-
-| Type | What it checks |
-|------|---------------|
-| `tool` | Tool name, parameters (exact, glob, regex) |
-| `time` | Hour, day-of-week, named windows |
-| `agent` | Agent ID, trust tier, score range |
-| `context` | Conversation, message content, channel |
-| `risk` | Computed risk level |
-| `frequency` | Actions per time window |
-| `any` | OR — at least one sub-condition |
-| `not` | Negation |
-
-All conditions in a rule are AND-combined. Use `any` for OR logic.
-
-## Trust System
+Trust is earned, not configured. Two tiers: persistent **agent trust** + ephemeral **session trust**.
 
 | Tier | Score | Capability |
-|------|-------|------------|
+|---|---|---|
 | `untrusted` | 0–19 | Read-only, no external actions |
 | `restricted` | 20–39 | Basic operations, no production |
 | `standard` | 40–59 | Normal operation |
 | `trusted` | 60–79 | Extended permissions, can spawn agents |
 | `privileged` | 80–100 | Full autonomy |
 
-Trust modifiers: +0.1/success, -2/violation, +0.5/day age, +0.3/day clean streak. Decay: ×0.95 after 30 days inactive. Sub-agents inherit parent's trust ceiling.
+- **Session Trust** — Fresh sessions start at 70% of agent trust, climb with successful tool calls
+- **Signals** — Success (+1), policy block (−2), credential violation (−10)
+- **Clean streak bonus** after 10 consecutive good calls
+- **Sub-agent ceiling** — sub-agents can never exceed parent's trust score
+- **Decay** — ×0.95 after 30 days inactive
 
-## Built-in Policies
+### Human-in-the-Loop (Approval Manager)
 
-| Policy | What it does |
-|--------|-------------|
-| `nightMode` | Blocks risky tools during off-hours |
+Pauses agent execution for high-risk tool calls. Waits for a human to `/approve` or `/deny`.
+
+```
+Agent calls exec("npm publish")
+  → Policy match → action: "approve"
+  → Agent paused ⏸️
+  → Notification: "⚠️ Approval Required [a1b2c3] — forge wants to exec"
+  → Human: /approve a1b2c3
+  → Agent resumes ▶️
+```
+
+- New policy effect `approve` — alongside allow/deny
+- Async Promise-based: agent waits, nothing else blocks
+- Configurable timeout with auto-deny (or auto-allow)
+- **Trust bypass** — agents above `minTrust` skip approval
+- **Self-approval prevention** — agents cannot approve their own requests
+- **Approver allowlist** — only authorized users can `/approve`
+- **Notification failure safety** — auto-deny if delivery fails and `defaultAction` is `allow`
+
+```json
+{
+  "approvalManager": {
+    "enabled": true,
+    "defaultTimeoutSeconds": 300,
+    "defaultAction": "deny",
+    "approvers": ["@albert:vainplex.dev"]
+  }
+}
+```
+
+### Response Gate
+
+Enforces **structural requirements** — did the agent actually do the work before answering?
+
+```
+User: "What's the weather in Berlin?"
+Agent responds without calling weather tool
+  → Response Gate: requiredTools check failed
+  → Message blocked, fallback: "I need to check the weather first."
+```
+
+| Validator | What It Enforces |
+|---|---|
+| `requiredTools` | Specific tools must have been called before responding |
+| `mustMatch` | Response must match regex pattern(s) |
+| `mustNotMatch` | Response must NOT match regex pattern(s) |
+
+- Runs in `before_message_write` — synchronous, zero latency
+- Tracks tool calls per session automatically
+- Fail-closed on invalid regex
+- Fallback messages replace blocked content (not silent drops)
+
+```json
+{
+  "responseGate": {
+    "enabled": true,
+    "rules": [
+      {
+        "agentId": "research-agent",
+        "validators": [
+          { "type": "requiredTools", "tools": ["web_search"], "message": "Must search first." }
+        ]
+      }
+    ],
+    "fallbackMessage": "⚠️ Response blocked. Reason: {reasons}"
+  }
+}
+```
+
+### Credential Redaction
+
+3-layer defense-in-depth against credential, PII, and financial data leakage.
+
+| Layer | Hook | When |
+|---|---|---|
+| Layer 1 | `tool_result_persist` | Before tool output is written to transcript |
+| Layer 2 | `message_sending` | Before outbound messages to channels |
+| Layer 2b | `before_message_write` | Before message persistence |
+
+**17 built-in patterns:** OpenAI/Anthropic/Google/GitHub/GitLab API keys, AWS access keys, private key headers, Bearer tokens, Basic Auth, email addresses, phone numbers, credit cards (Luhn-valid), IBAN, US SSN.
+
+- SHA-256 vault with 1h TTL — no plaintext storage
+- Credentials can **never** be allowlisted
+- Fail-closed — on redaction errors, output is suppressed
+- Custom patterns supported
+- Performance budget: <5ms
+
+```json
+{
+  "redaction": {
+    "enabled": true,
+    "categories": ["credential", "pii", "financial"],
+    "failMode": "closed"
+  }
+}
+```
+
+### Output Validation
+
+Detects unverified claims, contradictions, and hallucinated system states.
+
+| Detector | What It Catches |
+|---|---|
+| `system_state` | "The server is running" without live verification |
+| `entity_name` | Incorrect names for known entities |
+| `existence` | "Feature X exists" claims without evidence |
+| `operational_status` | "Service Y is healthy" without live check |
+
+**Fact Registry** — register known facts, claims checked with fuzzy numeric matching.
+**LLM Gate** — optional LLM validator for external communications.
+**Policies:** `ignore`, `flag` (add [UNVERIFIED]), `warn`, `block`.
+
+### Built-in Policies
+
+| Policy | What It Does |
+|---|---|
+| `nightMode` | Blocks risky tools during configured off-hours |
 | `credentialGuard` | Blocks access to secrets, `.env`, passwords |
 | `productionSafeguard` | Blocks `systemctl`, `docker rm`, destructive ops |
 | `rateLimiter` | Throttles tool calls per minute |
 
-## Audit Trail
+### Compliance Audit Trail
 
-Every decision → `~/.openclaw/plugins/openclaw-governance/governance/audit/YYYY-MM-DD.jsonl`:
+Every decision → `~/.openclaw/plugins/openclaw-governance/governance/audit/YYYY-MM-DD.jsonl`
+
 - One file per day, auto-cleaned after `retentionDays`
 - Sensitive data redacted before write
-- Each record maps to compliance controls (ISO 27001, SOC 2, NIS2)
+- Each record maps to ISO 27001 / SOC 2 / NIS2 controls
+- Append-only — no edits, no deletes
+
+---
+
+## They Scan. We Govern.
+
+| Tool | What It Does | What's Missing |
+|---|---|---|
+| **Invariant Labs → Snyk** | Runtime guardrails, MCP scanning | Enterprise-only. No trust scores. No cross-agent governance. |
+| **NVIDIA NeMo Guardrails** | Input/output filtering | Filters messages, not tool calls. No agent context. No trust. |
+| **GuardrailsAI** | Output validation, schema enforcement | Validates output. No idea who called what. Python-only. |
+| **SecureClaw** | 56 audit checks, OWASP-aligned | Scanner, not runtime. Tells you what's wrong, doesn't prevent it. |
+| **OpenClaw built-in** | Tool allowlists, realpath containment | Static config. No trust. No time-awareness. No learning. |
+
+The difference: those tools operate on inputs and outputs. This plugin operates on **decisions**.
+
+---
+
+## Quick Start
+
+```json
+// openclaw.json
+{
+  "plugins": {
+    "entries": {
+      "openclaw-governance": { "enabled": true }
+    }
+  }
+}
+```
+
+```json
+// ~/.openclaw/plugins/openclaw-governance/config.json
+{
+  "enabled": true,
+  "timezone": "Europe/Berlin",
+  "failMode": "open",
+  "trust": {
+    "defaults": { "main": 60, "forge": 45, "*": 10 }
+  },
+  "builtinPolicies": {
+    "nightMode": { "start": "23:00", "end": "06:00" },
+    "credentialGuard": true,
+    "productionSafeguard": true,
+    "rateLimiter": { "maxPerMinute": 15 }
+  }
+}
+```
+
+---
 
 ## Performance
 
@@ -495,20 +298,21 @@ Every decision → `~/.openclaw/plugins/openclaw-governance/governance/audit/YYY
 - Node.js ≥ 22.0.0
 - OpenClaw gateway
 
+---
+
 ## Part of the Vainplex OpenClaw Suite
 
 | Plugin | Description |
-|--------|-------------|
-| [@vainplex/nats-eventstore](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-nats-eventstore) | NATS JetStream event persistence + audit trail |
-| [@vainplex/openclaw-cortex](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-cortex) | Conversation intelligence — threads, decisions, boot context, trace analysis |
-| [@vainplex/openclaw-governance](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-governance) | Policy engine — trust scores, credential redaction, production safeguards |
-| [@vainplex/openclaw-knowledge-engine](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-knowledge-engine) | Entity and relationship extraction from conversations |
-| [@vainplex/openclaw-sitrep](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-sitrep) | Situation reports — health, goals, timers aggregated |
-| [@vainplex/openclaw-leuko](https://github.com/alberthild/openclaw-leuko) | Cognitive immune system — health checks, anomaly detection |
+|---|---|
+| **[@vainplex/openclaw-governance](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-governance)** | Policy engine — trust, redaction, approval, response gate |
+| [@vainplex/openclaw-cortex](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-cortex) | Conversation intelligence — threads, decisions, trace analysis |
 | [@vainplex/openclaw-membrane](https://github.com/alberthild/openclaw-membrane) | Episodic memory bridge via gRPC |
+| [@vainplex/openclaw-leuko](https://github.com/alberthild/openclaw-leuko) | Cognitive immune system — health checks, anomaly detection |
+| [@vainplex/openclaw-knowledge-engine](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-knowledge-engine) | Entity and relationship extraction |
+| [@vainplex/nats-eventstore](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-nats-eventstore) | NATS JetStream event persistence |
+| [@vainplex/openclaw-sitrep](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-sitrep) | Situation reports — health, goals, timers |
 
-Full suite: [alberthild/vainplex-openclaw](https://github.com/alberthild/vainplex-openclaw)
-
+Full suite: **[alberthild/vainplex-openclaw](https://github.com/alberthild/vainplex-openclaw)**
 
 ## License
 
