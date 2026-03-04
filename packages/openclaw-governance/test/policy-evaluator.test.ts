@@ -363,4 +363,99 @@ describe("PolicyEvaluator", () => {
     const result = pe.evaluate(makeCtx(), [policy], risk);
     expect(result.matches[0]?.controls).toEqual(["SOC2-CC6.1", "SOC2-CC7.2"]);
   });
+
+  // ── Approval Manager Integration (v0.8.0) ──
+
+  it("should return approve when an approve rule matches", () => {
+    const pe = new PolicyEvaluator(evaluators);
+    const policy: Policy = {
+      id: "approval-required",
+      name: "Require approval for exec",
+      version: "1.0.0",
+      scope: {},
+      rules: [
+        {
+          id: "r-approve-exec",
+          conditions: [{ type: "tool", name: "exec" }],
+          effect: {
+            action: "approve",
+            reason: "Production deployment requires approval",
+            timeoutSeconds: 600,
+            defaultAction: "deny",
+          },
+        },
+      ],
+    };
+    const result = pe.evaluate(makeCtx(), [policy], risk);
+    expect(result.action).toBe("approve");
+    expect(result.reason).toBe("Production deployment requires approval");
+    expect(result.matches).toHaveLength(1);
+    expect(result.matches[0]!.effect.action).toBe("approve");
+  });
+
+  it("should deny-wins over approve", () => {
+    const pe = new PolicyEvaluator(evaluators);
+    const denyPolicy: Policy = {
+      id: "deny-exec",
+      name: "Deny exec",
+      version: "1.0.0",
+      scope: {},
+      rules: [
+        {
+          id: "r-deny",
+          conditions: [{ type: "tool", name: "exec" }],
+          effect: { action: "deny", reason: "Denied" },
+        },
+      ],
+    };
+    const approvePolicy: Policy = {
+      id: "approve-exec",
+      name: "Approve exec",
+      version: "1.0.0",
+      scope: {},
+      rules: [
+        {
+          id: "r-approve",
+          conditions: [{ type: "tool", name: "exec" }],
+          effect: { action: "approve", reason: "Needs approval" },
+        },
+      ],
+    };
+    const result = pe.evaluate(makeCtx(), [denyPolicy, approvePolicy], risk);
+    expect(result.action).toBe("deny");
+    expect(result.reason).toBe("Denied");
+  });
+
+  it("should approve-wins over allow", () => {
+    const pe = new PolicyEvaluator(evaluators);
+    const allowPolicy: Policy = {
+      id: "allow-exec",
+      name: "Allow exec",
+      version: "1.0.0",
+      scope: {},
+      rules: [
+        {
+          id: "r-allow",
+          conditions: [{ type: "tool", name: "exec" }],
+          effect: { action: "allow" },
+        },
+      ],
+    };
+    const approvePolicy: Policy = {
+      id: "approve-exec",
+      name: "Approve exec",
+      version: "1.0.0",
+      scope: {},
+      rules: [
+        {
+          id: "r-approve",
+          conditions: [{ type: "tool", name: "exec" }],
+          effect: { action: "approve", reason: "Needs approval" },
+        },
+      ],
+    };
+    const result = pe.evaluate(makeCtx(), [allowPolicy, approvePolicy], risk);
+    expect(result.action).toBe("approve");
+    expect(result.reason).toBe("Needs approval");
+  });
 });

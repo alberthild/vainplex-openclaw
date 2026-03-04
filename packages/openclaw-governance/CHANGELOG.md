@@ -1,8 +1,17 @@
 # Changelog
 
+## 0.8.2 (2026-03-04) — Cerberus Review Fixes (Complete)
+- fix: **Self-approval prevention** — agents cannot approve their own pending requests
+- fix: **Approver allowlist enforced** — `config.approvers` is now checked on every `/approve` call
+- fix: **Notification failure safety** — auto-deny when notification fails and `defaultAction: "allow"`
+- fix: **Bounded pending queue** — `MAX_PENDING = 100` prevents unbounded Map growth
+- fix: Async notifier support — handles Promise-returning notifiers
+- feat: `/approve` returns structured error messages (self-approval blocked, unauthorized approver)
+- tests: 834 total — added PolicyEvaluator integration tests for approve effect priority (deny>approve>allow)
+
 ## 0.8.1 (2026-03-04) — Cerberus Review Fixes
-- **fix: Self-approval prevention** — agents cannot approve their own pending requests
-- **fix: Approver allowlist enforced** — `config.approvers` is now checked on every `/approve` call
+- fix: Self-approval prevention — agents cannot approve their own pending requests
+- fix: Approver allowlist enforced — `config.approvers` is now checked on every `/approve` call
 - **fix: Notification failure safety** — if notification delivery fails and `defaultAction: "allow"`, auto-deny immediately instead of silent auto-allow
 - fix: Async notifier support — `ApprovalNotifier` now accepts `Promise<void>` return
 - fix: Bounded pending queue — max 100 concurrent approvals, auto-deny on overflow
