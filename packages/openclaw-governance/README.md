@@ -8,7 +8,7 @@ In February 2026, UC Berkeley's Center for Long-Term Cybersecurity published a [
 
 The gap is clear: agents are everywhere, governance is nowhere. The Berkeley framework defines what's needed. The existing tools — scanners, input/output filters, output validators — cover fragments. None of them do contextual, learning, runtime governance across agents.
 
-This plugin does. It implements 8 of Berkeley's 12 core requirements today, with the remaining 4 designed and scheduled.
+This plugin does. It implements 10 of Berkeley's 13 core requirements today, with the remaining 3 designed and scheduled.
 
 [![npm](https://img.shields.io/npm/v/@vainplex/openclaw-governance)](https://www.npmjs.com/package/@vainplex/openclaw-governance)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
@@ -32,12 +32,12 @@ UC Berkeley's Agentic AI Risk-Management Standards Profile and Microsoft's gover
 | **Autonomy Levels** | Trust tiers (0–100, five levels) — functionally equivalent to Berkeley's L0–L5 | ✅ Implemented |
 | **Credential Protection** | 3-layer redaction with SHA-256 vault, 17 built-in patterns, fail-closed | ✅ Implemented |
 | **Output Integrity** | Response Gate — enforce tool usage, content patterns, block non-compliant output | ✅ Implemented |
-| **Human-in-the-Loop** | Approval Manager for high-risk operations | 📋 Planned |
+| **Human-in-the-Loop** | Approval Manager — `/approve`, `/deny`, timeout, trust bypass | ✅ Implemented |
 | **Semantic Intent Analysis** | LLM-powered intent classification before tool execution | 📋 Planned |
 | **Multi-Agent Interaction Monitoring** | Agent-to-agent message governance | 📋 Planned |
 | **Tamper-evident Audit** | Hash-chain audit trail for compliance verification | 📋 Planned |
 
-9 implemented. 4 planned. Production since 2026-02-18.
+10 implemented. 3 planned. Production since 2026-02-18.
 
 ---
 
@@ -86,6 +86,64 @@ Trust is not a config value. It's earned per conversation.
 - **Adaptive Display** — `[Governance] Agent: main (60/trusted) | Session: 42/standard | Policies: 4`
 
 No existing governance tool implements session-level trust. Static per-agent allowlists don't capture that the same agent performs differently across sessions.
+
+### v0.8: Approval Manager (Human-in-the-Loop)
+
+AI agents shouldn't run `npm publish` or `git push origin main` without asking. The Approval Manager pauses agent execution for high-risk tool calls and waits for a human decision.
+
+```
+Agent calls exec("npm publish")
+  → Governance: policy match → action: "approve"
+  → Agent paused ⏸️
+  → Human receives: "⚠️ Approval Required [a1b2c3] — forge wants to exec"
+  → Human types: /approve a1b2c3
+  → Agent resumes ▶️
+```
+
+**Configuration:**
+
+```json
+{
+  "approvalManager": {
+    "enabled": true,
+    "defaultTimeoutSeconds": 300,
+    "defaultAction": "deny",
+    "approvers": ["@albert:vainplex.dev"]
+  },
+  "policies": [
+    {
+      "id": "approve-publish",
+      "name": "Require approval for publishing",
+      "version": "1.0.0",
+      "scope": {},
+      "rules": [
+        {
+          "id": "r-approve-publish",
+          "conditions": [{ "type": "tool", "name": "exec" }],
+          "effect": {
+            "action": "approve",
+            "reason": "Publishing requires human approval",
+            "timeoutSeconds": 300,
+            "defaultAction": "deny",
+            "minTrust": 90
+          }
+        }
+      ]
+    }
+  ]
+}
+```
+
+**Key features:**
+- New policy effect `approve` — alongside allow/deny
+- Async Promise-based: agent waits, nothing else blocks
+- Configurable timeout with auto-deny (or auto-allow)
+- Trust bypass: agents above `minTrust` skip approval automatically
+- Self-approval prevention: agents cannot approve their own requests
+- Approver allowlist: only authorized users can `/approve`
+- `/approve [id]` — approve or list all pending approvals
+- `/deny <id> [reason]` — deny with optional reason
+- Notification failure safety: auto-deny if notification delivery fails and `defaultAction` is `allow`
 
 ### v0.7: Response Gate
 
