@@ -412,6 +412,68 @@ describe("ApprovalManager", () => {
     });
   });
 
+  describe("async notification failure", () => {
+    it("should auto-deny when async notifier rejects and defaultAction is allow", async () => {
+      vi.useRealTimers(); // Need real microtask scheduling for async test
+      const asyncFailingNotifier = vi.fn(() => Promise.reject(new Error("async fail")));
+      const managerAsyncFail = new ApprovalManager(
+        defaultConfig({ defaultAction: "allow" }),
+        logger,
+        asyncFailingNotifier,
+      );
+
+      const promise = managerAsyncFail.requestApproval({
+        agentId: "forge",
+        sessionKey: "s1",
+        toolName: "exec",
+        toolParams: {},
+        reason: "test",
+        defaultAction: "allow",
+      });
+
+      // Wait for microtask (Promise rejection) to process
+      await new Promise((r) => setTimeout(r, 10));
+
+      const result = await promise;
+      expect(result.block).toBe(true);
+      expect(result.blockReason).toContain("notification failed");
+      managerAsyncFail.cleanup();
+      vi.useFakeTimers(); // Restore for other tests
+    });
+
+    it("should not double-resolve if timeout fires before async notification failure", async () => {
+      vi.useRealTimers();
+      // Notifier that rejects after a small delay
+      const slowRejectNotifier = vi.fn(
+        () => new Promise<void>((_, reject) => setTimeout(() => reject(new Error("slow fail")), 50)),
+      );
+      const managerRace = new ApprovalManager(
+        defaultConfig({ defaultAction: "deny", defaultTimeoutSeconds: 0 }), // immediate timeout
+        logger,
+        slowRejectNotifier,
+      );
+
+      const promise = managerRace.requestApproval({
+        agentId: "forge",
+        sessionKey: "s1",
+        toolName: "exec",
+        toolParams: {},
+        reason: "race test",
+        timeoutSeconds: 0,
+      });
+
+      // Timeout fires immediately (0s), then async rejection fires at 50ms
+      await new Promise((r) => setTimeout(r, 100));
+
+      const result = await promise;
+      // Should be resolved exactly once — either by timeout or notification failure, not both
+      expect(result.block).toBe(true);
+      expect(managerRace.pendingCount).toBe(0);
+      managerRace.cleanup();
+      vi.useFakeTimers();
+    });
+  });
+
   describe("maxPending limit", () => {
     it("should auto-deny when max pending reached", async () => {
       // Fill up to 100 pending

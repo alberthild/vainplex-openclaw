@@ -821,7 +821,7 @@ export type PendingApproval = {
   toolName: string;
   toolParams: Record<string, unknown>;
   reason: string;
-  status: "pending";
+  status: "pending" | "resolved";
   createdAt: number;
   expiresAt: number;
   defaultAction: "allow" | "deny";

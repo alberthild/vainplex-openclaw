@@ -119,6 +119,7 @@ export class ApprovalManager {
     }
 
     clearTimeout(entry.timer);
+    entry.status = "resolved";
     this.pending.delete(id);
 
     this.logger.info(
@@ -138,6 +139,7 @@ export class ApprovalManager {
     if (!entry) return false;
 
     clearTimeout(entry.timer);
+    entry.status = "resolved";
     this.pending.delete(id);
 
     const denyReason =
@@ -185,8 +187,9 @@ export class ApprovalManager {
 
   private handleTimeout(id: string): void {
     const entry = this.pending.get(id);
-    if (!entry) return;
+    if (!entry || entry.status === "resolved") return;
 
+    entry.status = "resolved";
     this.pending.delete(id);
 
     if (entry.defaultAction === "allow") {
@@ -276,6 +279,9 @@ export class ApprovalManager {
    * and it would silently auto-allow on timeout. Fail safe: auto-deny immediately.
    */
   private handleNotificationFailure(entry: PendingApproval, err: unknown): void {
+    // Guard: entry may already be resolved (timeout race with async notifier rejection)
+    if (!this.pending.has(entry.id) || entry.status === "resolved") return;
+
     this.logger.error(
       `[governance] Failed to send approval notification for ${entry.id}: ${err}`,
     );
@@ -287,6 +293,7 @@ export class ApprovalManager {
         `[governance] SAFETY: Auto-denying ${entry.id} because notification failed and defaultAction=allow`,
       );
       clearTimeout(entry.timer);
+      entry.status = "resolved";
       this.pending.delete(entry.id);
       entry.resolve({
         block: true,

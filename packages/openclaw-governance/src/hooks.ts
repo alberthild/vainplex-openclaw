@@ -669,10 +669,13 @@ function registerCommands(
             return { text: lines.join("\n") };
           }
           const id = args.split(/\s+/)[0]!;
-          // Extract caller identity for approver validation
+          // Extract caller identity for approver validation.
+          // senderId = human user ID from the channel (Matrix, Telegram, etc.)
+          // agentId = agent ID if command was triggered by an agent
+          // Fallback "unknown" forces approver-list check to reject if list is configured
           const caller = (ctx as { senderId?: string; agentId?: string })?.senderId
             ?? (ctx as { agentId?: string })?.agentId
-            ?? "human";
+            ?? "unknown";
           const result = approvalManager.approve(id, caller);
           return {
             text: result.found
