@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.1 (2026-03-04) — Cerberus Review Fixes
+- **fix: Self-approval prevention** — agents cannot approve their own pending requests
+- **fix: Approver allowlist enforced** — `config.approvers` is now checked on every `/approve` call
+- **fix: Notification failure safety** — if notification delivery fails and `defaultAction: "allow"`, auto-deny immediately instead of silent auto-allow
+- fix: Async notifier support — `ApprovalNotifier` now accepts `Promise<void>` return
+- fix: Bounded pending queue — max 100 concurrent approvals, auto-deny on overflow
+- fix: `/approve` command extracts caller identity from command context for audit trail
+- tests: 831 total (was 826) — self-approval, approver allowlist, notification failure, maxPending overflow
+
 ## 0.8.0 (2026-03-04)
 - feat: **RFC-009 Approval Manager — Human-in-the-Loop** for high-risk tool calls
   - New policy effect `action: "approve"` — pauses agent execution, asks human for approval

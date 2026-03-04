@@ -117,17 +117,61 @@ describe("ApprovalManager", () => {
       });
 
       const id = manager.getPending()[0]!.id;
-      const found = manager.approve(id, "albert");
+      const approveResult = manager.approve(id, "albert");
 
-      expect(found).toBe(true);
+      expect(approveResult.found).toBe(true);
       expect(manager.pendingCount).toBe(0);
 
       const result = await promise;
       expect(result).toEqual({ block: false });
     });
 
-    it("should return false for unknown id", () => {
-      expect(manager.approve("unknown-id")).toBe(false);
+    it("should return found:false for unknown id", () => {
+      const result = manager.approve("unknown-id");
+      expect(result.found).toBe(false);
+      expect(result.reason).toContain("No pending");
+    });
+
+    it("should block self-approval", () => {
+      manager.requestApproval({
+        agentId: "forge",
+        sessionKey: "session-1",
+        toolName: "exec",
+        toolParams: {},
+        reason: "test",
+      });
+      const id = manager.getPending()[0]!.id;
+      const result = manager.approve(id, "forge");
+      expect(result.found).toBe(false);
+      expect(result.reason).toContain("Self-approval");
+      // Pending should still exist
+      expect(manager.pendingCount).toBe(1);
+    });
+
+    it("should reject unauthorized approver when approvers list configured", () => {
+      const managerWithApprovers = new ApprovalManager(
+        defaultConfig({ approvers: ["albert", "claudia"] }),
+        logger,
+        notifier,
+      );
+      managerWithApprovers.requestApproval({
+        agentId: "forge",
+        sessionKey: "session-1",
+        toolName: "exec",
+        toolParams: {},
+        reason: "test",
+      });
+      const id = managerWithApprovers.getPending()[0]!.id;
+
+      // Unauthorized approver
+      const r1 = managerWithApprovers.approve(id, "random-user");
+      expect(r1.found).toBe(false);
+      expect(r1.reason).toContain("not authorized");
+
+      // Authorized approver
+      const r2 = managerWithApprovers.approve(id, "albert");
+      expect(r2.found).toBe(true);
+      managerWithApprovers.cleanup();
     });
 
     it("should log the approval", () => {
@@ -307,7 +351,7 @@ describe("ApprovalManager", () => {
       expect(manager.pendingCount).toBe(2);
 
       const id1 = manager.getPending()[0]!.id;
-      manager.approve(id1);
+      manager.approve(id1, "albert");
 
       expect(manager.pendingCount).toBe(1);
       const r1 = await p1;
@@ -318,6 +362,82 @@ describe("ApprovalManager", () => {
 
       const r2 = await p2;
       expect(r2.block).toBe(true);
+    });
+  });
+
+  describe("notification failure safety", () => {
+    it("should auto-deny when notification fails and defaultAction is allow", async () => {
+      const failingNotifier = vi.fn(() => { throw new Error("notification failed"); });
+      const managerFailAllow = new ApprovalManager(
+        defaultConfig({ defaultAction: "allow" }),
+        logger,
+        failingNotifier,
+      );
+
+      const promise = managerFailAllow.requestApproval({
+        agentId: "forge",
+        sessionKey: "s1",
+        toolName: "exec",
+        toolParams: {},
+        reason: "test",
+        defaultAction: "allow",
+      });
+
+      // Should have been auto-denied immediately for safety
+      const result = await promise;
+      expect(result.block).toBe(true);
+      expect(result.blockReason).toContain("notification failed");
+      expect(managerFailAllow.pendingCount).toBe(0);
+    });
+
+    it("should keep pending when notification fails but defaultAction is deny", () => {
+      const failingNotifier = vi.fn(() => { throw new Error("notification failed"); });
+      const managerFailDeny = new ApprovalManager(
+        defaultConfig({ defaultAction: "deny" }),
+        logger,
+        failingNotifier,
+      );
+
+      managerFailDeny.requestApproval({
+        agentId: "forge",
+        sessionKey: "s1",
+        toolName: "exec",
+        toolParams: {},
+        reason: "test",
+      });
+
+      // Should still be pending — timeout will handle it safely (deny)
+      expect(managerFailDeny.pendingCount).toBe(1);
+      managerFailDeny.cleanup();
+    });
+  });
+
+  describe("maxPending limit", () => {
+    it("should auto-deny when max pending reached", async () => {
+      // Fill up to 100 pending
+      for (let i = 0; i < 100; i++) {
+        manager.requestApproval({
+          agentId: "forge",
+          sessionKey: `s-${i}`,
+          toolName: "exec",
+          toolParams: {},
+          reason: `test-${i}`,
+        });
+      }
+      expect(manager.pendingCount).toBe(100);
+
+      // 101st should be auto-denied
+      const overflow = await manager.requestApproval({
+        agentId: "forge",
+        sessionKey: "s-overflow",
+        toolName: "exec",
+        toolParams: {},
+        reason: "overflow",
+      });
+
+      expect(overflow.block).toBe(true);
+      expect(overflow.blockReason).toContain("Too many pending");
+      expect(manager.pendingCount).toBe(100); // still 100, not 101
     });
   });
 });

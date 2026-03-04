@@ -6,7 +6,7 @@ import type {
   PluginLogger,
 } from "./types.js";
 
-export type ApprovalNotifier = (message: string, channel?: string) => void;
+export type ApprovalNotifier = (message: string, channel?: string) => void | Promise<void>;
 
 export class ApprovalManager {
   private readonly config: ApprovalManagerConfig;
@@ -38,6 +38,18 @@ export class ApprovalManager {
     defaultAction?: "allow" | "deny";
     notifyChannel?: string;
   }): Promise<HookBeforeToolCallResult> {
+    // Bounded queue: prevent unbounded Map growth from rapid approval requests
+    const MAX_PENDING = 100;
+    if (this.pending.size >= MAX_PENDING) {
+      this.logger.error(
+        `[governance] Max pending approvals (${MAX_PENDING}) reached — auto-denying ${opts.toolName} by ${opts.agentId}`,
+      );
+      return Promise.resolve({
+        block: true,
+        blockReason: `Too many pending approvals (${MAX_PENDING}) — auto-denied`,
+      });
+    }
+
     const id = randomUUID().slice(0, 8);
     const timeoutSeconds =
       opts.timeoutSeconds ?? this.config.defaultTimeoutSeconds;
@@ -79,11 +91,32 @@ export class ApprovalManager {
   }
 
   /**
-   * Approve a pending request. Returns true if found, false if not.
+   * Approve a pending request.
+   * Returns { found: true } on success, or { found: false, reason } on failure.
+   * Blocks self-approval (agent cannot approve its own request).
+   * Validates approver against config.approvers allowlist if configured.
    */
-  approve(id: string, approver?: string): boolean {
+  approve(id: string, approver?: string): { found: boolean; reason?: string } {
     const entry = this.pending.get(id);
-    if (!entry) return false;
+    if (!entry) return { found: false, reason: "No pending approval with this ID" };
+
+    // Self-approval prevention: agent cannot approve its own request
+    if (approver && approver === entry.agentId) {
+      this.logger.warn(
+        `[governance] Self-approval BLOCKED: ${id} — ${approver} tried to approve their own request`,
+      );
+      return { found: false, reason: "Self-approval is not allowed" };
+    }
+
+    // Approver allowlist check
+    if (this.config.approvers && this.config.approvers.length > 0) {
+      if (!approver || !this.config.approvers.includes(approver)) {
+        this.logger.warn(
+          `[governance] Approval REJECTED: ${id} — ${approver ?? "unknown"} is not in the approvers list`,
+        );
+        return { found: false, reason: `${approver ?? "unknown"} is not authorized to approve` };
+      }
+    }
 
     clearTimeout(entry.timer);
     this.pending.delete(id);
@@ -93,11 +126,12 @@ export class ApprovalManager {
     );
 
     entry.resolve({ block: false });
-    return true;
+    return { found: true };
   }
 
   /**
    * Deny a pending request. Returns true if found, false if not.
+   * Any caller can deny (deny is always safe).
    */
   deny(id: string, approver?: string, reason?: string): boolean {
     const entry = this.pending.get(id);
@@ -196,11 +230,15 @@ export class ApprovalManager {
 
     if (this.notifier) {
       try {
-        this.notifier(message, targetChannel);
+        const result = this.notifier(message, targetChannel);
+        // Handle async notifiers
+        if (result && typeof (result as Promise<void>).catch === "function") {
+          (result as Promise<void>).catch((err) => {
+            this.handleNotificationFailure(entry, err);
+          });
+        }
       } catch (err) {
-        this.logger.error(
-          `[governance] Failed to send approval notification: ${err}`,
-        );
+        this.handleNotificationFailure(entry, err);
       }
     } else {
       // Fallback: log the notification
@@ -230,5 +268,31 @@ export class ApprovalManager {
     return /(?:sk[-_]|pk[-_]|AKIA|ghp_|ghs_|glpat-|Bearer |-----BEGIN)/i.test(
       value,
     );
+  }
+
+  /**
+   * Handle notification delivery failure.
+   * If defaultAction is "allow", this is dangerous — nobody knows about the approval
+   * and it would silently auto-allow on timeout. Fail safe: auto-deny immediately.
+   */
+  private handleNotificationFailure(entry: PendingApproval, err: unknown): void {
+    this.logger.error(
+      `[governance] Failed to send approval notification for ${entry.id}: ${err}`,
+    );
+
+    if (entry.defaultAction === "allow") {
+      // SAFETY: If notification fails and default is allow, deny immediately
+      // to prevent silent auto-approval without human knowledge
+      this.logger.error(
+        `[governance] SAFETY: Auto-denying ${entry.id} because notification failed and defaultAction=allow`,
+      );
+      clearTimeout(entry.timer);
+      this.pending.delete(entry.id);
+      entry.resolve({
+        block: true,
+        blockReason: "Approval notification failed — auto-denied for safety (defaultAction was allow)",
+      });
+    }
+    // If defaultAction is "deny", timeout will handle it safely
   }
 }

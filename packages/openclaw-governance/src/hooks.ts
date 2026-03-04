@@ -669,11 +669,15 @@ function registerCommands(
             return { text: lines.join("\n") };
           }
           const id = args.split(/\s+/)[0]!;
-          const found = approvalManager.approve(id, "human");
+          // Extract caller identity for approver validation
+          const caller = (ctx as { senderId?: string; agentId?: string })?.senderId
+            ?? (ctx as { agentId?: string })?.agentId
+            ?? "human";
+          const result = approvalManager.approve(id, caller);
           return {
-            text: found
-              ? `✅ Approved: **${id}** — agent will proceed.`
-              : `❌ No pending approval with id **${id}**.`,
+            text: result.found
+              ? `✅ Approved: **${id}** — agent will proceed. (approved by ${caller})`
+              : `❌ ${result.reason ?? `No pending approval with id **${id}**.`}`,
           };
         },
       },
