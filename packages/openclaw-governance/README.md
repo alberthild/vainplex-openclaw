@@ -13,7 +13,7 @@ This plugin does. It implements 8 of Berkeley's 12 core requirements today, with
 [![npm](https://img.shields.io/npm/v/@vainplex/openclaw-governance)](https://www.npmjs.com/package/@vainplex/openclaw-governance)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Zero runtime dependencies. Hundreds of tests. Production since February 2026.
+Zero runtime dependencies. 810 tests. Production since February 2026.
 
 ---
 
@@ -31,12 +31,13 @@ UC Berkeley's Agentic AI Risk-Management Standards Profile and Microsoft's gover
 | **Cascading Agent Policies** | Cross-agent governance — parent policies propagate to sub-agents | ✅ Implemented |
 | **Autonomy Levels** | Trust tiers (0–100, five levels) — functionally equivalent to Berkeley's L0–L5 | ✅ Implemented |
 | **Credential Protection** | 3-layer redaction with SHA-256 vault, 17 built-in patterns, fail-closed | ✅ Implemented |
+| **Output Integrity** | Response Gate — enforce tool usage, content patterns, block non-compliant output | ✅ Implemented |
 | **Human-in-the-Loop** | Approval Manager for high-risk operations | 📋 Planned |
 | **Semantic Intent Analysis** | LLM-powered intent classification before tool execution | 📋 Planned |
 | **Multi-Agent Interaction Monitoring** | Agent-to-agent message governance | 📋 Planned |
 | **Tamper-evident Audit** | Hash-chain audit trail for compliance verification | 📋 Planned |
 
-8 implemented. 4 planned. Production since 2026-02-18.
+9 implemented. 4 planned. Production since 2026-02-18.
 
 ---
 
@@ -85,6 +86,66 @@ Trust is not a config value. It's earned per conversation.
 - **Adaptive Display** — `[Governance] Agent: main (60/trusted) | Session: 42/standard | Policies: 4`
 
 No existing governance tool implements session-level trust. Static per-agent allowlists don't capture that the same agent performs differently across sessions.
+
+### v0.7: Response Gate
+
+Output validation catches hallucinations. Response Gate enforces **structural requirements** — did the agent actually do the work before answering?
+
+```
+User: "What's the weather in Berlin?"
+Agent responds without calling weather tool
+  → Response Gate: requiredTools check failed — "weather" not called
+  → Message blocked, fallback sent: "I need to check the weather first."
+```
+
+**Three validator types:**
+
+| Validator | What It Enforces |
+|-----------|-----------------|
+| `requiredTools` | Specific tools must have been called before responding |
+| `mustMatch` | Response must match regex pattern(s) |
+| `mustNotMatch` | Response must NOT match regex pattern(s) |
+
+**Configuration:**
+
+```json
+{
+  "responseGate": {
+    "enabled": true,
+    "rules": [
+      {
+        "agentId": "research-agent",
+        "validators": [
+          {
+            "type": "requiredTools",
+            "tools": ["web_search", "web_fetch"],
+            "message": "Research agent must search before answering."
+          }
+        ]
+      },
+      {
+        "validators": [
+          {
+            "type": "mustNotMatch",
+            "pattern": "(?i)as an ai|i cannot|i'm sorry",
+            "message": "No generic AI refusals — give a real answer or escalate."
+          }
+        ]
+      }
+    ],
+    "fallbackMessage": "⚠️ Response blocked by governance. Reason: {reasons}"
+  }
+}
+```
+
+**Key design decisions:**
+- Runs in `before_message_write` — synchronous, zero latency overhead
+- Tracks tool calls per session via `after_tool_call` — no config needed
+- Fail-closed on invalid regex patterns (blocks, doesn't silently pass)
+- Preserves ContentBlock arrays — compatible with all message transforms
+- Fallback messages replace blocked content instead of silent drops (v0.7.1)
+
+No other governance tool validates that an agent actually used its tools before responding. Output validators check *what* the agent said. Response Gate checks *whether the agent did the work*.
 
 ### v0.5 Features
 
