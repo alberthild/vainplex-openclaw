@@ -1,5 +1,66 @@
 # Changelog
 
+## 0.7.2 (2026-03-04)
+- fix: Response Gate content format — preserves ContentBlock arrays (compatibility with transform-messages)
+- fix: Redaction `exemptAgents` config — exempt agents skip redaction hooks entirely
+- tests: 810 total
+
+## 0.7.1 (2026-03-02)
+- feat: **Response Gate** — synchronous pre-write validation layer for agent messages
+  - `requiredTools`: enforce that specific tools were called before responding
+  - `mustMatch` / `mustNotMatch`: regex-based content validation
+  - Per-agent rule targeting via `agentId` field
+  - Regex cache for performance, fail-closed on invalid patterns
+- feat: Fallback messages — configurable replacement message when gate blocks (instead of silent drop)
+  - Template variables: `{reasons}`, `{validators}`, `{agent}`
+  - `fallbackMessage` (static) and `fallbackTemplate` (dynamic) support
+- feat: Tool call log tracking per session for Response Gate `requiredTools` validation
+
+## 0.7.0 (2026-03-02)
+- feat: Response Gate architecture integrated into `before_message_write` hook
+- feat: `toolCallLog` Map tracks tool calls per session, auto-cleanup on `session_end`
+- internal: Response Gate runs independently of `outputValidation` (separate feature)
+
+## 0.6.5 (2026-02-28)
+- fix: Night mode trust exemption — trusted+ agents bypass night mode restrictions
+- fix: `after_tool_call` agentId resolution — fallback cache from `before_tool_call` for reliable context
+
+## 0.6.4 (2026-02-27)
+- fix: `trustTier` in `before_agent_start` now checks **agent trust**, not session trust
+
+## 0.6.3 (2026-02-27)
+- fix: `/trust` command now accepts arguments (`acceptsArgs: true`)
+
+## 0.6.2 (2026-02-27)
+- feat: `/trust reset [agent]` — reset one or all agents to config defaults
+- feat: `/trust set <agent> <score>` — manually override agent trust score
+
+## 0.6.1 (2026-02-27)
+- feat: `/trust` command — live trust dashboard with agent + session scores
+  - Agent trust: score, tier, clean streak, success/violation counts
+  - Session trust: active sessions with ephemeral scores
+
+## 0.6.0 (2026-02-25)
+- feat: **RFC-008 Session Trust** — dynamic per-session trust scoring
+  - Ephemeral trust that lives for the session lifetime
+  - Independent from persistent agent trust
+  - Clean streak tracking per session
+  - Trust shape migration for backward compatibility
+- fix: Memory leak guard on trust store
+- fix: Tier naming consistency
+- docs: Comprehensive Session Trust documentation
+- tests: 810 total (was 771)
+
+## 0.5.7 (2026-02-24)
+- feat: Enable LLM Validator (Stage 3) with local Ollama `callLlm` integration
+
+## 0.5.6 (2026-02-24)
+- fix: Trust score drop to 0 on recalculate (#BUG-001)
+- docs: Version sync across monorepo READMEs
+
+## 0.5.5 (2026-02-20)
+- docs: Berkeley governance positioning, README polish, security narrative
+
 ## 0.5.4 (2026-02-20)
 - fix: `openclaw.plugin.json` version synced to package version
 - fix: README version references updated
