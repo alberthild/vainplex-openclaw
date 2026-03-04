@@ -12,6 +12,7 @@ import type {
   SessionTrustConfig,
   TimeWindow,
   TrustConfig,
+  ApprovalManagerConfig,
 } from "./types.js";
 
 import { resolveResponseGate } from "./response-gate.js";
@@ -230,5 +231,19 @@ export function resolveConfig(
       ? (r["redaction"] as unknown as RedactionConfig)
       : undefined,
     responseGate: resolveResponseGate(r["responseGate"]),
+    approvalManager: resolveApprovalManager(r["approvalManager"]),
+  };
+}
+
+function resolveApprovalManager(raw: unknown): ApprovalManagerConfig | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const r = raw as Record<string, unknown>;
+  if (!r["enabled"]) return undefined;
+  return {
+    enabled: true,
+    defaultTimeoutSeconds: typeof r["defaultTimeoutSeconds"] === "number" ? r["defaultTimeoutSeconds"] : 300,
+    defaultAction: r["defaultAction"] === "allow" ? "allow" : "deny",
+    notifyChannel: typeof r["notifyChannel"] === "string" ? r["notifyChannel"] : undefined,
+    approvers: Array.isArray(r["approvers"]) ? r["approvers"] as string[] : undefined,
   };
 }

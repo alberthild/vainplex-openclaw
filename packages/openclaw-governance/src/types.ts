@@ -201,7 +201,14 @@ export type AuditLevel = "minimal" | "standard" | "verbose";
 export type RuleEffect =
   | { action: "allow" }
   | { action: "deny"; reason: string }
-  | { action: "audit"; level?: AuditLevel };
+  | { action: "audit"; level?: AuditLevel }
+  | {
+      action: "approve";
+      reason: string;
+      timeoutSeconds?: number;
+      defaultAction?: "allow" | "deny";
+      minTrust?: number;
+    };
 
 export type ParamMatcher =
   | { equals: string | number | boolean }
@@ -369,12 +376,16 @@ export type MatchedPolicy = {
 };
 
 export type Verdict = {
-  action: "allow" | "deny";
+  action: "allow" | "deny" | "approve";
   reason: string;
   risk: RiskAssessment;
   matchedPolicies: MatchedPolicy[];
   trust: { score: number; tier: TrustTier };
   evaluationUs: number;
+  approvalConfig?: {
+    timeoutSeconds: number;
+    defaultAction: "allow" | "deny";
+  };
 };
 
 // ── Audit ──
@@ -385,7 +396,11 @@ export type AuditVerdict =
   | "error_fallback"
   | "output_pass"
   | "output_flag"
-  | "output_block";
+  | "output_block"
+  | "approval_requested"
+  | "approval_granted"
+  | "approval_denied"
+  | "approval_timeout";
 
 export type AuditContext = {
   hook: string;
@@ -488,6 +503,7 @@ export type GovernanceConfig = {
   outputValidation: OutputValidationConfig;
   redaction?: RedactionConfig;
   responseGate?: ResponseGateConfig;
+  approvalManager?: ApprovalManagerConfig;
 };
 
 // ── Policy Index (internal) ──
@@ -776,4 +792,39 @@ export type VaultEntry = {
   hash: string;
   createdAt: number;
   expiresAt: number;
+};
+
+// ── Approval Manager (v0.8.0, RFC-009) ──
+
+export type ApprovalManagerConfig = {
+  enabled: boolean;
+  defaultTimeoutSeconds: number;
+  defaultAction: "allow" | "deny";
+  notifyChannel?: string;
+  approvers?: string[];
+};
+
+export type ApprovalManagerRule = {
+  tools: string[];
+  params?: Record<string, ParamMatcher>;
+  minTrust?: number;
+  timeoutSeconds?: number;
+  defaultAction?: "allow" | "deny";
+  notifyChannel?: string;
+  reason?: string;
+};
+
+export type PendingApproval = {
+  id: string;
+  agentId: string;
+  sessionKey: string;
+  toolName: string;
+  toolParams: Record<string, unknown>;
+  reason: string;
+  status: "pending";
+  createdAt: number;
+  expiresAt: number;
+  defaultAction: "allow" | "deny";
+  resolve: (result: HookBeforeToolCallResult) => void;
+  timer: ReturnType<typeof setTimeout>;
 };

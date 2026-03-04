@@ -17,6 +17,7 @@ import type {
 import type { GovernanceEngine } from "./engine.js";
 import { getCurrentTime, resolveAgentId } from "./util.js";
 import { ResponseGate } from "./response-gate.js";
+import { ApprovalManager } from "./approval-manager.js";
 
 import {
   initRedaction,
@@ -163,6 +164,7 @@ function handleBeforeToolCall(
   engine: GovernanceEngine,
   config: GovernanceConfig,
   logger: PluginLogger,
+  approvalManager?: ApprovalManager,
 ) {
   return async (
     event: unknown,
@@ -186,6 +188,20 @@ function handleBeforeToolCall(
 
       if (verdict.action === "deny") {
         return { block: true, blockReason: verdict.reason };
+      }
+
+      // Approval Manager (RFC-009): pause and wait for human decision
+      if (verdict.action === "approve" && approvalManager && verdict.approvalConfig) {
+        return approvalManager.requestApproval({
+          agentId: evalCtx.agentId,
+          sessionKey: evalCtx.sessionKey,
+          toolName: ev.toolName,
+          toolParams: ev.params,
+          reason: verdict.reason,
+          timeoutSeconds: verdict.approvalConfig.timeoutSeconds,
+          defaultAction: verdict.approvalConfig.defaultAction,
+          notifyChannel: config.approvalManager?.notifyChannel,
+        });
       }
 
       // External communication detection (RFC-006)
@@ -489,8 +505,11 @@ function handleGatewayStart(engine: GovernanceEngine) {
   };
 }
 
-function handleGatewayStop(engine: GovernanceEngine, redactionState?: RedactionState) {
+function handleGatewayStop(engine: GovernanceEngine, redactionState?: RedactionState, approvalManager?: ApprovalManager) {
   return async (): Promise<void> => {
+    if (approvalManager) {
+      approvalManager.cleanup();
+    }
     if (redactionState) {
       stopRedaction(redactionState);
     }
@@ -525,6 +544,7 @@ function registerCommands(
   api: OpenClawPluginApi,
   engine: GovernanceEngine,
   config: GovernanceConfig,
+  approvalManager?: ApprovalManager,
 ): void {
   const commands: PluginCommand[] = [
     {
@@ -624,6 +644,62 @@ function registerCommands(
     },
   ];
 
+  // Approval Manager commands (v0.8.0)
+  if (approvalManager) {
+    commands.push(
+      {
+        name: "approve",
+        description: "Approve a pending governance request: /approve <id>",
+        acceptsArgs: true,
+        handler: (ctx?: unknown) => {
+          const args = (ctx as { args?: string })?.args?.trim() ?? "";
+          if (!args) {
+            const pending = approvalManager.getPending();
+            if (pending.length === 0) {
+              return { text: "✅ No pending approvals." };
+            }
+            const lines = ["⏳ **Pending Approvals**", ""];
+            for (const p of pending) {
+              const remaining = Math.max(0, Math.round((p.expiresAt - Date.now()) / 1000));
+              lines.push(
+                `• **${p.id}** — ${p.agentId} → \`${p.toolName}\` (${remaining}s left, default: ${p.defaultAction})`,
+              );
+            }
+            lines.push("", "Usage: `/approve <id>` or `/deny <id>`");
+            return { text: lines.join("\n") };
+          }
+          const id = args.split(/\s+/)[0]!;
+          const found = approvalManager.approve(id, "human");
+          return {
+            text: found
+              ? `✅ Approved: **${id}** — agent will proceed.`
+              : `❌ No pending approval with id **${id}**.`,
+          };
+        },
+      },
+      {
+        name: "deny",
+        description: "Deny a pending governance request: /deny <id> [reason]",
+        acceptsArgs: true,
+        handler: (ctx?: unknown) => {
+          const args = (ctx as { args?: string })?.args?.trim() ?? "";
+          if (!args) {
+            return { text: "Usage: `/deny <id> [reason]`" };
+          }
+          const parts = args.split(/\s+/);
+          const id = parts[0]!;
+          const reason = parts.slice(1).join(" ") || undefined;
+          const found = approvalManager.deny(id, "human", reason);
+          return {
+            text: found
+              ? `🚫 Denied: **${id}** — agent will be blocked.`
+              : `❌ No pending approval with id **${id}**.`,
+          };
+        },
+      },
+    );
+  }
+
   for (const cmd of commands) {
     api.registerCommand(cmd);
   }
@@ -660,6 +736,13 @@ export function registerGovernanceHooks(
     logger.info("[governance] Redaction subsystem initialized");
   }
 
+  // ── Approval Manager (v0.8.0, RFC-009) ──
+  let approvalManager: ApprovalManager | undefined;
+  if (config.approvalManager?.enabled) {
+    approvalManager = new ApprovalManager(config.approvalManager, logger);
+    logger.info("[governance] Approval Manager initialized (Human-in-the-Loop)");
+  }
+
   // ── LLM Validator (Stage 3) ──
   const llmConfig = config.outputValidation.llmValidator;
   if (llmConfig?.enabled && opts?.callLlm) {
@@ -669,7 +752,7 @@ export function registerGovernanceHooks(
   }
 
   // Primary enforcement
-  api.on("before_tool_call", handleBeforeToolCall(engine, config, logger), {
+  api.on("before_tool_call", handleBeforeToolCall(engine, config, logger, approvalManager), {
     priority: 1000,
   });
   api.on("message_sending", handleMessageSending(engine, config, logger), {
@@ -693,8 +776,8 @@ export function registerGovernanceHooks(
   api.on("session_start", handleSessionStart(engine, logger), { priority: 1 });
   api.on("session_end", handleSessionEnd(engine, toolCallLog), { priority: 999 });
   api.on("gateway_start", handleGatewayStart(engine), { priority: 1 });
-  api.on("gateway_stop", handleGatewayStop(engine, redactionState), { priority: 999 });
+  api.on("gateway_stop", handleGatewayStop(engine, redactionState, approvalManager), { priority: 999 });
 
   // Commands
-  registerCommands(api, engine, config);
+  registerCommands(api, engine, config, approvalManager);
 }

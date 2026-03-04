@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.8.0 (2026-03-04)
+- feat: **RFC-009 Approval Manager — Human-in-the-Loop** for high-risk tool calls
+  - New policy effect `action: "approve"` — pauses agent execution, asks human for approval
+  - Async Promise-based flow — agent waits for `/approve` or `/deny` command
+  - Configurable timeout with `defaultAction` (auto-allow or auto-deny on expiry)
+  - Trust bypass: agents above `minTrust` score skip approval automatically
+  - `/approve [id]` command — approve pending request, or list all pending without args
+  - `/deny <id> [reason]` command — deny with optional reason
+  - Notification system with `ApprovalNotifier` interface — pluggable notification delivery
+  - Param redaction in approval notifications — secrets never shown in approval messages
+  - Cleanup on gateway shutdown — all pending approvals auto-denied gracefully
+  - Timer unref — approval timeouts don't prevent Node.js process exit
+- tests: 826 total (was 810)
+
+## 0.7.3 (2026-03-04)
+- docs: Response Gate README section — config examples, validator table, design decisions
+- docs: Berkeley compliance table — added "Output Integrity" (9 of 13 implemented)
+- docs: Updated test count from "Hundreds of tests" to "810 tests"
+
 ## 0.7.2 (2026-03-04)
 - fix: Response Gate content format — preserves ContentBlock arrays (compatibility with transform-messages)
 - fix: Redaction `exemptAgents` config — exempt agents skip redaction hooks entirely

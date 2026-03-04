@@ -10,7 +10,7 @@ import { evaluateConditions } from "./conditions/index.js";
 import { isTierAtLeast, isTierAtMost } from "./conditions/simple.js";
 
 type EvalResult = {
-  action: "allow" | "deny";
+  action: "allow" | "deny" | "approve";
   reason: string;
   matches: MatchedPolicy[];
 };
@@ -44,19 +44,29 @@ function sortPolicies(policies: Policy[]): Policy[] {
 function aggregateMatches(matches: MatchedPolicy[]): EvalResult {
   let hasDeny = false;
   let denyReason = "";
+  let hasApprove = false;
+  let approveReason = "";
   let hasAudit = false;
 
   for (const m of matches) {
     if (m.effect.action === "deny") {
       hasDeny = true;
       if (!denyReason) denyReason = "reason" in m.effect ? m.effect.reason : "";
+    } else if (m.effect.action === "approve") {
+      hasApprove = true;
+      if (!approveReason) approveReason = "reason" in m.effect ? m.effect.reason : "";
     } else if (m.effect.action === "audit") {
       hasAudit = true;
     }
   }
 
+  // Deny always wins over approve
   if (hasDeny) {
     return { action: "deny", reason: denyReason || "Denied by governance policy", matches };
+  }
+  // Approve takes precedence over allow
+  if (hasApprove) {
+    return { action: "approve", reason: approveReason || "Requires human approval", matches };
   }
   if (hasAudit) {
     return { action: "allow", reason: "Allowed with audit logging", matches };

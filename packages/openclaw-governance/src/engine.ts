@@ -229,8 +229,34 @@ export class GovernanceEngine {
     );
 
     const elapsedUs = nowUs() - startUs;
+
+    // Handle "approve" effect: check trust bypass before creating verdict
+    let finalAction = evalResult.action;
+    let approvalConfig: Verdict["approvalConfig"] = undefined;
+
+    if (evalResult.action === "approve") {
+      const approveMatch = evalResult.matches.find(
+        (m) => m.effect.action === "approve",
+      );
+      if (approveMatch && approveMatch.effect.action === "approve") {
+        const minTrust = approveMatch.effect.minTrust ?? 0;
+        // Trust bypass: if agent trust >= minTrust, auto-allow
+        if (enrichedCtx.trust.agent.score >= minTrust && minTrust > 0) {
+          finalAction = "allow";
+          this.logger.info(
+            `[governance] Approval bypassed for ${enrichedCtx.agentId} (trust ${enrichedCtx.trust.agent.score} >= minTrust ${minTrust})`,
+          );
+        } else {
+          approvalConfig = {
+            timeoutSeconds: approveMatch.effect.timeoutSeconds ?? this.config.approvalManager?.defaultTimeoutSeconds ?? 300,
+            defaultAction: approveMatch.effect.defaultAction ?? this.config.approvalManager?.defaultAction ?? "deny",
+          };
+        }
+      }
+    }
+
     const verdict: Verdict = {
-      action: evalResult.action,
+      action: finalAction,
       reason: evalResult.reason,
       risk,
       matchedPolicies: evalResult.matches,
@@ -239,6 +265,7 @@ export class GovernanceEngine {
         tier: enrichedCtx.trust.session.tier,
       },
       evaluationUs: elapsedUs,
+      approvalConfig,
     };
 
     // Trust learning from governance denial
@@ -532,10 +559,11 @@ export class GovernanceEngine {
     return this.sessionTrustManager._getSessions();
   }
 
-  private updateStats(action: "allow" | "deny", us: number): void {
+  private updateStats(action: "allow" | "deny" | "approve", us: number): void {
     this.stats.totalEvaluations++;
     if (action === "allow") this.stats.allowCount++;
-    else this.stats.denyCount++;
+    else if (action === "deny") this.stats.denyCount++;
+    // "approve" counts as neither allow nor deny until resolved
 
     // Running average
     this.stats.avgEvaluationUs =
