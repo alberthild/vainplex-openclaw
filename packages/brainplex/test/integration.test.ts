@@ -229,8 +229,11 @@ describe('integration', () => {
   });
 
   it('handles already-fully-configured system', () => {
-    const configPath = path.join(tmpDir, 'openclaw.json');
-    const pluginsPath = path.join(tmpDir, 'plugins');
+    // Put config inside a .openclaw dir so scanner picks up the correct workspace
+    const wsDir = path.join(tmpDir, '.openclaw');
+    fs.mkdirSync(wsDir, { recursive: true });
+    const configPath = path.join(wsDir, 'openclaw.json');
+    const pluginsPath = path.join(wsDir, 'plugins');
 
     // Create existing configs
     for (const id of ['openclaw-governance', 'openclaw-cortex', 'openclaw-membrane', 'openclaw-leuko']) {
@@ -252,6 +255,9 @@ describe('integration', () => {
     const scanResult = scan(configPath);
     expect(scanResult.ok).toBe(true);
     if (!scanResult.ok) return;
+
+    // Verify scanner picked up the right workspace
+    expect(scanResult.result.pluginsPath).toBe(pluginsPath);
 
     const configs = generateConfigs({ agents: [], timezone: 'UTC', full: false });
     const plan = planInstallation(scanResult.result, configs, { full: false });

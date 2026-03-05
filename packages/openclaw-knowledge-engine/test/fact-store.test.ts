@@ -25,17 +25,18 @@ describe('FactStore', () => {
     await fs.rm(testDir, { recursive: true, force: true });
   });
 
+  let testSubDir: string;
+
   beforeEach(async () => {
     // Flush any pending debounced writes from the previous test
     // to prevent stale data from bleeding across test boundaries.
     if (factStore) {
       await factStore.flush();
     }
-    const filePath = path.join(testDir, 'facts.json');
-    try { await fs.unlink(filePath); } catch (e: unknown) {
-      if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e;
-    }
-    factStore = new FactStore(testDir, mockConfig, createMockLogger());
+    // Use a unique subdirectory per test to avoid file-level races in CI
+    testSubDir = path.join(testDir, `run-${Date.now()}-${Math.random().toString(36).slice(2)}`);
+    await fs.mkdir(testSubDir, { recursive: true });
+    factStore = new FactStore(testSubDir, mockConfig, createMockLogger());
     await factStore.load();
   });
 
