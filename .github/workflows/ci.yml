@@ -51,9 +51,6 @@ jobs:
       - run: npm run build -w packages/openclaw-governance
       - name: Run tests
         run: npm test -w packages/openclaw-governance
-      - name: Coverage
-        run: npx vitest run --coverage --coverage.reporter=text -w packages/openclaw-governance 2>&1 | tail -30
-        continue-on-error: true
 
   test-brainplex:
     name: Test — Brainplex
