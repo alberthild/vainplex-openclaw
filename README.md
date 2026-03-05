@@ -1,5 +1,7 @@
 # Vainplex OpenClaw Suite
 
+[![CI](https://github.com/alberthild/vainplex-openclaw/actions/workflows/ci.yml/badge.svg)](https://github.com/alberthild/vainplex-openclaw/actions/workflows/ci.yml)
+
 **Plugins that give your OpenClaw agent memory, governance, and self-awareness.**
 
 Six plugins. Running in production 24/7. Built because we needed them — not as a product exercise, but as infrastructure for an AI agent that actually does its job across days, weeks, and months.

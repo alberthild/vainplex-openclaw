@@ -7,7 +7,8 @@ on:
     branches: [main]
 
 jobs:
-  build-and-test:
+  build:
+    name: Build
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -28,12 +29,117 @@ jobs:
       - name: Build all packages
         run: npm run build
 
-      - name: Run tests
-        run: npm test
-
       - name: Check TypeScript strict (no any)
         run: |
-          count=$(grep -r "any" packages/*/src/*.ts packages/*/src/**/*.ts --include="*.ts" -l 2>/dev/null | xargs grep -c ": any\b" 2>/dev/null | awk -F: '{sum+=$2} END {print sum+0}')
+          count=$(grep -rn ": any\b" packages/*/src/*.ts 2>/dev/null | grep -v "node_modules" | wc -l)
           if [ "$count" -gt 0 ]; then
-            echo "::warning::Found $count 'any' type usages"
+            echo "::warning::Found $count ': any' usages in source files"
+            grep -rn ": any\b" packages/*/src/*.ts 2>/dev/null | grep -v "node_modules" | head -20
           fi
+
+  test-governance:
+    name: Test — Governance
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build -w packages/openclaw-governance
+      - name: Run tests
+        run: npm test -w packages/openclaw-governance
+      - name: Coverage
+        run: npx vitest run --coverage --coverage.reporter=text -w packages/openclaw-governance 2>&1 | tail -30
+        continue-on-error: true
+
+  test-brainplex:
+    name: Test — Brainplex
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build -w packages/brainplex
+      - name: Run tests
+        run: npm test -w packages/brainplex
+
+  test-cortex:
+    name: Test — Cortex
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build -w packages/openclaw-cortex
+      - name: Run tests
+        run: npm test -w packages/openclaw-cortex
+
+  test-knowledge-engine:
+    name: Test — Knowledge Engine
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build -w packages/openclaw-knowledge-engine
+      - name: Run tests
+        run: npm test -w packages/openclaw-knowledge-engine
+
+  test-nats-eventstore:
+    name: Test — NATS EventStore
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build -w packages/openclaw-nats-eventstore
+      - name: Run tests
+        run: npm test -w packages/openclaw-nats-eventstore
+
+  test-sitrep:
+    name: Test — Sitrep
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run build -w packages/openclaw-sitrep
+      - name: Run tests
+        run: npm test -w packages/openclaw-sitrep
+
+  security:
+    name: Security Audit
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: npm audit
+        run: npm audit --omit=dev || true
