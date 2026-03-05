@@ -131,7 +131,7 @@ function installPlugin(
         timeout,
       }) ?? '';
     } else {
-      output = execFileSync('npm', ['install', plugin.npmPackage], {
+      output = execFileSync('npm', ['install', '--no-package-lock', plugin.npmPackage], {
         encoding: 'utf-8',
         stdio,
         timeout,
