@@ -2,6 +2,10 @@
 
 **One command to install and configure the entire Vainplex OpenClaw Plugin Suite.**
 
+[![npm](https://img.shields.io/npm/v/brainplex)](https://www.npmjs.com/package/brainplex)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![GitHub](https://img.shields.io/badge/source-GitHub-blue)](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/brainplex)
+
 ```bash
 npx brainplex init
 ```
@@ -45,7 +49,7 @@ npx brainplex init --no-color
 ## What happens
 
 ```
-🧠 Brainplex v0.1.0 — OpenClaw Plugin Suite Setup
+🧠 Brainplex v0.2.0 — OpenClaw Plugin Suite Setup
 
 🔍 Scanning environment...
    ✓ Found openclaw.json at ~/.openclaw/openclaw.json
@@ -108,6 +112,18 @@ Brainplex assigns initial trust scores based on agent naming conventions:
 
 Brainplex uses only Node.js builtins (`fs`, `path`, `child_process`, `os`). No runtime dependencies.
 
+## Part of the Vainplex OpenClaw Suite
+
+**[github.com/alberthild/vainplex-openclaw](https://github.com/alberthild/vainplex-openclaw)**
+
+| Plugin | Description |
+|--------|-------------|
+| [Governance](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-governance) | Policy engine, trust, approval, redaction |
+| [Cortex](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-cortex) | Conversation intelligence |
+| [Membrane](https://github.com/alberthild/openclaw-membrane) | Episodic memory |
+| [Leuko](https://github.com/alberthild/openclaw-leuko) | Health monitoring |
+| [Knowledge Engine](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-knowledge-engine) | Entity extraction |
+
 ## License
 
-MIT © [Albert Hild](mailto:a.hild@vainplex.de)
+MIT © [Albert Hild](https://github.com/alberthild)

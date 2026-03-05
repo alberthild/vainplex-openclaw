@@ -1,6 +1,6 @@
 {
   "name": "brainplex",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "Bundler + Configurator for the Vainplex OpenClaw Plugin Suite",
   "type": "module",
   "bin": {
@@ -35,9 +35,12 @@
     "brainplex",
     "vainplex",
     "ai-agents",
+    "governance",
     "plugin-suite",
     "setup",
-    "cli"
+    "cli",
+    "ai-security",
+    "trust-management"
   ],
   "author": "Albert Hild <a.hild@vainplex.de>",
   "license": "MIT",
@@ -45,5 +48,9 @@
     "type": "git",
     "url": "https://github.com/alberthild/vainplex-openclaw.git",
     "directory": "packages/brainplex"
+  },
+  "homepage": "https://github.com/alberthild/vainplex-openclaw/tree/main/packages/brainplex",
+  "bugs": {
+    "url": "https://github.com/alberthild/vainplex-openclaw/issues"
   }
 }

@@ -9,7 +9,7 @@ import { planInstallation, executeInstallation } from './installer.js';
 import { writeConfigs, updateOpenClawConfig } from './writer.js';
 import * as out from './output.js';
 
-const VERSION = '0.2.0';
+const VERSION = '0.2.1';
 
 /**
  * Parse CLI arguments. Hand-rolled, zero dependencies.
