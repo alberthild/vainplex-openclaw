@@ -134,6 +134,33 @@ describe('extractAgents', () => {
     expect(extractAgents(config)).toEqual(['main', 'forge']);
   });
 
+  it('extracts agents from agents.list array with id field (OpenClaw standard)', () => {
+    const config: OpenClawConfig = {
+      agents: {
+        defaults: { model: { primary: 'some-model' } },
+        list: [
+          { id: 'main', name: 'Claudia' },
+          { id: 'stella', name: 'Stella' },
+          { id: 'forge', name: 'Forge' },
+          { id: 'cerberus', name: 'Cerberus' },
+        ],
+      } as Record<string, unknown>,
+    };
+    expect(extractAgents(config)).toEqual(['main', 'stella', 'forge', 'cerberus']);
+  });
+
+  it('extracts agents from agents.list preferring id over name', () => {
+    const config: OpenClawConfig = {
+      agents: {
+        list: [
+          { id: 'agent-1', name: 'Agent One' },
+          { name: 'agent-2' },
+        ],
+      } as Record<string, unknown>,
+    };
+    expect(extractAgents(config)).toEqual(['agent-1', 'agent-2']);
+  });
+
   it('returns empty array when no agents configured', () => {
     expect(extractAgents({})).toEqual([]);
     expect(extractAgents({ agents: undefined })).toEqual([]);

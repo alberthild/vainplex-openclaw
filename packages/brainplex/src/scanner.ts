@@ -59,32 +59,50 @@ export function extractAgents(config: OpenClawConfig): string[] {
   const agents = config.agents;
   if (!agents) return [];
 
-  // Format 3: flat agents array — [ { name: "main" }, ... ]
+  // Format 1: flat agents array — [ { id: "main" }, { name: "forge" }, ... ]
   if (Array.isArray(agents)) {
-    return (agents as Array<{ name?: string }>)
-      .filter((a): a is { name: string } => typeof a.name === 'string')
-      .map(a => a.name);
+    return extractAgentNames(agents);
   }
 
-  // Format 1: agents.definitions array
-  if (typeof agents === 'object' && 'definitions' in agents) {
-    const defs = (agents as { definitions: unknown }).definitions;
-    if (Array.isArray(defs)) {
-      return (defs as Array<{ name?: string }>)
-        .filter((a): a is { name: string } => typeof a.name === 'string')
-        .map(a => a.name);
+  // Format 2: agents.list array (OpenClaw standard format)
+  if (typeof agents === 'object' && 'list' in agents) {
+    const list = (agents as { list: unknown }).list;
+    if (Array.isArray(list)) {
+      return extractAgentNames(list);
     }
   }
 
-  // Format 2: agents as object with named keys
+  // Format 3: agents.definitions array
+  if (typeof agents === 'object' && 'definitions' in agents) {
+    const defs = (agents as { definitions: unknown }).definitions;
+    if (Array.isArray(defs)) {
+      return extractAgentNames(defs);
+    }
+  }
+
+  // Format 4: agents as object with named keys
   if (typeof agents === 'object' && !Array.isArray(agents)) {
-    // Filter out known meta-keys that aren't agent names
-    const metaKeys = new Set(['definitions', 'defaults']);
+    const metaKeys = new Set(['definitions', 'defaults', 'list']);
     return Object.keys(agents as Record<string, unknown>)
       .filter(k => !metaKeys.has(k));
   }
 
   return [];
+}
+
+/**
+ * Extract agent names from an array of agent objects.
+ * Supports both { id: "name" } and { name: "name" } formats.
+ */
+function extractAgentNames(agents: unknown[]): string[] {
+  return agents
+    .filter((a): a is Record<string, unknown> => typeof a === 'object' && a !== null)
+    .map(a => {
+      if (typeof a['id'] === 'string') return a['id'];
+      if (typeof a['name'] === 'string') return a['name'];
+      return null;
+    })
+    .filter((n): n is string => n !== null);
 }
 
 /**
