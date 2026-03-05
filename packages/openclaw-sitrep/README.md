@@ -1,3 +1,5 @@
+> ⚠️ **DEPRECATED** — This package has been replaced by [@vainplex/openclaw-leuko](https://github.com/alberthild/openclaw-leuko). Leuko provides health monitoring, anomaly detection, and everything Sitrep did — plus more.
+
 # @vainplex/openclaw-sitrep
 
 [![npm](https://img.shields.io/npm/v/@vainplex/openclaw-sitrep)](https://www.npmjs.com/package/@vainplex/openclaw-sitrep)

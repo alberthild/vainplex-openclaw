@@ -112,21 +112,6 @@ jobs:
       - name: Run tests
         run: npm test -w packages/openclaw-nats-eventstore
 
-  test-sitrep:
-    name: Test — Sitrep
-    needs: build
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-      - run: npm ci
-      - run: npm run build -w packages/openclaw-sitrep
-      - name: Run tests
-        run: npm test -w packages/openclaw-sitrep
-
   security:
     name: Security Audit
     needs: build
