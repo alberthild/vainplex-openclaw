@@ -1,6 +1,6 @@
 {
   "name": "brainplex",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Bundler + Configurator for the Vainplex OpenClaw Plugin Suite",
   "type": "module",
   "bin": {

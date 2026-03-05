@@ -3,6 +3,9 @@
  */
 
 import { execFileSync } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import type {
   InstallPlan,
   InstallResult,
@@ -89,7 +92,7 @@ export function planInstallation(
  */
 export function executeInstallation(
   plan: InstallPlan,
-  opts: InstallOptions,
+  opts: InstallOptions & { workspacePath?: string },
 ): InstallResult {
   const result: InstallResult = { installed: [], failed: [] };
 
@@ -100,7 +103,7 @@ export function executeInstallation(
   const useOpenClaw = hasOpenClawCli();
 
   for (const plugin of plan.toInstall) {
-    const entry = installPlugin(plugin, useOpenClaw, opts.verbose);
+    const entry = installPlugin(plugin, useOpenClaw, opts.verbose, opts.workspacePath);
     if (entry.success) {
       result.installed.push(entry);
     } else {
@@ -118,6 +121,7 @@ function installPlugin(
   plugin: PluginSpec,
   useOpenClaw: boolean,
   verbose: boolean,
+  workspacePath?: string,
 ): InstallResultEntry {
   try {
     const stdio = verbose ? 'inherit' as const : 'pipe' as const;
@@ -131,11 +135,44 @@ function installPlugin(
         timeout,
       }) ?? '';
     } else {
-      output = execFileSync('npm', ['install', '--no-package-lock', plugin.npmPackage], {
-        encoding: 'utf-8',
-        stdio,
-        timeout,
-      }) ?? '';
+      // npm 10.x has a bug ("Tracker idealTree already exists") when
+      // no package.json exists in cwd (common in Docker/npx scenarios).
+      // Fix: create a temp workspace with package.json, install there,
+      // then copy the installed package to the extensions directory.
+      const installDir = fs.mkdtempSync(path.join(os.tmpdir(), 'brainplex-install-'));
+      fs.writeFileSync(
+        path.join(installDir, 'package.json'),
+        '{"name":"brainplex-install","private":true}',
+      );
+
+      try {
+        output = execFileSync('npm', [
+          'install',
+          '--no-package-lock',
+          plugin.npmPackage,
+        ], {
+          encoding: 'utf-8',
+          stdio,
+          timeout,
+          cwd: installDir,
+        }) ?? '';
+
+        // Copy installed package to extensions dir
+        const ws = workspacePath ?? path.join(os.homedir(), '.openclaw');
+        const pkgParts = plugin.npmPackage.startsWith('@')
+          ? plugin.npmPackage.split('/')
+          : [plugin.npmPackage];
+        const srcModules = path.join(installDir, 'node_modules', ...pkgParts);
+        if (fs.existsSync(srcModules)) {
+          const extDir = path.join(ws, 'extensions', plugin.id);
+          fs.mkdirSync(path.dirname(extDir), { recursive: true });
+          if (!fs.existsSync(extDir)) {
+            fs.cpSync(srcModules, extDir, { recursive: true });
+          }
+        }
+      } finally {
+        try { fs.rmSync(installDir, { recursive: true, force: true }); } catch { /* ignore */ }
+      }
     }
 
     // Try to extract version from npm output

@@ -9,7 +9,7 @@ import { planInstallation, executeInstallation } from './installer.js';
 import { writeConfigs, updateOpenClawConfig } from './writer.js';
 import * as out from './output.js';
 
-const VERSION = '0.1.1';
+const VERSION = '0.2.0';
 
 /**
  * Parse CLI arguments. Hand-rolled, zero dependencies.
@@ -168,6 +168,7 @@ export async function main(args: string[]): Promise<void> {
     const installResult = executeInstallation(plan, {
       verbose: opts.verbose,
       dryRun: opts.dryRun,
+      workspacePath: sr.workspacePath,
     });
 
     for (const entry of installResult.installed) {
