@@ -49,6 +49,7 @@ function createWebhookNotifier(
         ...config.headers,
       },
       body: message,
+      signal: AbortSignal.timeout(10_000),
     });
 
     if (!response.ok) {
@@ -94,6 +95,7 @@ function createMatrixNotifier(
         Authorization: `Bearer ${config.accessToken}`,
         "Content-Type": "application/json",
       },
+      signal: AbortSignal.timeout(10_000),
       body: JSON.stringify({
         msgtype: "m.text",
         body: message,

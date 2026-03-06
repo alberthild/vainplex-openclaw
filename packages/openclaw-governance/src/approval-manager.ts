@@ -268,7 +268,7 @@ export class ApprovalManager {
 
   private looksLikeSecret(value: string): boolean {
     // Quick check for common secret patterns
-    return /(?:sk[-_]|pk[-_]|AKIA|ghp_|ghs_|glpat-|Bearer |-----BEGIN)/i.test(
+    return /(?:sk[-_]|pk[-_]|syt_|xox[bp]-|AKIA|ghp_|ghs_|glpat-|Bearer |-----BEGIN)/i.test(
       value,
     );
   }
