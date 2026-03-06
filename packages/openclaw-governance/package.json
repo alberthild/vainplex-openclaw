@@ -1,6 +1,6 @@
 {
   "name": "@vainplex/openclaw-governance",
-  "version": "0.8.6",
+  "version": "0.9.1",
   "description": "Contextual, learning, cross-agent governance for AI agents Includes Response Gate for pre-response enforcement.",
   "type": "module",
   "main": "dist/index.js",
@@ -11,7 +11,7 @@
     "README.md"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "rm -rf dist && tsc",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",

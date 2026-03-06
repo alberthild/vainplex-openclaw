@@ -1,5 +1,24 @@
 # Changelog
 
+## 0.9.1 (2026-03-06) — Bug fixes (Cerberus W1-W3)
+- fix: detectFirstDenial per-agent tracking (was missing first denials for non-first agents)
+- fix: removed dead code in detectNewTool and detectFirstDenial
+- chore: build script hardening (rm -rf dist before tsc)
+
+## 0.9.0 (2026-03-06) — Brainplex Dashboard (RFC-010)
+- feat: **Brainplex Dashboard** — real-time governance observability for AI agents
+  - `renderDashboard()` — full ANSI dashboard with trust scores, audit stats, notable events
+  - `renderBrainplex()` — compact `/brainplex` command output for chat interfaces
+  - `renderCompactLine()` — single-line governance status summary
+  - `renderTrustBar()` — visual trust score bar with tier indicators
+  - `calculateShieldScore()` — composite governance health score (0–100) across 7 features
+  - `calculateStreak()` — consecutive clean-run streak tracking
+  - `detectNotableEvents()` — pattern detection for night denials, rate spikes, trust changes, new tools
+  - `loadDashboardState()` / `saveDashboardState()` — persistent state for cross-session continuity
+- feat: New types: `DashboardState`, `NotableEvent`, `NotableEventType`, `ShieldFeature`, `ShieldScore`
+- fix: Build script should use `rm -rf dist && tsc` to prevent stale artifacts (recommendation)
+- tests: 904 total (was 834) — 56 new dashboard tests
+
 ## 0.8.2 (2026-03-04) — Cerberus Review Fixes (Complete)
 - fix: **Self-approval prevention** — agents cannot approve their own pending requests
 - fix: **Approver allowlist enforced** — `config.approvers` is now checked on every `/approve` call
