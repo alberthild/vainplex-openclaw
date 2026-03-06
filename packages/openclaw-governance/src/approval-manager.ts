@@ -233,7 +233,9 @@ export class ApprovalManager {
 
     if (this.notifier) {
       try {
-        const result = this.notifier(message, targetChannel);
+        // For native notifier: pass sessionKey; for webhook/matrix: pass channel
+        const notifyTarget = targetChannel ?? entry.sessionKey;
+        const result = this.notifier(message, notifyTarget);
         // Handle async notifiers
         if (result && typeof (result as Promise<void>).catch === "function") {
           (result as Promise<void>).catch((err) => {

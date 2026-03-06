@@ -755,7 +755,12 @@ export function registerGovernanceHooks(
   // ── Approval Manager (v0.8.0, RFC-009) ──
   let approvalManager: ApprovalManager | undefined;
   if (config.approvalManager?.enabled) {
-    const notifier = createNotifier(config.approvalManager, logger);
+    // Pass runtime.system for native notifications (zero config)
+    const runtimeSystem = (api as Record<string, unknown>).runtime
+      && typeof ((api as Record<string, unknown>).runtime as Record<string, unknown>)?.system === "object"
+      ? ((api as Record<string, unknown>).runtime as Record<string, unknown>).system as import("./notifier.js").OpenClawRuntimeSystem
+      : undefined;
+    const notifier = createNotifier(config.approvalManager, logger, runtimeSystem);
     approvalManager = new ApprovalManager(config.approvalManager, logger, notifier);
     logger.info("[governance] Approval Manager initialized (Human-in-the-Loop)");
   }

@@ -1,40 +1,61 @@
 /**
  * Approval notification delivery for Governance.
  *
- * Channel-agnostic: supports webhook (any messenger), Matrix direct,
- * and console fallback. Uses native fetch() — zero dependencies.
+ * Uses OpenClaw's native `api.runtime.system.enqueueSystemEvent()` to
+ * inject approval notifications directly into the agent's session.
+ * No external services, no webhooks, no tokens. Zero configuration.
  *
- * Config in governance config.json:
- *   "approvalManager": {
- *     "notifyMethod": "webhook" | "matrix" | "console",
- *
- *     // For webhook (works with Telegram, Slack, Discord, ntfy, etc.):
- *     "notifyWebhook": "https://ntfy.sh/governance-approvals",
- *
- *     // For matrix (direct Matrix API):
- *     "notifyChannel": "!roomId:homeserver",
- *     "notifyHomeserver": "https://matrix.example.com",
- *     "notifyToken": "syt_..."    // or GOVERNANCE_NOTIFY_TOKEN env
- *   }
+ * Fallback transports (webhook, matrix) available for edge cases.
  */
 
 import type { PluginLogger } from "./types.js";
 import type { ApprovalNotifier } from "./approval-manager.js";
 
-// ── Webhook Notifier (channel-agnostic) ──
+// ── Types ──
+
+/** OpenClaw runtime system interface (subset) */
+export interface OpenClawRuntimeSystem {
+  enqueueSystemEvent: (text: string, options: { sessionKey: string; contextKey?: string }) => boolean;
+}
+
+export interface NotifierFactoryConfig {
+  notifyMethod?: "native" | "webhook" | "matrix" | "console";
+  notifyWebhook?: string;
+  notifyWebhookHeaders?: Record<string, string>;
+  notifyChannel?: string;
+  notifyHomeserver?: string;
+  notifyToken?: string;
+}
+
+// ── Native Notifier (preferred) ──
+
+/**
+ * Create a notifier that injects messages into the agent's session
+ * via OpenClaw's native system event queue. Zero config needed.
+ */
+function createNativeNotifier(
+  runtimeSystem: OpenClawRuntimeSystem,
+  logger: PluginLogger,
+): ApprovalNotifier {
+  logger.info("[governance] Native notifier active — approval notifications via system events");
+
+  return (message: string, sessionKey?: string): void => {
+    if (!sessionKey) {
+      logger.warn("[governance] Native notifier: no sessionKey — notification only in logs");
+      logger.warn(`[governance] ${message}`);
+      return;
+    }
+    runtimeSystem.enqueueSystemEvent(message, { sessionKey });
+  };
+}
+
+// ── Webhook Notifier ──
 
 export interface WebhookNotifierConfig {
-  /** Webhook URL to POST notifications to */
   url: string;
-  /** Optional HTTP headers (e.g., for auth) */
   headers?: Record<string, string>;
 }
 
-/**
- * Create a notifier that POSTs to a webhook URL.
- * Works with ntfy.sh, Telegram Bot API, Slack webhooks, Discord webhooks,
- * or any HTTP endpoint that accepts POST requests.
- */
 function createWebhookNotifier(
   config: WebhookNotifierConfig,
   logger: PluginLogger,
@@ -44,45 +65,31 @@ function createWebhookNotifier(
   return async (message: string): Promise<void> => {
     const response = await fetch(config.url, {
       method: "POST",
-      headers: {
-        "Content-Type": "text/plain",
-        ...config.headers,
-      },
+      headers: { "Content-Type": "text/plain", ...config.headers },
       body: message,
       signal: AbortSignal.timeout(10_000),
     });
-
     if (!response.ok) {
       const body = await response.text().catch(() => "");
-      throw new Error(
-        `Webhook notification failed: ${response.status} ${response.statusText} — ${body}`,
-      );
+      throw new Error(`Webhook notification failed: ${response.status} ${response.statusText} — ${body}`);
     }
   };
 }
 
-// ── Matrix Notifier (direct API) ──
+// ── Matrix Notifier ──
 
 export interface MatrixNotifierConfig {
-  /** Matrix room ID (e.g. "!abc:matrix.example.com") */
   roomId: string;
-  /** Matrix homeserver base URL */
   homeserver: string;
-  /** Matrix access token */
   accessToken: string;
 }
 
-/**
- * Create a notifier that sends to a Matrix room via Client-Server API.
- */
 function createMatrixNotifier(
   config: MatrixNotifierConfig,
   logger: PluginLogger,
 ): ApprovalNotifier {
   const hs = config.homeserver.replace(/\/$/, "");
-  logger.info(
-    `[governance] Matrix notifier configured → ${config.roomId} via ${hs}`,
-  );
+  logger.info(`[governance] Matrix notifier configured → ${config.roomId} via ${hs}`);
 
   return async (message: string, channelOverride?: string): Promise<void> => {
     const targetRoom = channelOverride ?? config.roomId;
@@ -103,41 +110,38 @@ function createMatrixNotifier(
         formatted_body: markdownToBasicHtml(message),
       }),
     });
-
     if (!response.ok) {
       const body = await response.text().catch(() => "");
-      throw new Error(
-        `Matrix send failed: ${response.status} ${response.statusText} — ${body}`,
-      );
+      throw new Error(`Matrix send failed: ${response.status} ${response.statusText} — ${body}`);
     }
   };
 }
 
 // ── Factory ──
 
-export interface NotifierFactoryConfig {
-  notifyMethod?: "webhook" | "matrix" | "console";
-  notifyWebhook?: string;
-  notifyWebhookHeaders?: Record<string, string>;
-  notifyChannel?: string;
-  notifyHomeserver?: string;
-  notifyToken?: string;
-}
-
 /**
- * Create the appropriate notifier based on config.
- * Auto-detects method if not explicitly set:
- *   - If notifyWebhook is set → webhook
- *   - If notifyChannel + notifyHomeserver → matrix
- *   - Otherwise → undefined (console fallback in ApprovalManager)
+ * Create the appropriate notifier. Priority:
+ * 1. Native (api.runtime.system.enqueueSystemEvent) — zero config, preferred
+ * 2. Webhook — if notifyWebhook configured
+ * 3. Matrix — if notifyChannel + notifyHomeserver configured
+ * 4. Console — fallback (logs only)
  */
 export function createNotifier(
   config: NotifierFactoryConfig,
   logger: PluginLogger,
+  runtimeSystem?: OpenClawRuntimeSystem,
 ): ApprovalNotifier | undefined {
-  const method = config.notifyMethod ?? autoDetectMethod(config);
+  const method = config.notifyMethod ?? autoDetectMethod(config, runtimeSystem);
 
   switch (method) {
+    case "native": {
+      if (!runtimeSystem) {
+        logger.warn("[governance] notifyMethod=native but runtime.system not available — falling back to console");
+        return undefined;
+      }
+      return createNativeNotifier(runtimeSystem, logger);
+    }
+
     case "webhook": {
       if (!config.notifyWebhook) {
         logger.warn("[governance] notifyMethod=webhook but no notifyWebhook URL configured");
@@ -152,17 +156,11 @@ export function createNotifier(
     case "matrix": {
       const accessToken = config.notifyToken || process.env.GOVERNANCE_NOTIFY_TOKEN;
       if (!config.notifyChannel || !config.notifyHomeserver || !accessToken) {
-        logger.warn(
-          "[governance] notifyMethod=matrix but missing notifyChannel, notifyHomeserver, or notifyToken",
-        );
+        logger.warn("[governance] notifyMethod=matrix but missing notifyChannel, notifyHomeserver, or notifyToken");
         return undefined;
       }
       return createMatrixNotifier(
-        {
-          roomId: config.notifyChannel,
-          homeserver: config.notifyHomeserver,
-          accessToken,
-        },
+        { roomId: config.notifyChannel, homeserver: config.notifyHomeserver, accessToken },
         logger,
       );
     }
@@ -172,25 +170,21 @@ export function createNotifier(
       return undefined;
 
     default:
-      logger.warn(
-        "[governance] No notification method configured. Approval notifications will only appear in logs. " +
-          "Set notifyWebhook (easiest) or notifyMethod + credentials in governance config.",
-      );
+      logger.warn("[governance] No notification method configured. Notifications only in logs.");
       return undefined;
   }
 }
 
 function autoDetectMethod(
   config: NotifierFactoryConfig,
-): "webhook" | "matrix" | undefined {
+  runtimeSystem?: OpenClawRuntimeSystem,
+): "native" | "webhook" | "matrix" | undefined {
+  if (runtimeSystem) return "native";
   if (config.notifyWebhook) return "webhook";
   if (config.notifyChannel && config.notifyHomeserver) return "matrix";
   return undefined;
 }
 
-/**
- * Minimal markdown → HTML for Matrix formatted_body.
- */
 function markdownToBasicHtml(md: string): string {
   return md
     .replace(/&/g, "&amp;")
