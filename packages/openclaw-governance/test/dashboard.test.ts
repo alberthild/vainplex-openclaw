@@ -851,6 +851,38 @@ describe("Streak Counter", () => {
     expect(streak).toBe(2); // Both active days are clean
   });
 
+  it("should break streak after >1 consecutive inactive days", () => {
+    const today = new Date();
+    today.setUTCHours(12, 0, 0, 0);
+    // 4 days ago (2 empty days in between = gap too large)
+    const fourDaysAgo = new Date(today);
+    fourDaysAgo.setUTCDate(fourDaysAgo.getUTCDate() - 4);
+
+    const records = [
+      makeRecord({ timestamp: today.getTime(), verdict: "allow" }),
+      // 3 inactive days (1, 2, 3 days ago) → breaks after MAX_EMPTY_DAYS (1)
+      makeRecord({ timestamp: fourDaysAgo.getTime(), verdict: "allow" }),
+    ];
+    const streak = calculateStreak(records);
+    expect(streak).toBe(1); // Only today — gap too large to bridge
+  });
+
+  it("should not inflate streak by skipping scattered inactive days", () => {
+    const today = new Date();
+    today.setUTCHours(12, 0, 0, 0);
+
+    // Records spread over 30 days but only 5 active days with large gaps
+    const records: AuditRecord[] = [];
+    for (const daysAgo of [0, 5, 10, 15, 20]) {
+      const d = new Date(today);
+      d.setUTCDate(d.getUTCDate() - daysAgo);
+      records.push(makeRecord({ timestamp: d.getTime(), verdict: "allow" }));
+    }
+    const streak = calculateStreak(records);
+    // Should NOT be 5 — gaps >1 day break the streak
+    expect(streak).toBe(1);
+  });
+
   it("should handle single day", () => {
     const today = new Date();
     today.setUTCHours(12, 0, 0, 0);

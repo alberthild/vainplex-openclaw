@@ -508,6 +508,8 @@ export function calculateShieldScore(config: GovernanceConfig): ShieldScore {
 export function calculateStreak(records: AuditRecord[]): number {
   const now = new Date();
   let streak = 0;
+  let emptyDays = 0;
+  const MAX_EMPTY_DAYS = 1; // Allow 1 inactive day (weekends, downtime) before breaking
 
   for (let daysAgo = 0; daysAgo < 365; daysAgo++) {
     const dayStart = new Date(now);
@@ -520,8 +522,15 @@ export function calculateStreak(records: AuditRecord[]): number {
       r.timestamp >= dayStartMs && r.timestamp < dayEndMs,
     );
 
-    // Days with no records: skip (don't break, don't count)
-    if (dayRecords.length === 0) continue;
+    // Days with no records: tolerate up to MAX_EMPTY_DAYS consecutive
+    if (dayRecords.length === 0) {
+      emptyDays++;
+      if (emptyDays > MAX_EMPTY_DAYS) break;
+      continue;
+    }
+
+    // Reset empty counter on active day
+    emptyDays = 0;
 
     // If any denial on this day → streak broken
     if (dayRecords.some(r => r.verdict === "deny")) {
