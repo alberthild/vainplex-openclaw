@@ -800,7 +800,18 @@ export type ApprovalManagerConfig = {
   enabled: boolean;
   defaultTimeoutSeconds: number;
   defaultAction: "allow" | "deny";
+  /** Notification method: "webhook" (universal), "matrix" (direct API), or "console" (logs only) */
+  notifyMethod?: "webhook" | "matrix" | "console";
+  /** Webhook URL for notifications (works with ntfy.sh, Telegram, Slack, Discord, any HTTP POST) */
+  notifyWebhook?: string;
+  /** Optional extra headers for webhook (e.g., auth tokens) */
+  notifyWebhookHeaders?: Record<string, string>;
+  /** Matrix room ID for notifications (e.g. "!abc:matrix.example.com") */
   notifyChannel?: string;
+  /** Matrix homeserver URL for notification delivery */
+  notifyHomeserver?: string;
+  /** Matrix access token for notification delivery (or set GOVERNANCE_NOTIFY_TOKEN env) */
+  notifyToken?: string;
   approvers?: string[];
 };
 

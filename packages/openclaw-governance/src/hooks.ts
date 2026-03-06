@@ -18,6 +18,7 @@ import type { GovernanceEngine } from "./engine.js";
 import { getCurrentTime, resolveAgentId } from "./util.js";
 import { ResponseGate } from "./response-gate.js";
 import { ApprovalManager } from "./approval-manager.js";
+import { createNotifier } from "./notifier.js";
 
 import {
   initRedaction,
@@ -754,7 +755,8 @@ export function registerGovernanceHooks(
   // ── Approval Manager (v0.8.0, RFC-009) ──
   let approvalManager: ApprovalManager | undefined;
   if (config.approvalManager?.enabled) {
-    approvalManager = new ApprovalManager(config.approvalManager, logger);
+    const notifier = createNotifier(config.approvalManager, logger);
+    approvalManager = new ApprovalManager(config.approvalManager, logger, notifier);
     logger.info("[governance] Approval Manager initialized (Human-in-the-Loop)");
   }
 
