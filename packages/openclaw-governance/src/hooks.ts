@@ -27,6 +27,7 @@ import {
   type RedactionState,
 } from "./redaction/hooks.js";
 import { LlmValidator, type CallLlmFn } from "./llm-validator.js";
+import { renderBrainplex } from "./dashboard.js";
 
 function buildToolEvalContext(
   event: HookBeforeToolCallEvent,
@@ -640,6 +641,13 @@ function registerCommands(
         }
 
         return { text: lines.join("\n") };
+      },
+    },
+    {
+      name: "brainplex",
+      description: "Show the Brainplex governance dashboard",
+      handler: () => {
+        return renderBrainplex(engine, config);
       },
     },
   ];

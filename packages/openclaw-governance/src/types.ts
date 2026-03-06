@@ -828,3 +828,44 @@ export type PendingApproval = {
   resolve: (result: HookBeforeToolCallResult) => void;
   timer: ReturnType<typeof setTimeout>;
 };
+
+// ── Dashboard (v0.9.0, RFC-010) ──
+
+export type NotableEventType =
+  | "night_denial"
+  | "rate_spike"
+  | "new_tool"
+  | "trust_jump"
+  | "trust_drop"
+  | "clean_streak"
+  | "first_denial"
+  | "while_you_were_away";
+
+export type NotableEvent = {
+  id: string;
+  type: NotableEventType;
+  emoji: string;
+  message: string;
+  agentId?: string;
+  timestamp: number;
+};
+
+export type ShieldFeature = {
+  name: string;
+  points: number;
+  maxPoints: number;
+  enabled: boolean;
+};
+
+export type ShieldScore = {
+  total: number;
+  max: number;
+  features: ShieldFeature[];
+  percentage: number;
+};
+
+export type DashboardState = {
+  lastCheck: number;
+  streak: number;
+  notableSeen: string[];
+};

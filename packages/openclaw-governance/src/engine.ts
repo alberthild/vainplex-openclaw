@@ -1,5 +1,7 @@
 import type {
   AuditContext,
+  AuditFilter,
+  AuditRecord,
   AuditVerdict,
   AgentTrust,
   ConditionDeps,
@@ -557,6 +559,21 @@ export class GovernanceEngine {
   /** Get a read-only snapshot of all active session trust entries. */
   getSessionTrustMap(): ReadonlyMap<string, SessionTrust> {
     return this.sessionTrustManager._getSessions();
+  }
+
+  /** Expose audit trail query for dashboard/commands (RFC-010) */
+  queryAudit(filter: AuditFilter): AuditRecord[] {
+    return this.auditTrail.query(filter);
+  }
+
+  /** Expose config for dashboard shield-score calculation (RFC-010) */
+  getConfig(): GovernanceConfig {
+    return this.config;
+  }
+
+  /** Expose workspace path for dashboard state persistence (RFC-010) */
+  getWorkspace(): string {
+    return this.workspace;
   }
 
   private updateStats(action: "allow" | "deny" | "approve", us: number): void {
