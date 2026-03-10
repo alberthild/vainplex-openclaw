@@ -1,128 +1,180 @@
 # 🧠 Brainplex
 
-**One command to install and configure the entire Vainplex OpenClaw Plugin Suite.**
+**The intelligence layer for AI agents.**
 
 [![npm](https://img.shields.io/npm/v/brainplex)](https://www.npmjs.com/package/brainplex)
+[![Downloads](https://img.shields.io/npm/dw/brainplex)](https://www.npmjs.com/package/brainplex)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![GitHub](https://img.shields.io/badge/source-GitHub-blue)](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/brainplex)
 
 ```bash
 npx brainplex init
 ```
 
-## What it does
+One command. 60 seconds. Your agents get trust scoring, runtime policies, persistent memory, self-learning from mistakes, and health monitoring.
 
-Brainplex scans your OpenClaw environment, installs the core plugin suite, generates sensible default configs, and wires everything into your `openclaw.json` — in under 60 seconds.
+## Before and After
 
-### Plugins installed
+**Before Brainplex:**
+- Your agent has full permissions — day and night, in production and dev
+- Every session starts from zero — no memory of yesterday
+- You find out something broke when a user complains
+- Sub-agents inherit all parent permissions without boundaries
 
-| Plugin | Description |
-|--------|-------------|
-| **Governance** | Trust scores, night mode, credential guard, rate limiting, response gate |
-| **Cortex** | Thread tracking, decision tracking, boot context |
-| **Membrane** | Episodic memory buffer |
-| **Leuko** | Health monitoring |
-| **Knowledge Engine** | Semantic search, entity extraction *(--full only)* |
+**After Brainplex:**
+- Every agent has a trust score. Permissions scale with behavior. Night mode blocks risky ops at 3am.
+- Agents remember conversations, decisions, and commitments across sessions
+- Anomaly detection catches problems before users do
+- Cross-agent trust ceilings prevent permission escalation
 
-## Usage
+**Real example:** You install Brainplex, go to sleep. Next morning:
+
+```
+⚡ NOTABLE (while you were away)
+· 🚫 forge tried exec("rm -rf /tmp/cache") at 03:22 — DENIED (night mode)
+· 🔒 2 API keys redacted from agent output (credential guard)
+· main made 47 governed calls between 00:00–06:00 — all clean
+```
+
+## Install
 
 ```bash
-# Install + configure core plugins
 npx brainplex init
-
-# Include optional plugins (knowledge-engine)
-npx brainplex init --full
-
-# Preview without making changes
-npx brainplex init --dry-run
-
-# Specify config path
-npx brainplex init --config /path/to/openclaw.json
-
-# Show verbose npm output
-npx brainplex init --verbose
-
-# Disable color output
-npx brainplex init --no-color
 ```
 
-## What happens
+Brainplex detects your agents, installs the modules, generates configs, and wires everything in:
 
 ```
-🧠 Brainplex v0.2.0 — OpenClaw Plugin Suite Setup
+🧠 Brainplex — The Intelligence Layer for AI Agents
 
-🔍 Scanning environment...
-   ✓ Found openclaw.json at ~/.openclaw/openclaw.json
-   ✓ Detected 3 agents: main, forge, cerberus
-   ✓ Workspace: ~/.openclaw/
-   ✓ Node.js v22.22.0
+🔍 Scanning...
+   ✓ Found 3 agents: main, forge, cerberus
 
-📦 Installing plugins...
-   ✓ @vainplex/openclaw-governance@0.8.6
-   ✓ @vainplex/openclaw-cortex@0.4.2
-   ✓ @vainplex/openclaw-membrane@0.3.7
-   ✓ @vainplex/openclaw-leuko@0.2.0
+📦 Installing...
+   ✓ Governance · Cortex · Membrane · Leuko
 
-⚙️ Configuring plugins...
-   ✓ openclaw-governance — config.json written
-     Trust: main=60, forge=45, cerberus=50, *=10
-     Night mode: 23:00–06:00 (Europe/Berlin)
-   ✓ openclaw-cortex — config.json written
-   ✓ openclaw-membrane — config.json written
-   ✓ openclaw-leuko — config.json written
+⚙️  Configuring...
+   ✓ Trust: main=60, forge=45, cerberus=50, *=10
+   ✓ Night mode: 23:00–06:00
+   ✓ Credential guard: ON
 
-   ✓ openclaw.json updated (backup: openclaw.json.bak)
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-✓ Done! 4 plugins installed, 4 configured.
-
-👉 Restart your gateway to activate:
-   openclaw gateway restart
+✓ Done — run: openclaw gateway restart
 ```
 
-## Trust Score Heuristic
+| Flag | Effect |
+|------|--------|
+| `--full` | Include Knowledge Engine (entity extraction, fact store) |
+| `--dry-run` | Preview without making changes |
+| `--config <path>` | Custom openclaw.json path |
+| `--verbose` | Show npm install output |
 
-Brainplex assigns initial trust scores based on agent naming conventions:
+## Dashboard
 
-| Pattern | Score | Rationale |
-|---------|-------|-----------|
-| `admin`, `root` | 70 | Administrative agents |
-| `main` | 60 | Primary conversation agent |
-| `review`, `cerberus` | 50 | Review agents |
-| `forge`, `build` | 45 | Build agents |
-| Other named agents | 40 | Default |
-| `*` (wildcard) | 10 | Unknown agents |
+After installing, type `/brainplex` in any agent conversation:
 
-## Safety
+![Brainplex Dashboard](docs/brainplex-dashboard.png)
 
-- **Never overwrites existing configs** — skips with warning
-- **Never modifies existing `openclaw.json` entries** — only adds new ones
-- **Always backs up `openclaw.json`** before changes (`openclaw.json.bak`)
-- **Never restarts the gateway** — prints instruction for user
-- **Never sends telemetry** — zero network calls except `npm install`
-- **Idempotent** — safe to run multiple times
+Trust scores, governance stats, notable events, shield score — one command.
+
+## The Five Modules
+
+### 🔒 Governance — The Firewall
+
+Controls what agents can do and when.
+
+- **Trust scoring** — per-agent scores that rise with clean behavior, drop with violations
+- **Policy engine** — YAML-based rules with conditions (time, tool, context, trust level)
+- **Night mode** — block destructive commands outside business hours
+- **Credential guard** — 3-layer detection (regex → entropy → hash vault), redaction before output
+- **Approval workflows** — require human sign-off for sensitive operations
+- **Audit trail** — append-only JSONL with ISO 27001 controls
+- **Cross-agent governance** — parent policies propagate to sub-agents, trust ceilings prevent escalation
+
+### 🧠 Cortex — The Brain
+
+Learns from what your agents do.
+
+- **Thread tracking** — auto-detect open work items from conversations
+- **Decision tracking** — extract and persist decisions with impact classification
+- **Commitment tracking** — detect promises, track fulfillment, flag overdue items
+- **Trace analysis** — 3-stage pipeline: detect → classify (LLM) → generate rules
+- **7 signal detectors** — corrections, doom loops, hallucinations, repeat failures, dissatisfaction, unverified claims, tool failures
+- **Auto-generated rules** — findings become SOUL.md rules, governance policies, or cortex patterns
+- **10-language support** — pattern detection in EN, DE, FR, ES, PT, IT, JA, KO, RU, ZH
+
+### 💾 Membrane — The Memory
+
+Gives agents persistent context across sessions.
+
+- **Episodic memory** — what happened in past conversations
+- **Semantic memory** — facts and relationships extracted from interactions
+- **Working memory** — current task context and state
+- **Agent isolation** — each agent's memories are separated, no cross-contamination
+- **Salience filtering** — retrieves only what's relevant to the current conversation
+
+### ⚕️ Leuko — The Immune System
+
+Monitors agent health and catches problems early.
+
+- **Anomaly detection** — directory growth spikes, declining metrics, trend analysis
+- **Bootstrap integrity** — checks that critical config files haven't drifted
+- **Pipeline correlation** — detects when failures in one system affect another
+- **LLM-powered recommendations** — actionable suggestions based on current system state
+- **Goal quality checks** — flags stale or poorly defined goals
+
+### 📚 Knowledge Engine — The Knowledge Base *(optional)*
+
+Structured knowledge extraction and retrieval.
+
+- **Entity extraction** — regex + LLM-powered extraction of people, orgs, products, dates
+- **Fact store** — SPO triples (Subject-Predicate-Object) with relevance decay
+- **Vector embeddings** — ChromaDB sync for semantic search
+- **Deduplication** — automatic merging of duplicate entities and facts
+
+Install with `--full` flag.
+
+## How They Work Together
+
+```
+Message in → Governance (policy + trust gate)
+          → Membrane (inject relevant memories)
+          → Agent processes
+          → Governance (response gate + credential redaction + audit)
+          → Cortex (track threads, decisions; analyze traces)
+          → Leuko (health monitoring)
+          → Knowledge Engine (extract entities, store facts)
+```
+
+Each module works independently — install just one if that's all you need. But together, they compound: Cortex learns from Governance denials. Leuko monitors Membrane health. Knowledge Engine enriches Cortex's context.
+
+## Design
+
+- **Zero telemetry** — no tracking, no analytics, no phone-home
+- **Zero dependencies** — Node.js builtins only
+- **Never overwrites** existing configs (backs up first)
+- **Never auto-restarts** your gateway
+- **Idempotent** — run it twice, nothing breaks
+- **MIT licensed** — fork it, modify it, sell it
 
 ## Requirements
 
-- Node.js >= 22.0.0
-- An existing `openclaw.json` (auto-detected or specified with `--config`)
+- Node.js ≥ 22
+- OpenClaw with `openclaw.json`
 
-## Zero Dependencies
+## Individual Modules
 
-Brainplex uses only Node.js builtins (`fs`, `path`, `child_process`, `os`). No runtime dependencies.
+Don't want the full suite? Each module is independently installable:
 
-## Part of the Vainplex OpenClaw Suite
+```bash
+npm install @vainplex/openclaw-governance    # Policy engine, trust, approval, redaction
+npm install @vainplex/openclaw-cortex        # Conversation intelligence, trace analysis
+npm install @vainplex/openclaw-membrane      # Episodic memory
+npm install @vainplex/openclaw-leuko         # Health monitoring
+npm install @vainplex/openclaw-knowledge-engine  # Entity extraction, fact store
+```
 
-**[github.com/alberthild/vainplex-openclaw](https://github.com/alberthild/vainplex-openclaw)**
+## Contributing
 
-| Plugin | Description |
-|--------|-------------|
-| [Governance](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-governance) | Policy engine, trust, approval, redaction |
-| [Cortex](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-cortex) | Conversation intelligence |
-| [Membrane](https://github.com/alberthild/openclaw-membrane) | Episodic memory |
-| [Leuko](https://github.com/alberthild/openclaw-leuko) | Health monitoring |
-| [Knowledge Engine](https://github.com/alberthild/vainplex-openclaw/tree/main/packages/openclaw-knowledge-engine) | Entity extraction |
+[github.com/alberthild/vainplex-openclaw](https://github.com/alberthild/vainplex-openclaw)
 
 ## License
 

@@ -1,3 +1,7 @@
+> **Part of [Brainplex](https://npmjs.com/package/brainplex)** — The intelligence layer for AI agents. `npx brainplex init` to install the full suite.
+
+---
+
 > **📦 This plugin is part of the [Vainplex OpenClaw Suite](https://github.com/alberthild/vainplex-openclaw)** — a collection of production plugins that turn OpenClaw into a self-governing, learning system. See the monorepo for the full picture.
 
 ---

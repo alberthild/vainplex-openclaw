@@ -1,7 +1,7 @@
 {
   "name": "brainplex",
   "version": "0.2.1",
-  "description": "Bundler + Configurator for the Vainplex OpenClaw Plugin Suite",
+  "description": "The intelligence layer for AI agents. Security, memory, and health monitoring \u2014 one command.",
   "type": "module",
   "bin": {
     "brainplex": "bin/brainplex.mjs"

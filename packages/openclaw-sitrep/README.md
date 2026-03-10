@@ -1,3 +1,7 @@
+> **Part of [Brainplex](https://npmjs.com/package/brainplex)** — The intelligence layer for AI agents. `npx brainplex init` to install the full suite.
+
+---
+
 > ⚠️ **DEPRECATED** — This package has been replaced by [@vainplex/openclaw-leuko](https://github.com/alberthild/openclaw-leuko). Leuko provides health monitoring, anomaly detection, and everything Sitrep did — plus more.
 
 # @vainplex/openclaw-sitrep
