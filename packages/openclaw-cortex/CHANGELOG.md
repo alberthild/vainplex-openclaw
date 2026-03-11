@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.1] - 2026-03-11
+
+### Fixed
+- **npm README visibility**: Re-publish to fix missing README on npmjs.com (README was in tarball but not indexed by registry)
+
+### Changed
+- No code changes — metadata-only release to restore package discoverability
+
+## [0.5.0] - 2026-03-02
+
+### Added
+- **Agent Tools**: 5 read-only tools (`cortex_threads`, `cortex_decisions`, `cortex_search`, `cortex_commitments`, `cortex_status`) — agents can query their own conversation memory
+- **Commitment Tracker**: Detects promises/commitments in 10 languages, tracks status (open → overdue → done)
+- **Commitment patterns**: Multi-language regex patterns for commitment detection (EN, DE, FR, ES, PT, IT, ZH, JA, KO, RU)
+
+## [0.4.6] - 2026-02-24
+
+### Fixed
+- Maintenance release with stability improvements
+
 ## [0.4.5] - 2026-02-19
 
 ### Fixed
