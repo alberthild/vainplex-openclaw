@@ -1,7 +1,7 @@
 {
   "name": "brainplex",
-  "version": "0.2.1",
-  "description": "The intelligence layer for AI agents. Security, memory, and health monitoring \u2014 one command.",
+  "version": "0.2.2",
+  "description": "The intelligence layer for AI agents. Security, memory, and health monitoring — one command.",
   "type": "module",
   "bin": {
     "brainplex": "bin/brainplex.mjs"
