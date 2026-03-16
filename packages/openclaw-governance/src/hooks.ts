@@ -13,12 +13,13 @@ import type {
   OpenClawPluginApi,
   PluginCommand,
   PluginLogger,
+  VerifyResult,
 } from "./types.js";
 import type { GovernanceEngine } from "./engine.js";
 import { getCurrentTime, resolveAgentId } from "./util.js";
 import { ResponseGate } from "./response-gate.js";
-import { ApprovalManager } from "./approval-manager.js";
-import { createNotifier } from "./notifier.js";
+import { Approval2FA } from "./approval-2fa.js";
+import { MatrixPoller } from "./matrix-poller.js";
 
 import {
   initRedaction,
@@ -28,7 +29,7 @@ import {
   type RedactionState,
 } from "./redaction/hooks.js";
 import { LlmValidator, type CallLlmFn } from "./llm-validator.js";
-import { renderBrainplex } from "./dashboard.js";
+import { ERC8004Provider } from "./security/erc8004-provider.js";
 
 function buildToolEvalContext(
   event: HookBeforeToolCallEvent,
@@ -166,7 +167,7 @@ function handleBeforeToolCall(
   engine: GovernanceEngine,
   config: GovernanceConfig,
   logger: PluginLogger,
-  approvalManager?: ApprovalManager,
+  approval2fa: Approval2FA | null,
 ) {
   return async (
     event: unknown,
@@ -192,18 +193,16 @@ function handleBeforeToolCall(
         return { block: true, blockReason: verdict.reason };
       }
 
-      // Approval Manager (RFC-009): pause and wait for human decision
-      if (verdict.action === "approve" && approvalManager && verdict.approvalConfig) {
-        return approvalManager.requestApproval({
-          agentId: evalCtx.agentId,
-          sessionKey: evalCtx.sessionKey,
-          toolName: ev.toolName,
-          toolParams: ev.params,
-          reason: verdict.reason,
-          timeoutSeconds: verdict.approvalConfig.timeoutSeconds,
-          defaultAction: verdict.approvalConfig.defaultAction,
-          notifyChannel: config.approvalManager?.notifyChannel,
-        });
+      // 2FA approval flow
+      if (verdict.action === "2fa" && approval2fa) {
+        const conversationId = (ctx as unknown as { conversationId?: string }).conversationId
+          ?? evalCtx.sessionKey;
+        return approval2fa.request(
+          evalCtx.agentId,
+          conversationId,
+          ev.toolName,
+          ev.params,
+        );
       }
 
       // External communication detection (RFC-006)
@@ -442,18 +441,43 @@ function handleAfterToolCall(engine: GovernanceEngine, logger: PluginLogger, too
 
 function handleBeforeAgentStart(
   engine: GovernanceEngine,
-  _config: GovernanceConfig,
+  config: GovernanceConfig,
   logger: PluginLogger,
+  erc8004Provider: ERC8004Provider | null,
 ) {
-  return (
+  return async (
     _event: unknown,
     hookCtx: unknown,
-  ): HookBeforeAgentStartResult | undefined => {
+  ): Promise<HookBeforeAgentStartResult | undefined> => {
     try {
       const ctx = hookCtx as HookAgentContext;
       const agentId = resolveAgentId(ctx, undefined, logger);
       const sessionId = ctx.sessionKey ?? (ctx as any).sessionId ?? `agent:${agentId}`;
       const trust = engine.getTrust(agentId, sessionId);
+
+      // ── ERC-8004 reputation lookup (RFC §14.5) ──
+      if (config.erc8004?.enabled && erc8004Provider) {
+        const mapping = config.erc8004.agentMapping;
+        const onChainId = mapping[agentId];
+        if (typeof onChainId === "number") {
+          try {
+            const rep = await erc8004Provider.lookupReputation(onChainId);
+            if (rep) {
+              // TODO: Apply trust impact via engine.adjustInitialTrust(agentId, sessionId, impact)
+              // when that method is implemented. For now, log the result.
+              logger.info(
+                `[firewall] ERC-8004 reputation for agent ${agentId}: ` +
+                `${rep.tier} (score=${rep.reputationScore}, feedback=${rep.feedbackCount}, source=${rep.source})`,
+              );
+            }
+          } catch (e) {
+            // Fail-open: don't block agent start on reputation lookup failure
+            logger.warn(
+              `[firewall] ERC-8004 lookup failed for agent ${agentId}: ${e instanceof Error ? e.message : String(e)}`,
+            );
+          }
+        }
+      }
 
       const status = engine.getStatus();
       const agentTrustText = `${agentId} (${trust.agent.score}/${trust.agent.tier})`;
@@ -507,11 +531,8 @@ function handleGatewayStart(engine: GovernanceEngine) {
   };
 }
 
-function handleGatewayStop(engine: GovernanceEngine, redactionState?: RedactionState, approvalManager?: ApprovalManager) {
+function handleGatewayStop(engine: GovernanceEngine, redactionState?: RedactionState) {
   return async (): Promise<void> => {
-    if (approvalManager) {
-      approvalManager.cleanup();
-    }
     if (redactionState) {
       stopRedaction(redactionState);
     }
@@ -546,7 +567,6 @@ function registerCommands(
   api: OpenClawPluginApi,
   engine: GovernanceEngine,
   config: GovernanceConfig,
-  approvalManager?: ApprovalManager,
 ): void {
   const commands: PluginCommand[] = [
     {
@@ -644,81 +664,70 @@ function registerCommands(
         return { text: lines.join("\n") };
       },
     },
-    {
-      name: "brainplex",
-      description: "Show the Brainplex governance dashboard",
-      handler: () => {
-        return renderBrainplex(engine, config);
-      },
-    },
   ];
-
-  // Approval Manager commands (v0.8.0)
-  if (approvalManager) {
-    commands.push(
-      {
-        name: "approve",
-        description: "Approve a pending governance request: /approve <id>",
-        acceptsArgs: true,
-        handler: (ctx?: unknown) => {
-          const args = (ctx as { args?: string })?.args?.trim() ?? "";
-          if (!args) {
-            const pending = approvalManager.getPending();
-            if (pending.length === 0) {
-              return { text: "✅ No pending approvals." };
-            }
-            const lines = ["⏳ **Pending Approvals**", ""];
-            for (const p of pending) {
-              const remaining = Math.max(0, Math.round((p.expiresAt - Date.now()) / 1000));
-              lines.push(
-                `• **${p.id}** — ${p.agentId} → \`${p.toolName}\` (${remaining}s left, default: ${p.defaultAction})`,
-              );
-            }
-            lines.push("", "Usage: `/approve <id>` or `/deny <id>`");
-            return { text: lines.join("\n") };
-          }
-          const id = args.split(/\s+/)[0]!;
-          // Extract caller identity for approver validation.
-          // senderId = human user ID from the channel (Matrix, Telegram, etc.)
-          // agentId = agent ID if command was triggered by an agent
-          // Fallback "unknown" forces approver-list check to reject if list is configured
-          const caller = (ctx as { senderId?: string; agentId?: string })?.senderId
-            ?? (ctx as { agentId?: string })?.agentId
-            ?? "unknown";
-          const result = approvalManager.approve(id, caller);
-          return {
-            text: result.found
-              ? `✅ Approved: **${id}** — agent will proceed. (approved by ${caller})`
-              : `❌ ${result.reason ?? `No pending approval with id **${id}**.`}`,
-          };
-        },
-      },
-      {
-        name: "deny",
-        description: "Deny a pending governance request: /deny <id> [reason]",
-        acceptsArgs: true,
-        handler: (ctx?: unknown) => {
-          const args = (ctx as { args?: string })?.args?.trim() ?? "";
-          if (!args) {
-            return { text: "Usage: `/deny <id> [reason]`" };
-          }
-          const parts = args.split(/\s+/);
-          const id = parts[0]!;
-          const reason = parts.slice(1).join(" ") || undefined;
-          const found = approvalManager.deny(id, "human", reason);
-          return {
-            text: found
-              ? `🚫 Denied: **${id}** — agent will be blocked.`
-              : `❌ No pending approval with id **${id}**.`,
-          };
-        },
-      },
-    );
-  }
 
   for (const cmd of commands) {
     api.registerCommand(cmd);
   }
+}
+
+/** 6-digit TOTP code pattern */
+const TOTP_CODE_RE = /^\d{6}$/;
+
+function handleMessageReceived(
+  approval2fa: Approval2FA,
+  _config: GovernanceConfig,
+  logger: PluginLogger,
+) {
+  return (event: unknown, hookCtx: unknown): void => {
+    try {
+      const ev = event as { content?: string; from?: string };
+      const ctx = hookCtx as { channelId?: string; conversationId?: string };
+
+      const content = ev.content?.trim();
+      if (!content || !TOTP_CODE_RE.test(content)) return;
+
+      // Normalize senderId: strip channel prefix (e.g., "matrix:@user:server" → "@user:server")
+      // Check both raw and normalized forms against the approvers list
+      const rawSenderId = ev.from;
+      const senderId = rawSenderId?.replace(/^(matrix|telegram|discord|signal|whatsapp):/, "") || rawSenderId;
+      void ctx.conversationId; // available for future per-room scoping
+      if (!senderId) return;
+
+      // Try to resolve TOTP code against ANY pending batch (not just this conversation).
+      // The approver sends the code in THEIR chat (e.g., main DM), but the batch was created
+      // in the agent's session (e.g., vera subagent). ConversationIds won't match.
+      // Security is maintained because tryResolveAny still checks the approver list.
+      const result: VerifyResult = approval2fa.tryResolveAny(content, senderId);
+
+      switch (result.status) {
+        case "approved":
+          logger.info(
+            `[governance/2fa] ✅ Approved batch ${result.batchId} (${result.commandCount} commands)`,
+          );
+          break;
+        case "invalid_code":
+          logger.warn(
+            `[governance/2fa] ❌ Invalid code from ${senderId} (${result.attemptsLeft} attempts left)`,
+          );
+          break;
+        case "cooldown":
+          logger.warn(
+            `[governance/2fa] ⏳ Cooldown active, retry in ${result.retryAfterSeconds}s`,
+          );
+          break;
+        case "unauthorized":
+          logger.warn(`[governance/2fa] 🚫 Unauthorized sender: ${senderId}`);
+          break;
+        case "no_pending":
+          break;
+      }
+    } catch (e) {
+      logger.error(
+        `[governance/2fa] message_received error: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
+  };
 }
 
 export function registerGovernanceHooks(
@@ -752,19 +761,6 @@ export function registerGovernanceHooks(
     logger.info("[governance] Redaction subsystem initialized");
   }
 
-  // ── Approval Manager (v0.8.0, RFC-009) ──
-  let approvalManager: ApprovalManager | undefined;
-  if (config.approvalManager?.enabled) {
-    // Pass runtime.system for native notifications (zero config)
-    const runtimeSystem = (api as Record<string, unknown>).runtime
-      && typeof ((api as Record<string, unknown>).runtime as Record<string, unknown>)?.system === "object"
-      ? ((api as Record<string, unknown>).runtime as Record<string, unknown>).system as import("./notifier.js").OpenClawRuntimeSystem
-      : undefined;
-    const notifier = createNotifier(config.approvalManager, logger, runtimeSystem);
-    approvalManager = new ApprovalManager(config.approvalManager, logger, notifier);
-    logger.info("[governance] Approval Manager initialized (Human-in-the-Loop)");
-  }
-
   // ── LLM Validator (Stage 3) ──
   const llmConfig = config.outputValidation.llmValidator;
   if (llmConfig?.enabled && opts?.callLlm) {
@@ -773,8 +769,118 @@ export function registerGovernanceHooks(
     logger.info("[governance] LLM validator initialized for Stage 3 output validation");
   }
 
+  // ── Approval 2FA (v0.11.0) ──
+  let approval2fa: Approval2FA | null = null;
+  if (config.approval2fa?.enabled) {
+    approval2fa = new Approval2FA(config.approval2fa, logger);
+
+    // Set up notification via direct Matrix Client-Server API
+    // Extract Matrix credentials from the OpenClaw config (channels.matrix)
+    // Read notification config
+    const notifyChannel = config.approval2fa?.notifyChannel || "";
+    const roomId = notifyChannel.startsWith("room:") ? notifyChannel.slice(5) : notifyChannel;
+
+    // Read Matrix credentials from a dedicated secrets file (not from OpenClaw config,
+    // which correctly does not expose channel tokens to plugins).
+    // File format: JSON { "homeserverUrl": "...", "accessToken": "..." }
+    const { join } = require("path") as typeof import("path");
+    const secretsPath = join(
+      process.env.HOME || "/home/keller",
+      ".openclaw/plugins/openclaw-governance/matrix-notify.json",
+    );
+    let matrixHomeserver = "";
+    let matrixToken = "";
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { readFileSync } = require("fs") as typeof import("fs");
+      const secrets = JSON.parse(readFileSync(secretsPath, "utf8")) as Record<string, string>;
+      matrixHomeserver = secrets["homeserverUrl"] || "";
+      matrixToken = secrets["accessToken"] || "";
+    } catch {
+      // File doesn't exist or is unreadable — that's OK
+    }
+
+    if (!matrixToken || !roomId) {
+      logger.warn(
+        `[governance/2fa] Notification not configured — ` +
+        `${!matrixToken ? "missing matrix-notify.json" : ""}${!roomId ? " missing notifyChannel" : ""}`,
+      );
+    } else {
+      logger.info(`[governance/2fa] Notifications → Matrix room ${roomId.substring(0, 20)}...`);
+    }
+
+    approval2fa.setNotifyFn((_agentId, _conversationId, message) => {
+      if (!matrixToken || !roomId) {
+        logger.warn("[governance/2fa] No Matrix credentials — notification skipped");
+        return;
+      }
+      try {
+        const txnId = `gov2fa_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+        const url = `${matrixHomeserver}/_matrix/client/v3/rooms/${encodeURIComponent(roomId)}/send/m.room.message/${txnId}`;
+
+        fetch(url, {
+          method: "PUT",
+          headers: {
+            "Authorization": `Bearer ${matrixToken}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            msgtype: "m.text",
+            body: message,
+          }),
+        })
+          .then((resp) => {
+            if (resp.ok) {
+              logger.info(`[governance/2fa] Notification delivered to Matrix room`);
+            } else {
+              resp.text().then((text: string) => {
+                logger.error(`[governance/2fa] Matrix notification failed (${resp.status}): ${text}`);
+              });
+            }
+          })
+          .catch((err: unknown) => {
+            logger.error(
+              `[governance/2fa] Matrix notification fetch error: ${err instanceof Error ? err.message : String(err)}`,
+            );
+          });
+      } catch (e) {
+        logger.error(
+          `[governance/2fa] Notify dispatch error: ${e instanceof Error ? e.message : String(e)}`,
+        );
+      }
+    });
+
+    // Register message_received hook for TOTP code interception
+    api.on("message_received", handleMessageReceived(approval2fa, config, logger), {
+      priority: 100,
+    });
+
+    // Start Matrix room poller for TOTP codes (independent of OpenClaw's Matrix sync)
+    if (matrixToken && matrixHomeserver && roomId) {
+      const poller = new MatrixPoller({
+        homeserverUrl: matrixHomeserver,
+        accessToken: matrixToken,
+        roomId,
+        approval2fa,
+        logger,
+        approvers: config.approval2fa.approvers,
+      });
+      poller.start();
+
+      // Stop poller on gateway shutdown
+      api.on("gateway_stop", () => {
+        poller.stop();
+      }, { priority: 10 });
+    }
+
+    logger.info(
+      `[governance] Approval 2FA initialized (${config.approval2fa.approvers.length} approver(s), ` +
+      `timeout=${config.approval2fa.timeoutSeconds}s, batch=${config.approval2fa.batchWindowMs}ms)`,
+    );
+  }
+
   // Primary enforcement
-  api.on("before_tool_call", handleBeforeToolCall(engine, config, logger, approvalManager), {
+  api.on("before_tool_call", handleBeforeToolCall(engine, config, logger, approval2fa), {
     priority: 1000,
   });
   api.on("message_sending", handleMessageSending(engine, config, logger), {
@@ -789,8 +895,17 @@ export function registerGovernanceHooks(
   // Trust feedback
   api.on("after_tool_call", handleAfterToolCall(engine, logger, toolCallLog), { priority: 900 });
 
+  // ── ERC-8004 Provider (Module 6) ──
+  let erc8004Provider: ERC8004Provider | null = null;
+  if (config.erc8004?.enabled) {
+    erc8004Provider = new ERC8004Provider(config.erc8004);
+    logger.info("[governance] ERC-8004 reputation provider initialized");
+    // Note: Write-path (feedbackEnabled) removed — feedback signals
+    // are now handled by ShieldAPI → AgentProof integration (separate service).
+  }
+
   // Context injection
-  api.on("before_agent_start", handleBeforeAgentStart(engine, config, logger), {
+  api.on("before_agent_start", handleBeforeAgentStart(engine, config, logger, erc8004Provider), {
     priority: 5,
   });
 
@@ -798,8 +913,8 @@ export function registerGovernanceHooks(
   api.on("session_start", handleSessionStart(engine, logger), { priority: 1 });
   api.on("session_end", handleSessionEnd(engine, toolCallLog), { priority: 999 });
   api.on("gateway_start", handleGatewayStart(engine), { priority: 1 });
-  api.on("gateway_stop", handleGatewayStop(engine, redactionState, approvalManager), { priority: 999 });
+  api.on("gateway_stop", handleGatewayStop(engine, redactionState), { priority: 999 });
 
   // Commands
-  registerCommands(api, engine, config, approvalManager);
+  registerCommands(api, engine, config);
 }

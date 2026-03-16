@@ -1,4 +1,5 @@
 import type {
+  Approval2FAConfig,
   AuditConfig,
   BuiltinDetectorId,
   BuiltinPoliciesConfig,
@@ -12,10 +13,16 @@ import type {
   SessionTrustConfig,
   TimeWindow,
   TrustConfig,
-  ApprovalManagerConfig,
 } from "./types.js";
 
+import type { ERC8004Config } from "./security/types.js";
 import { resolveResponseGate } from "./response-gate.js";
+
+/** Clamp a config value to min/max bounds, falling back to defaultVal if not a number */
+function clamp(value: unknown, min: number, max: number, defaultVal: number): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return defaultVal;
+  return Math.max(min, Math.min(max, Math.round(value)));
+}
 
 function isRecord(v: unknown): v is Record<string, unknown> {
   return typeof v === "object" && v !== null && !Array.isArray(v);
@@ -194,6 +201,95 @@ function resolvePerformance(raw: unknown): PerformanceConfig {
   };
 }
 
+function resolveERC8004Config(raw: unknown): ERC8004Config | undefined {
+  // Look for erc8004 under the top-level or under agentFirewall
+  const r = isRecord(raw) ? raw : {};
+  if (!isRecord(r)) return undefined;
+
+  // Only return a config if at least one erc8004-related key was provided
+  const hasAnyKey =
+    typeof r["enabled"] === "boolean" ||
+    typeof r["rpcUrl"] === "string" ||
+    typeof r["identityRegistryAddress"] === "string" ||
+    typeof r["agentProofCoreAddress"] === "string" ||
+    isRecord(r["agentMapping"]) ||
+    typeof r["apiKeyFile"] === "string" ||
+    typeof r["restBaseUrl"] === "string" ||
+    typeof r["preferRest"] === "boolean" ||
+    typeof r["feedbackEnabled"] === "boolean" ||
+    isRecord(r["cache"]);
+  if (!hasAnyKey) return undefined;
+
+  const cacheRaw = isRecord(r["cache"]) ? r["cache"] : {};
+
+  const agentMapping: Record<string, number> = {};
+  if (isRecord(r["agentMapping"])) {
+    for (const [key, val] of Object.entries(r["agentMapping"])) {
+      if (typeof val === "number") agentMapping[key] = val;
+    }
+  }
+
+  return {
+    enabled: typeof r["enabled"] === "boolean" ? r["enabled"] : false,
+    rpcUrl:
+      typeof r["rpcUrl"] === "string"
+        ? r["rpcUrl"]
+        : "https://mainnet.base.org",
+    identityRegistryAddress:
+      typeof r["identityRegistryAddress"] === "string"
+        ? r["identityRegistryAddress"]
+        : "0x8004A169FB4a3325136EB29fA0ceB6D2e539a432",
+    agentProofCoreAddress:
+      typeof r["agentProofCoreAddress"] === "string"
+        ? r["agentProofCoreAddress"]
+        : "", // TBC with BuilderBen
+    agentMapping,
+    apiKeyFile:
+      typeof r["apiKeyFile"] === "string"
+        ? r["apiKeyFile"]
+        : "~/.config/agentproof-key",
+    restBaseUrl:
+      typeof r["restBaseUrl"] === "string"
+        ? r["restBaseUrl"]
+        : "https://oracle.agentproof.sh/api/v1",
+    preferRest:
+      typeof r["preferRest"] === "boolean" ? r["preferRest"] : true,
+    feedbackEnabled:
+      typeof r["feedbackEnabled"] === "boolean" ? r["feedbackEnabled"] : false,
+    cache: {
+      ttlSeconds:
+        typeof cacheRaw["ttlSeconds"] === "number"
+          ? cacheRaw["ttlSeconds"]
+          : 3600,
+      maxEntries:
+        typeof cacheRaw["maxEntries"] === "number"
+          ? cacheRaw["maxEntries"]
+          : 256,
+    },
+  };
+}
+
+export function resolveApproval2FA(raw: unknown): Approval2FAConfig | undefined {
+  if (!isRecord(raw)) return undefined;
+  if (typeof raw["enabled"] !== "boolean" || !raw["enabled"]) return undefined;
+  if (typeof raw["totpSecret"] !== "string" || raw["totpSecret"].length === 0) return undefined;
+
+  return {
+    enabled: true,
+    totpSecret: raw["totpSecret"] as string,
+    totpIssuer: typeof raw["totpIssuer"] === "string" ? raw["totpIssuer"] : "Vainplex Governance",
+    totpLabel: typeof raw["totpLabel"] === "string" ? raw["totpLabel"] : "Agent Approval",
+    timeoutSeconds: clamp(raw["timeoutSeconds"], 30, 1800, 300),
+    maxAttempts: clamp(raw["maxAttempts"], 1, 10, 3),
+    cooldownSeconds: clamp(raw["cooldownSeconds"], 60, 3600, 900),
+    batchWindowMs: clamp(raw["batchWindowMs"], 500, 10000, 3000),
+    approvers: Array.isArray(raw["approvers"])
+      ? (raw["approvers"] as unknown[]).filter((s): s is string => typeof s === "string")
+      : [],
+    notifyChannel: typeof raw["notifyChannel"] === "string" ? raw["notifyChannel"] : undefined,
+  };
+}
+
 export function resolveConfig(
   raw?: Record<string, unknown>,
 ): GovernanceConfig {
@@ -231,19 +327,11 @@ export function resolveConfig(
       ? (r["redaction"] as unknown as RedactionConfig)
       : undefined,
     responseGate: resolveResponseGate(r["responseGate"]),
-    approvalManager: resolveApprovalManager(r["approvalManager"]),
-  };
-}
-
-function resolveApprovalManager(raw: unknown): ApprovalManagerConfig | undefined {
-  if (!raw || typeof raw !== "object") return undefined;
-  const r = raw as Record<string, unknown>;
-  if (!r["enabled"]) return undefined;
-  return {
-    enabled: true,
-    defaultTimeoutSeconds: typeof r["defaultTimeoutSeconds"] === "number" ? r["defaultTimeoutSeconds"] : 300,
-    defaultAction: r["defaultAction"] === "allow" ? "allow" : "deny",
-    notifyChannel: typeof r["notifyChannel"] === "string" ? r["notifyChannel"] : undefined,
-    approvers: Array.isArray(r["approvers"]) ? r["approvers"] as string[] : undefined,
+    erc8004: resolveERC8004Config(
+      isRecord(r["agentFirewall"]) && isRecord((r["agentFirewall"] as Record<string, unknown>)["erc8004"])
+        ? (r["agentFirewall"] as Record<string, unknown>)["erc8004"]
+        : r["erc8004"],
+    ),
+    approval2fa: resolveApproval2FA(r["approval2fa"]),
   };
 }

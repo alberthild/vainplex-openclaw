@@ -1,7 +1,5 @@
 import type {
   AuditContext,
-  AuditFilter,
-  AuditRecord,
   AuditVerdict,
   AgentTrust,
   ConditionDeps,
@@ -231,34 +229,8 @@ export class GovernanceEngine {
     );
 
     const elapsedUs = nowUs() - startUs;
-
-    // Handle "approve" effect: check trust bypass before creating verdict
-    let finalAction = evalResult.action;
-    let approvalConfig: Verdict["approvalConfig"] = undefined;
-
-    if (evalResult.action === "approve") {
-      const approveMatch = evalResult.matches.find(
-        (m) => m.effect.action === "approve",
-      );
-      if (approveMatch && approveMatch.effect.action === "approve") {
-        const minTrust = approveMatch.effect.minTrust ?? 0;
-        // Trust bypass: if agent trust >= minTrust, auto-allow
-        if (enrichedCtx.trust.agent.score >= minTrust && minTrust > 0) {
-          finalAction = "allow";
-          this.logger.info(
-            `[governance] Approval bypassed for ${enrichedCtx.agentId} (trust ${enrichedCtx.trust.agent.score} >= minTrust ${minTrust})`,
-          );
-        } else {
-          approvalConfig = {
-            timeoutSeconds: approveMatch.effect.timeoutSeconds ?? this.config.approvalManager?.defaultTimeoutSeconds ?? 300,
-            defaultAction: approveMatch.effect.defaultAction ?? this.config.approvalManager?.defaultAction ?? "deny",
-          };
-        }
-      }
-    }
-
     const verdict: Verdict = {
-      action: finalAction,
+      action: evalResult.action,
       reason: evalResult.reason,
       risk,
       matchedPolicies: evalResult.matches,
@@ -267,7 +239,6 @@ export class GovernanceEngine {
         tier: enrichedCtx.trust.session.tier,
       },
       evaluationUs: elapsedUs,
-      approvalConfig,
     };
 
     // Trust learning from governance denial
@@ -561,26 +532,10 @@ export class GovernanceEngine {
     return this.sessionTrustManager._getSessions();
   }
 
-  /** Expose audit trail query for dashboard/commands (RFC-010) */
-  queryAudit(filter: AuditFilter): AuditRecord[] {
-    return this.auditTrail.query(filter);
-  }
-
-  /** Expose config for dashboard shield-score calculation (RFC-010) */
-  getConfig(): GovernanceConfig {
-    return this.config;
-  }
-
-  /** Expose workspace path for dashboard state persistence (RFC-010) */
-  getWorkspace(): string {
-    return this.workspace;
-  }
-
-  private updateStats(action: "allow" | "deny" | "approve", us: number): void {
+  private updateStats(action: "allow" | "deny" | "2fa", us: number): void {
     this.stats.totalEvaluations++;
-    if (action === "allow") this.stats.allowCount++;
-    else if (action === "deny") this.stats.denyCount++;
-    // "approve" counts as neither allow nor deny until resolved
+    if (action === "deny") this.stats.denyCount++;
+    else this.stats.allowCount++; // "allow" and "2fa" both count as non-deny
 
     // Running average
     this.stats.avgEvaluationUs =

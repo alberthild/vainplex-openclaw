@@ -101,7 +101,7 @@ export function buildPolicyIndex(
 
   for (const policy of policies) {
     // Index by hook
-    const policyHooks = policy.scope.hooks ?? hooks;
+    const policyHooks = policy.scope?.hooks ?? hooks;
     for (const hook of policyHooks) {
       const list = byHook.get(hook) ?? [];
       list.push(policy);
@@ -109,7 +109,7 @@ export function buildPolicyIndex(
     }
 
     // Index by agent
-    const agents = policy.scope.agents ?? ["*"];
+    const agents = policy.scope?.agents ?? ["*"];
     for (const agent of agents) {
       const list = byAgent.get(agent) ?? [];
       list.push(policy);

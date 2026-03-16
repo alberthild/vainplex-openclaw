@@ -202,13 +202,7 @@ export type RuleEffect =
   | { action: "allow" }
   | { action: "deny"; reason: string }
   | { action: "audit"; level?: AuditLevel }
-  | {
-      action: "approve";
-      reason: string;
-      timeoutSeconds?: number;
-      defaultAction?: "allow" | "deny";
-      minTrust?: number;
-    };
+  | { action: "2fa"; reason?: string };
 
 export type ParamMatcher =
   | { equals: string | number | boolean }
@@ -376,16 +370,12 @@ export type MatchedPolicy = {
 };
 
 export type Verdict = {
-  action: "allow" | "deny" | "approve";
+  action: "allow" | "deny" | "2fa";
   reason: string;
   risk: RiskAssessment;
   matchedPolicies: MatchedPolicy[];
   trust: { score: number; tier: TrustTier };
   evaluationUs: number;
-  approvalConfig?: {
-    timeoutSeconds: number;
-    defaultAction: "allow" | "deny";
-  };
 };
 
 // ── Audit ──
@@ -396,11 +386,7 @@ export type AuditVerdict =
   | "error_fallback"
   | "output_pass"
   | "output_flag"
-  | "output_block"
-  | "approval_requested"
-  | "approval_granted"
-  | "approval_denied"
-  | "approval_timeout";
+  | "output_block";
 
 export type AuditContext = {
   hook: string;
@@ -503,7 +489,8 @@ export type GovernanceConfig = {
   outputValidation: OutputValidationConfig;
   redaction?: RedactionConfig;
   responseGate?: ResponseGateConfig;
-  approvalManager?: ApprovalManagerConfig;
+  erc8004?: import("./security/types.js").ERC8004Config;
+  approval2fa?: Approval2FAConfig;
 };
 
 // ── Policy Index (internal) ──
@@ -794,89 +781,46 @@ export type VaultEntry = {
   expiresAt: number;
 };
 
-// ── Approval Manager (v0.8.0, RFC-009) ──
+// ── Approval 2FA (v0.11.0) ──
 
-export type ApprovalManagerConfig = {
+export type Approval2FAConfig = {
   enabled: boolean;
-  defaultTimeoutSeconds: number;
-  defaultAction: "allow" | "deny";
-  /** Notification method: "webhook" (universal), "matrix" (direct API), or "console" (logs only) */
-  notifyMethod?: "webhook" | "matrix" | "console";
-  /** Webhook URL for notifications (works with ntfy.sh, Telegram, Slack, Discord, any HTTP POST) */
-  notifyWebhook?: string;
-  /** Optional extra headers for webhook (e.g., auth tokens) */
-  notifyWebhookHeaders?: Record<string, string>;
-  /** Matrix room ID for notifications (e.g. "!abc:matrix.example.com") */
+  totpSecret: string;
+  totpIssuer: string;
+  totpLabel: string;
+  timeoutSeconds: number;
+  maxAttempts: number;
+  cooldownSeconds: number;
+  batchWindowMs: number;
+  approvers: string[];
+  /** Matrix room ID for approval notifications (format: "room:!roomId:server") */
   notifyChannel?: string;
-  /** Matrix homeserver URL for notification delivery */
-  notifyHomeserver?: string;
-  /** Matrix access token for notification delivery (or set GOVERNANCE_NOTIFY_TOKEN env) */
-  notifyToken?: string;
-  approvers?: string[];
+  /** Minutes to auto-approve after first valid TOTP (default: 10) */
+  sessionDurationMinutes?: number;
 };
 
-export type ApprovalManagerRule = {
-  tools: string[];
-  params?: Record<string, ParamMatcher>;
-  minTrust?: number;
-  timeoutSeconds?: number;
-  defaultAction?: "allow" | "deny";
-  notifyChannel?: string;
-  reason?: string;
+export type PendingCommand = {
+  toolName: string;
+  params: Record<string, unknown>;
+  resolve: (result: HookBeforeToolCallResult) => void;
 };
 
-export type PendingApproval = {
+export type PendingBatch = {
   id: string;
   agentId: string;
-  sessionKey: string;
-  toolName: string;
-  toolParams: Record<string, unknown>;
-  reason: string;
-  status: "pending" | "resolved";
+  conversationId: string;
+  commands: PendingCommand[];
   createdAt: number;
   expiresAt: number;
-  defaultAction: "allow" | "deny";
-  resolve: (result: HookBeforeToolCallResult) => void;
-  timer: ReturnType<typeof setTimeout>;
+  attempts: number;
+  batchTimer: ReturnType<typeof setTimeout> | null;
+  batchClosed: boolean;
 };
 
-// ── Dashboard (v0.9.0, RFC-010) ──
-
-export type NotableEventType =
-  | "night_denial"
-  | "rate_spike"
-  | "new_tool"
-  | "trust_jump"
-  | "trust_drop"
-  | "clean_streak"
-  | "first_denial"
-  | "while_you_were_away";
-
-export type NotableEvent = {
-  id: string;
-  type: NotableEventType;
-  emoji: string;
-  message: string;
-  agentId?: string;
-  timestamp: number;
-};
-
-export type ShieldFeature = {
-  name: string;
-  points: number;
-  maxPoints: number;
-  enabled: boolean;
-};
-
-export type ShieldScore = {
-  total: number;
-  max: number;
-  features: ShieldFeature[];
-  percentage: number;
-};
-
-export type DashboardState = {
-  lastCheck: number;
-  streak: number;
-  notableSeen: string[];
-};
+export type VerifyResult =
+  | { status: "approved"; batchId: string; commandCount: number }
+  | { status: "invalid_code"; attemptsLeft: number }
+  // "expired" removed — expired batches are handled via timeoutBatch() directly
+  | { status: "cooldown"; retryAfterSeconds: number }
+  | { status: "no_pending" }
+  | { status: "unauthorized" };
