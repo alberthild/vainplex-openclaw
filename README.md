@@ -10,7 +10,7 @@ Six plugins. Running in production 24/7. Built because we needed them — not as
 
 | Plugin | What it does | Version |
 |--------|-------------|---------|
-| **[Governance](packages/openclaw-governance)** | Per-agent trust scores, credential redaction, tool blocking, rate limiting, night mode. Deterministic. | [![npm](https://img.shields.io/npm/v/@vainplex/openclaw-governance)](https://www.npmjs.com/package/@vainplex/openclaw-governance) |
+| **[Governance](packages/openclaw-governance)** | Per-agent trust scores, credential redaction, tool blocking, rate limiting, night mode, **TOTP-based 2FA approval with session unlock**. 9/12 Berkeley AI governance requirements. Deterministic. | [![npm](https://img.shields.io/npm/v/@vainplex/openclaw-governance)](https://www.npmjs.com/package/@vainplex/openclaw-governance) |
 | **[Membrane](https://github.com/alberthild/openclaw-membrane)** | Episodic memory via [GustyCube's Membrane](https://github.com/gustycube/membrane) — salience-based recall with organic decay. | [![npm](https://img.shields.io/npm/v/@vainplex/openclaw-membrane)](https://www.npmjs.com/package/@vainplex/openclaw-membrane) |
 | **[Cortex](packages/openclaw-cortex)** | Tracks conversation threads, extracts decisions, generates boot context that survives compaction. 10 languages. | [![npm](https://img.shields.io/npm/v/@vainplex/openclaw-cortex)](https://www.npmjs.com/package/@vainplex/openclaw-cortex) |
 | **[Leuko](https://github.com/alberthild/openclaw-leuko)** | Cognitive immune system — health checks, anomaly detection, self-healing with escalation. | [![npm](https://img.shields.io/npm/v/@vainplex/openclaw-leuko)](https://www.npmjs.com/package/@vainplex/openclaw-leuko) |

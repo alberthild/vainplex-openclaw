@@ -187,3 +187,27 @@
 - Trust system (0–100, five tiers, decay)
 - Compliance audit trail (JSONL, ISO 27001/SOC 2 mapping)
 - 247 tests, 95.2% coverage
+
+## 0.11.1 (2026-03-16)
+
+- docs: Full Approval 2FA documentation in README
+- npm publish with updated README
+
+## 0.11.0 (2026-03-16)
+
+### Features
+- **Approval 2FA** — TOTP-based Human-in-the-Loop for agent tool calls
+- **Session Approval** — One TOTP code unlocks all exec calls for 10 minutes per agent
+- **Matrix Poller** — Independent room poller (2s interval) for TOTP code input
+- **Dedicated Governance Bot** — `@governance:server` sends notifications in its own DM room
+- **TOTP Replay Protection** — Same code rejected within the same 30s period
+- **Periodic Cleanup Timer** — Expired sessions and cooldowns cleaned every 5 minutes
+
+### Breaking
+- Removed `approval-manager.ts` (replaced by `approval-2fa.ts`)
+- New config section: `approval2fa` in config.json
+- New dependency: `otpauth` (TOTP validation)
+
+### Policy
+- New effect type: `"2fa"` — triggers TOTP approval flow
+- Berkeley compliance: Human-in-the-Loop now implemented (9/12)
