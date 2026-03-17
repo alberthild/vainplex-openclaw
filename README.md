@@ -1,6 +1,9 @@
 # Vainplex OpenClaw Suite
 
 [![CI](https://github.com/alberthild/vainplex-openclaw/actions/workflows/ci.yml/badge.svg)](https://github.com/alberthild/vainplex-openclaw/actions/workflows/ci.yml)
+[![Downloads](https://img.shields.io/npm/dt/@vainplex/openclaw-governance.svg?color=00cc00)](https://www.npmjs.com/package/@vainplex/openclaw-governance)
+[![CodeRabbit](https://img.shields.io/badge/CodeRabbit-Active-00cc00.svg)](https://coderabbit.ai)
+[![License: MIT](https://img.shields.io/badge/License-MIT-00cc00.svg)](https://opensource.org/licenses/MIT)
 
 **Real-time security intelligence, verifiable guardrails, and enterprise infrastructure for autonomous OpenClaw agents.**
 
