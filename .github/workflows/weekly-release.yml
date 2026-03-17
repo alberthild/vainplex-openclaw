@@ -1,0 +1,51 @@
+name: Weekly Suite Release
+
+on:
+  schedule:
+    # Run every Friday at 12:00 UTC
+    - cron: '0 12 * * 5'
+  workflow_dispatch: # Allow manual triggers
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # Needed to create a release
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Generate Release Notes
+        id: generate_notes
+        run: |
+          DATE=$(date +'%Y.%m.%d')
+          TAG="suite-$DATE"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          
+          cat << 'NOTES' > notes.md
+          # Vainplex OpenClaw Suite — Weekly Update
+          
+          Weekly automated sync of the OpenClaw Plugin Suite tags.
+          
+          NOTES
+          
+          for pkg in openclaw-governance openclaw-cortex openclaw-knowledge-engine openclaw-nats-eventstore; do
+            if [ -f "packages/$pkg/package.json" ]; then
+              VERSION=$(node -p "require('./packages/' + \"$pkg\" + '/package.json').version")
+              echo "### $pkg v$VERSION" >> notes.md
+            fi
+          done
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.generate_notes.outputs.tag }}
+          name: Vainplex OpenClaw Suite — ${{ steps.generate_notes.outputs.tag }}
+          body_path: notes.md
+          draft: false
+          make_latest: true
