@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/alberthild/vainplex-openclaw/actions/workflows/ci.yml/badge.svg)](https://github.com/alberthild/vainplex-openclaw/actions/workflows/ci.yml)
 
-**Plugins that give your OpenClaw agent memory, governance, and self-awareness.**
+**Real-time security intelligence, verifiable guardrails, and enterprise infrastructure for autonomous OpenClaw agents.**
 
 Six plugins. Running in production 24/7. Built because we needed them — not as a product exercise, but as infrastructure for an AI agent that actually does its job across days, weeks, and months.
 
@@ -10,7 +10,7 @@ Six plugins. Running in production 24/7. Built because we needed them — not as
 
 | Plugin | What it does | Version |
 |--------|-------------|---------|
-| **[Governance](packages/openclaw-governance)** | Per-agent trust scores, credential redaction, tool blocking, rate limiting, night mode, **TOTP-based 2FA approval with session unlock**. 9/12 Berkeley AI governance requirements. Deterministic. | [![npm](https://img.shields.io/npm/v/@vainplex/openclaw-governance)](https://www.npmjs.com/package/@vainplex/openclaw-governance) |
+| **[Governance](packages/openclaw-governance)** | The **Agent Firewall** (URL threat detection, prompt injection scans), **Proof-of-Guardrails** (Merkle Tree audit trails), and **TOTP-based 2FA approval**. 9/12 Berkeley AI governance requirements. | [![npm](https://img.shields.io/npm/v/@vainplex/openclaw-governance)](https://www.npmjs.com/package/@vainplex/openclaw-governance) |
 | **[Membrane](https://github.com/alberthild/openclaw-membrane)** | Episodic memory via [GustyCube's Membrane](https://github.com/gustycube/membrane) — salience-based recall with organic decay. | [![npm](https://img.shields.io/npm/v/@vainplex/openclaw-membrane)](https://www.npmjs.com/package/@vainplex/openclaw-membrane) |
 | **[Cortex](packages/openclaw-cortex)** | Tracks conversation threads, extracts decisions, generates boot context that survives compaction. 10 languages. | [![npm](https://img.shields.io/npm/v/@vainplex/openclaw-cortex)](https://www.npmjs.com/package/@vainplex/openclaw-cortex) |
 | **[Leuko](https://github.com/alberthild/openclaw-leuko)** | Cognitive immune system — health checks, anomaly detection, self-healing with escalation. | [![npm](https://img.shields.io/npm/v/@vainplex/openclaw-leuko)](https://www.npmjs.com/package/@vainplex/openclaw-leuko) |
@@ -141,7 +141,11 @@ network_policies:
 
 ## Compared to alternatives
 
-**vs. SecureClaw** — scanner and remediation tool, 33 checks. Our Governance plugin is runtime policy enforcement — it blocks in real-time, not after the fact.
+**vs. NVIDIA NeMo Guardrails** — NeMo filters inputs/outputs. Vainplex operates on *decisions* (which tool, which agent, what trust level) and enforces them inside the execution loop.
+
+**vs. GuardrailsAI / Invariant** — Validation schemas check what comes out. Vainplex pauses execution to ask humans for TOTP 2FA approval before anything happens.
+
+**vs. SecureClaw** — SecureClaw is a static configuration scanner. Vainplex is real-time runtime policy enforcement.
 
 **vs. Built-in memory (memory-core / memory-lancedb)** — OpenClaw's built-in memory handles storage and recall well. Cortex adds a layer on top: it *understands* what happened in conversations (threads, decisions, mood, blocking items) instead of just storing text. Knowledge Engine extracts entities and relationships. Different layer, works alongside.
 
