@@ -31,8 +31,20 @@ Press Enter to advance each message. After the walkthrough, a sandbox mode lets 
 
 ## Install
 
+The recommended way to install the Vainplex OpenClaw Plugin Suite is using **Brainplex**, our interactive installer and CLI dashboard:
+
 ```bash
-npm install @vainplex/openclaw-cortex
+npx brainplex init
+```
+
+Brainplex will guide you through installing Governance, Cortex, Membrane, Leuko, and NATS EventStore, and automatically configure your `openclaw.json` for you.
+
+### Manual Installation (Single Plugin)
+
+If you only want a specific plugin, you can install it manually:
+
+```bash
+npm install @vainplex/openclaw-governance
 ```
 
 Then in `openclaw.json` under `plugins.entries`:
@@ -41,13 +53,13 @@ Then in `openclaw.json` under `plugins.entries`:
 {
   "plugins": {
     "entries": {
-      "openclaw-cortex": { "enabled": true }
+      "openclaw-governance": { "enabled": true }
     }
   }
 }
 ```
 
-Same pattern for all plugins. Each works independently — use one or all six.
+Each plugin works independently — use the entire suite via Brainplex, or pick and choose what you need.
 
 ## How they work together
 
