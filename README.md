@@ -107,6 +107,26 @@ As operators running OpenClaw 24/7 with real credentials, we wanted additional l
 
 This works within OpenClaw's model. Start with the [hardened baseline](https://docs.openclaw.ai/gateway/security#hardened-baseline-in-60-seconds) first, then add these on top.
 
+## 🟢 NVIDIA NemoClaw Integration
+
+Vainplex Governance is **100% compatible** with NVIDIA NemoClaw and OpenShell out of the box. 
+
+While NemoClaw provides OS-level sandboxing (Landlock, seccomp), Vainplex acts as the **Policy Decision Point** inside the sandbox, providing Human-in-the-Loop 2FA and verifiable Merkle-Tree audit trails.
+
+### Blueprint Configuration
+
+Since NemoClaw strictly isolates network namespaces, you must allowlist the following endpoints in your `nemoclaw-blueprint.yaml` for Vainplex to function correctly:
+
+```yaml
+network_policies:
+  allowlist:
+    - domain: "shield.vainplex.dev" # For Agent Firewall / URL Threat Detection
+      port: 443
+    - domain: "your-nats-cluster.internal" # For EventStore Merkle-Tree Auditing
+      port: 4222
+```
+
+
 ## Compared to alternatives
 
 **vs. SecureClaw** — scanner and remediation tool, 33 checks. Our Governance plugin is runtime policy enforcement — it blocks in real-time, not after the fact.

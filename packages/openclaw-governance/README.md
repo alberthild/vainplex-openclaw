@@ -171,7 +171,27 @@ Minimum config — add to your governance config:
 
 That's it. Defaults: `flag` mode (warn, don't block), ShieldAPI at `shield.vainplex.dev`, 5s timeout, fail-open.
 
-### Full Config Reference
+### 🟢 NVIDIA NemoClaw Integration
+
+Vainplex Governance is **100% compatible** with NVIDIA NemoClaw and OpenShell out of the box. 
+
+While NemoClaw provides OS-level sandboxing (Landlock, seccomp), Vainplex acts as the **Policy Decision Point** inside the sandbox, providing Human-in-the-Loop 2FA and verifiable Merkle-Tree audit trails.
+
+### Blueprint Configuration
+
+Since NemoClaw strictly isolates network namespaces, you must allowlist the following endpoints in your `nemoclaw-blueprint.yaml` for Vainplex to function correctly:
+
+```yaml
+network_policies:
+  allowlist:
+    - domain: "shield.vainplex.dev" # For Agent Firewall / URL Threat Detection
+      port: 443
+    - domain: "your-nats-cluster.internal" # For EventStore Merkle-Tree Auditing
+      port: 4222
+```
+
+
+## Full Config Reference
 
 ```json
 {
