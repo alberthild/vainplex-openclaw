@@ -1,4 +1,5 @@
-import type { ToolCapableApi, ToolResult, Commitment } from "../types.js";
+import { resolveWorkspace } from "../config.js";
+import type { ToolCapableApi, CortexConfig, ToolResult, Commitment } from "../types.js";
 import { loadCommitments, markOverdue } from "../commitment-tracker.js";
 
 function filterCommitments(
@@ -17,7 +18,7 @@ function filterCommitments(
     .slice(0, limit);
 }
 
-export function registerCommitmentsTool(api: ToolCapableApi, workspace: string): void {
+export function registerCommitmentsTool(api: ToolCapableApi, config: CortexConfig): void {
   api.registerTool({
     name: "cortex_commitments",
     description: "List commitments and promises made in conversations — what was promised, by whom, and status.",
@@ -29,7 +30,8 @@ export function registerCommitmentsTool(api: ToolCapableApi, workspace: string):
         limit: { type: "number", description: "Max results (default: 20)" },
       },
     },
-    async execute(_id: string, params: Record<string, unknown>): Promise<ToolResult> {
+    async execute(_id: string, params: Record<string, unknown>, ctx?: { workspaceDir?: string }): Promise<ToolResult> {
+      const workspace = resolveWorkspace(config, ctx);
       try {
         const status = typeof params["status"] === "string" ? params["status"] : "open";
         const who = typeof params["who"] === "string" ? params["who"] : undefined;
