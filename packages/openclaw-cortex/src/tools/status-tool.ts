@@ -1,13 +1,15 @@
 import { join } from "node:path";
-import type { ToolCapableApi, ToolResult, ThreadsData, DecisionsData } from "../types.js";
+import type { ToolCapableApi, CortexConfig, ToolResult, ThreadsData, DecisionsData } from "../types.js";
+import { resolveWorkspace } from "../config.js";
 import { loadJson, loadText, rebootDir } from "../storage.js";
 
-export function registerStatusTool(api: ToolCapableApi, workspace: string): void {
+export function registerStatusTool(api: ToolCapableApi, config: CortexConfig): void {
   api.registerTool({
     name: "cortex_status",
     description: "Get Cortex overview — thread counts, current mood, last update, boot context size.",
     parameters: { type: "object", properties: {} },
-    async execute(): Promise<ToolResult> {
+    async execute(_id: string, params: Record<string, unknown>, ctx?: { workspaceDir?: string }): Promise<ToolResult> {
+      const workspace = resolveWorkspace(config, ctx);
       try {
         const dir = rebootDir(workspace);
         const threadsData = loadJson<Partial<ThreadsData>>(join(dir, "threads.json"));
