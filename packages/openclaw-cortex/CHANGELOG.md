@@ -1,3 +1,7 @@
+## [0.5.3] - 2026-03-23
+- **Fix**: Resolve workspace dir correctly in `cortex_status` tool.
+- **Fix**: Add missing `resolveWorkspace` import to `commitments-tool.ts`.
+
 # Changelog
 
 All notable changes to this project will be documented in this file.
