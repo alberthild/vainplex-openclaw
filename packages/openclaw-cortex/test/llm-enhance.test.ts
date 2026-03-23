@@ -67,8 +67,11 @@ describe("LlmEnhancer", () => {
   });
 
   it("buffers messages until batchSize", async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async () => new Response(JSON.stringify({choices:[{message:{content:"{}"}}]}), { status: 200 });
+
     const enhancer = new LlmEnhancer(
-      { ...LLM_DEFAULTS, enabled: true, batchSize: 3 },
+      { ...LLM_DEFAULTS, enabled: true, batchSize: 3, timeoutMs: 100 },
       mockLogger,
     );
     // First two messages should buffer (no LLM call)
@@ -81,6 +84,7 @@ describe("LlmEnhancer", () => {
     // Returns null because localhost:11434 is not guaranteed
     // The important thing is it doesn't throw
     expect(r3 === null || typeof r3 === "object").toBe(true);
+    globalThis.fetch = originalFetch;
   });
 
   it("flush returns null when no messages buffered", async () => {

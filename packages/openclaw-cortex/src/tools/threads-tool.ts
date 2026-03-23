@@ -1,5 +1,6 @@
 import { join } from "node:path";
-import type { ToolCapableApi, ToolResult, ThreadsData, Thread } from "../types.js";
+import type { ToolCapableApi, CortexConfig, ToolResult, ThreadsData, Thread } from "../types.js";
+import { resolveWorkspace } from "../config.js";
 import { loadJson, rebootDir } from "../storage.js";
 
 function filterThreads(threads: Thread[], status: string, limit: number): Thread[] {
@@ -24,7 +25,7 @@ function formatThread(t: Thread): Record<string, unknown> {
   };
 }
 
-export function registerThreadsTool(api: ToolCapableApi, workspace: string): void {
+export function registerThreadsTool(api: ToolCapableApi, config: CortexConfig): void {
   api.registerTool({
     name: "cortex_threads",
     description: "List conversation threads tracked by Cortex — open, closed, or blocked.",
@@ -35,7 +36,8 @@ export function registerThreadsTool(api: ToolCapableApi, workspace: string): voi
         limit: { type: "number", description: "Max threads to return (default: 10)" },
       },
     },
-    async execute(_id: string, params: Record<string, unknown>): Promise<ToolResult> {
+    async execute(_id: string, params: Record<string, unknown>, ctx?: { workspaceDir?: string }): Promise<ToolResult> {
+      const workspace = resolveWorkspace(config, ctx);
       try {
         const status = typeof params["status"] === "string" ? params["status"] : "open";
         const limit = typeof params["limit"] === "number" ? params["limit"] : 10;

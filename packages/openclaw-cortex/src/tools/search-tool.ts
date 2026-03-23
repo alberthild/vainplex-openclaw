@@ -1,9 +1,10 @@
 import { join } from "node:path";
-import type { ToolCapableApi, ToolResult, ThreadsData, DecisionsData } from "../types.js";
+import type { ToolCapableApi, CortexConfig, ToolResult, ThreadsData, DecisionsData } from "../types.js";
 import { matchesDecisionQuery, matchesThreadQuery } from "./match-helpers.js";
+import { resolveWorkspace } from "../config.js";
 import { loadJson, rebootDir } from "../storage.js";
 
-export function registerSearchTool(api: ToolCapableApi, workspace: string): void {
+export function registerSearchTool(api: ToolCapableApi, config: CortexConfig): void {
   api.registerTool({
     name: "cortex_search",
     description: "Search across all Cortex data — threads, decisions, and narratives.",
@@ -15,7 +16,8 @@ export function registerSearchTool(api: ToolCapableApi, workspace: string): void
       },
       required: ["query"],
     },
-    async execute(_id: string, params: Record<string, unknown>): Promise<ToolResult> {
+    async execute(_id: string, params: Record<string, unknown>, ctx?: { workspaceDir?: string }): Promise<ToolResult> {
+      const workspace = resolveWorkspace(config, ctx);
       try {
         const query = typeof params["query"] === "string" ? params["query"] : "";
         const scope = typeof params["scope"] === "string" ? params["scope"] : "all";

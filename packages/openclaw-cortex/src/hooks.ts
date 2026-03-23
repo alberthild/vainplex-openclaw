@@ -35,32 +35,36 @@ export type HookDiagnostics = {
   startedAt: string;
 };
 
-/** Shared state across hooks, lazy-initialized on first call. */
-type HookState = {
-  workspace: string | null;
+type Trackers = {
   threadTracker: ThreadTracker | null;
   decisionTracker: DecisionTracker | null;
-  llmEnhancer: LlmEnhancer | null;
   commitmentTracker: CommitmentTracker | null;
-  diagnostics: HookDiagnostics;
 };
 
-function ensureInit(state: HookState, config: CortexConfig, logger: OpenClawPluginApi["logger"], ctx?: HookContext): void {
-  if (!state.workspace) {
-    state.workspace = resolveWorkspace(config, ctx);
-  }
-  if (!state.threadTracker && config.threadTracker.enabled) {
-    state.threadTracker = new ThreadTracker(state.workspace, config.threadTracker, config.patterns.language, logger);
-  }
-  if (!state.decisionTracker && config.decisionTracker.enabled) {
-    state.decisionTracker = new DecisionTracker(state.workspace, config.decisionTracker, config.patterns.language, logger);
-  }
-  if (!state.commitmentTracker && state.workspace) {
-    state.commitmentTracker = new CommitmentTracker(state.workspace, logger);
-  }
+/** Shared state across hooks, lazy-initialized on first call. */
+type HookState = {
+  llmEnhancer: LlmEnhancer | null;
+  diagnostics: HookDiagnostics;
+  trackersByWorkspace: Map<string, Trackers>;
+};
+
+function ensureInit(state: HookState, config: CortexConfig, logger: OpenClawPluginApi["logger"]): void {
   if (!state.llmEnhancer && config.llm.enabled) {
     state.llmEnhancer = new LlmEnhancer(config.llm, logger);
   }
+}
+
+function getTrackers(state: HookState, workspace: string, config: CortexConfig, logger: OpenClawPluginApi["logger"]): Trackers {
+  let trackers = state.trackersByWorkspace.get(workspace);
+  if (!trackers) {
+    trackers = {
+      threadTracker: config.threadTracker.enabled ? new ThreadTracker(workspace, config.threadTracker, config.patterns.language, logger) : null,
+      decisionTracker: config.decisionTracker.enabled ? new DecisionTracker(workspace, config.decisionTracker, config.patterns.language, logger) : null,
+      commitmentTracker: new CommitmentTracker(workspace, logger),
+    };
+    state.trackersByWorkspace.set(workspace, trackers);
+  }
+  return trackers;
 }
 
 /** Track a hook firing in diagnostics. */
@@ -80,24 +84,25 @@ async function processMessage(
   content: string,
   sender: string,
   role: "user" | "assistant",
+  workspace: string,
 ): Promise<void> {
   if (!content) return;
 
-  // Regex-based processing (always runs — zero cost)
-  if (config.threadTracker.enabled && state.threadTracker) state.threadTracker.processMessage(content, sender);
-  if (config.decisionTracker.enabled && state.decisionTracker) state.decisionTracker.processMessage(content, sender);
+  const { threadTracker, decisionTracker, commitmentTracker } = getTrackers(state, workspace, config, api.logger);
 
-  // Commitment tracking (regex-based, zero cost)
-  if (state.commitmentTracker) state.commitmentTracker.processMessage(content, sender);
+  // Regex-based processing (always runs — zero cost)
+  if (threadTracker) threadTracker.processMessage(content, sender);
+  if (decisionTracker) decisionTracker.processMessage(content, sender);
+  if (commitmentTracker) commitmentTracker.processMessage(content, sender);
 
   // LLM enhancement (optional — batched, async, fire-and-forget)
   if (state.llmEnhancer) {
     const analysis = await state.llmEnhancer.addMessage(content, sender, role);
     if (analysis) {
-      if (state.threadTracker) state.threadTracker.applyLlmAnalysis(analysis);
-      if (state.decisionTracker) {
+      if (threadTracker) threadTracker.applyLlmAnalysis(analysis);
+      if (decisionTracker) {
         for (const dec of analysis.decisions) {
-          state.decisionTracker.addDecision(dec.what, dec.who, dec.impact);
+          decisionTracker.addDecision(dec.what, dec.who, dec.impact);
         }
       }
     }
@@ -114,10 +119,11 @@ function registerMessageHooks(api: OpenClawPluginApi, config: CortexConfig, stat
   api.on("message_received", async (event, ctx) => {
     trackHook(state.diagnostics, "message_received");
     try {
-      ensureInit(state, config, api.logger, ctx);
+      ensureInit(state, config, api.logger);
       const content = extractContent(event);
       const sender = extractSender(event);
-      await processMessage(state, config, api, content, sender, "user");
+      const workspace = resolveWorkspace(config, ctx);
+      await processMessage(state, config, api, content, sender, "user", workspace);
     } catch (err) {
       trackHook(state.diagnostics, "message_received", true);
       api.logger.warn(`[cortex] message_received hook error: ${err}`);
@@ -128,10 +134,11 @@ function registerMessageHooks(api: OpenClawPluginApi, config: CortexConfig, stat
     messageSentFired = true;
     trackHook(state.diagnostics, "message_sent");
     try {
-      ensureInit(state, config, api.logger, ctx);
+      ensureInit(state, config, api.logger);
       const content = extractContent(event);
       const sender = event.role ?? "assistant";
-      await processMessage(state, config, api, content, sender, "assistant");
+      const workspace = resolveWorkspace(config, ctx);
+      await processMessage(state, config, api, content, sender, "assistant", workspace);
     } catch (err) {
       trackHook(state.diagnostics, "message_sent", true);
       api.logger.warn(`[cortex] message_sent hook error: ${err}`);
@@ -139,17 +146,16 @@ function registerMessageHooks(api: OpenClawPluginApi, config: CortexConfig, stat
   }, { priority: 100 });
 
   // Fallback: use agent_end to capture assistant responses if message_sent never fires
-  // This covers OpenClaw versions where message_sent isn't wired into the execution flow
   api.on("agent_end", async (event, ctx) => {
     trackHook(state.diagnostics, "agent_end");
-    if (messageSentFired) return; // message_sent works — no fallback needed
+    if (messageSentFired) return;
     try {
-      ensureInit(state, config, api.logger, ctx);
-      // agent_end provides { response, messages, usage }
+      ensureInit(state, config, api.logger);
       const content = (event["response"] as string | undefined) ?? extractContent(event);
       if (!content) return;
       api.logger.info("[cortex] Using agent_end fallback for assistant message tracking");
-      await processMessage(state, config, api, content, "assistant", "assistant");
+      const workspace = resolveWorkspace(config, ctx);
+      await processMessage(state, config, api, content, "assistant", "assistant", workspace);
     } catch (err) {
       trackHook(state.diagnostics, "agent_end", true);
       api.logger.warn(`[cortex] agent_end fallback error: ${err}`);
@@ -164,8 +170,9 @@ function registerSessionHooks(api: OpenClawPluginApi, config: CortexConfig, stat
   api.on("session_start", (_event, ctx) => {
     trackHook(state.diagnostics, "session_start");
     try {
-      ensureInit(state, config, api.logger, ctx);
-      new BootContextGenerator(state.workspace!, config.bootContext, api.logger).write();
+      ensureInit(state, config, api.logger);
+      const workspace = resolveWorkspace(config, ctx);
+      new BootContextGenerator(workspace, config.bootContext, api.logger).write();
       api.logger.info("[cortex] Boot context generated on session start");
     } catch (err) {
       trackHook(state.diagnostics, "session_start", true);
@@ -180,9 +187,11 @@ function registerCompactionHooks(api: OpenClawPluginApi, config: CortexConfig, s
     api.on("before_compaction", (event, ctx) => {
       trackHook(state.diagnostics, "before_compaction");
       try {
-        ensureInit(state, config, api.logger, ctx);
-        const tracker = state.threadTracker ?? new ThreadTracker(state.workspace!, config.threadTracker, config.patterns.language, api.logger);
-        const result = new PreCompaction(state.workspace!, config, api.logger, tracker).run(event.compactingMessages);
+        ensureInit(state, config, api.logger);
+        const workspace = resolveWorkspace(config, ctx);
+        const trackers = getTrackers(state, workspace, config, api.logger);
+        if (!trackers.threadTracker) return;
+        const result = new PreCompaction(workspace, config, api.logger, trackers.threadTracker).run(event.compactingMessages);
         if (result.warnings.length > 0) api.logger.warn(`[cortex] Pre-compaction warnings: ${result.warnings.join("; ")}`);
         api.logger.info(`[cortex] Pre-compaction complete: ${result.messagesSnapshotted} messages snapshotted`);
       } catch (err) {
@@ -224,7 +233,7 @@ export function registerCortexHooks(api: OpenClawPluginApi, config: CortexConfig
   };
   _globalDiagnostics = diagnostics;
 
-  const state: HookState = { workspace: null, threadTracker: null, decisionTracker: null, llmEnhancer: null, commitmentTracker: null, diagnostics };
+  const state: HookState = { llmEnhancer: null, diagnostics, trackersByWorkspace: new Map() };
 
   registerMessageHooks(api, config, state);
   registerSessionHooks(api, config, state);

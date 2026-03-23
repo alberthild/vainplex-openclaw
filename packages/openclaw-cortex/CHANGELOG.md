@@ -1,3 +1,6 @@
+## [0.5.4] - 2026-03-23
+- **Fix**: Resolve workspace leak in multi-agent environments (Issue #15). Dynamic workspace resolution is now applied per-event instead of a static cache across the hooks, trace analyzer, and all tools.
+
 ## [0.5.3] - 2026-03-23
 - **Fix**: Resolve workspace dir correctly in `cortex_status` tool.
 - **Fix**: Add missing `resolveWorkspace` import to `commitments-tool.ts`.

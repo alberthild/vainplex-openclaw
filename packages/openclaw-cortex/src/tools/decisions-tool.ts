@@ -1,6 +1,7 @@
 import { join } from "node:path";
-import type { ToolCapableApi, ToolResult, Decision, DecisionsData } from "../types.js";
+import type { ToolCapableApi, CortexConfig, ToolResult, Decision, DecisionsData } from "../types.js";
 import { matchesDecisionQuery } from "./match-helpers.js";
+import { resolveWorkspace } from "../config.js";
 import { loadJson, rebootDir } from "../storage.js";
 
 function isRecent(decision: Decision, days: number): boolean {
@@ -18,7 +19,7 @@ function filterDecisions(decisions: Decision[], query: string | undefined, days:
     .slice(0, limit);
 }
 
-export function registerDecisionsTool(api: ToolCapableApi, workspace: string): void {
+export function registerDecisionsTool(api: ToolCapableApi, config: CortexConfig): void {
   api.registerTool({
     name: "cortex_decisions",
     description: "List decisions extracted from conversations, optionally filtered by query or date range.",
@@ -30,7 +31,8 @@ export function registerDecisionsTool(api: ToolCapableApi, workspace: string): v
         limit: { type: "number", description: "Max decisions to return (default: 20)" },
       },
     },
-    async execute(_id: string, params: Record<string, unknown>): Promise<ToolResult> {
+    async execute(_id: string, params: Record<string, unknown>, ctx?: { workspaceDir?: string }): Promise<ToolResult> {
+      const workspace = resolveWorkspace(config, ctx);
       try {
         const query = typeof params["query"] === "string" ? params["query"] : undefined;
         const days = typeof params["days"] === "number" ? params["days"] : 14;

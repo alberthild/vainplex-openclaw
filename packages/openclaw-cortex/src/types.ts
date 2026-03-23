@@ -39,7 +39,7 @@ export type PluginCommand = {
   name: string;
   description: string;
   requireAuth?: boolean;
-  handler: (args?: Record<string, unknown>) => { text: string } | Promise<{ text: string }>;
+  handler: (args?: Record<string, unknown>, ctx?: { workspaceDir?: string }) => { text: string } | Promise<{ text: string }>;
 };
 
 export type HookEvent = {
@@ -313,7 +313,7 @@ export type ToolDefinition = {
     properties: Record<string, unknown>;
     required?: string[];
   };
-  execute(toolCallId: string, params: Record<string, unknown>): Promise<ToolResult>;
+  execute(toolCallId: string, params: Record<string, unknown>, ctx?: { workspaceDir?: string }): Promise<ToolResult>;
 };
 
 export type ToolResult = {

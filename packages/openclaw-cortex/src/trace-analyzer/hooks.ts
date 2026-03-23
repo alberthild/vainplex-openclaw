@@ -86,12 +86,13 @@ async function handleTraceAnalyze(
   api: OpenClawPluginApi,
   state: TraceAnalyzerHookState,
   config: CortexConfig,
-  workspace: string,
+  ctx: { workspaceDir?: string } | undefined,
   args?: Record<string, unknown>,
 ): Promise<{ text: string }> {
   const logger = api.logger;
   const full = args?.full === true || args?.full === "true";
   try {
+    const workspace = resolveWorkspace(config, ctx);
     const analyzer = await ensureAnalyzer(state, config, workspace, logger);
     const report = await analyzer.run({ full });
     return {
@@ -115,10 +116,11 @@ async function handleTraceStatus(
   api: OpenClawPluginApi,
   state: TraceAnalyzerHookState,
   config: CortexConfig,
-  workspace: string,
+  ctx: { workspaceDir?: string } | undefined,
 ): Promise<{ text: string }> {
   const logger = api.logger;
   try {
+    const workspace = resolveWorkspace(config, ctx);
     const analyzer = await ensureAnalyzer(state, config, workspace, logger);
     const status = await analyzer.getStatus();
     return {
@@ -139,12 +141,13 @@ function setupSchedule(
   api: OpenClawPluginApi,
   state: TraceAnalyzerHookState,
   config: CortexConfig,
-  workspace: string,
 ): void {
   const intervalMs = config.traceAnalyzer.schedule.intervalHours * 60 * 60 * 1000;
   const timer = setInterval(() => {
     const logger = api.logger;
     logger.info("[trace-analyzer] Running scheduled analysis...");
+    // Scheduled runs do not have a context, so we resolve workspace using the default configuration
+    const workspace = resolveWorkspace(config);
     ensureAnalyzer(state, config, workspace, logger)
       .then(analyzer => analyzer.run())
       .catch(err => {
@@ -169,22 +172,20 @@ export function registerTraceAnalyzerHooks(
   config: CortexConfig,
   state: TraceAnalyzerHookState,
 ): void {
-  const workspace = resolveWorkspace(config);
-
   api.registerCommand({
     name: "trace-analyze",
     description: "Run the trace analyzer pipeline (batch analysis of agent event traces)",
-    handler: (args?: Record<string, unknown>) => handleTraceAnalyze(api, state, config, workspace, args),
+    handler: (args?: Record<string, unknown>, ctx?: { workspaceDir?: string }) => handleTraceAnalyze(api, state, config, ctx, args),
   });
 
   api.registerCommand({
     name: "trace-status",
     description: "Show trace analyzer status (last run, findings count, processing state)",
-    handler: () => handleTraceStatus(api, state, config, workspace),
+    handler: (args?: Record<string, unknown>, ctx?: { workspaceDir?: string }) => handleTraceStatus(api, state, config, ctx),
   });
 
   if (config.traceAnalyzer.schedule.enabled) {
-    setupSchedule(api, state, config, workspace);
+    setupSchedule(api, state, config);
   }
 
   api.logger.info(
