@@ -72,23 +72,23 @@ describe("ClawEvent structure", () => {
       id: "test-uuid",
       ts: Date.now(),
       agent: "main",
-      session: "main:matrix:albert",
+      session: "main:matrix:testuser",
       type: "msg.in",
       canonicalType: "message.in.received",
       legacyType: "msg.in",
       schemaVersion: 1,
       source: { plugin: "nats-eventstore" },
       actor: { agentId: "main", channel: "matrix" },
-      scope: { sessionKey: "main:matrix:albert" },
-      trace: { correlationId: "main:matrix:albert" },
+      scope: { sessionKey: "main:matrix:testuser" },
+      trace: { correlationId: "main:matrix:testuser" },
       visibility: "confidential",
-      payload: { from: "albert", content: "hello" },
+      payload: { from: "testuser", content: "hello" },
     };
 
     expect(event.id).toBe("test-uuid");
     expect(typeof event.ts).toBe("number");
     expect(event.agent).toBe("main");
-    expect(event.session).toBe("main:matrix:albert");
+    expect(event.session).toBe("main:matrix:testuser");
     expect(event.type).toBe("msg.in");
     expect(event.canonicalType).toBe("message.in.received");
     expect(event.legacyType).toBe("msg.in");
