@@ -74,34 +74,41 @@ nats sub "openclaw.events.>"
 
 ## Configuration
 
-Add to the `plugins.entries` section of your `openclaw.json`:
+Since v0.2.0, the plugin uses an **External Config Pattern**. Add the plugin to your `openclaw.json` (minimal config):
 
 ```json
 {
   "plugins": {
     "entries": {
       "nats-eventstore": {
-        "enabled": true,
-        "config": {
-          "enabled": true,
-          "natsUrl": "nats://localhost:4222",
-          "streamName": "openclaw-events",
-          "subjectPrefix": "openclaw.events",
-          "retention": {
-            "maxMessages": -1,
-            "maxBytes": -1,
-            "maxAgeHours": 720
-          },
-          "publishTimeoutMs": 5000,
-          "connectTimeoutMs": 5000,
-          "drainTimeoutMs": 5000,
-          "excludeHooks": ["message_sending"]
-        }
+        "enabled": true
       }
     }
   }
 }
 ```
+
+The plugin will automatically create a default configuration file at `~/.openclaw/plugins/nats-eventstore/config.json`. You can edit this file to configure the plugin:
+
+```json
+{
+  "enabled": true,
+  "natsUrl": "nats://localhost:4222",
+  "streamName": "openclaw-events",
+  "subjectPrefix": "openclaw.events",
+  "retention": {
+    "maxMessages": -1,
+    "maxBytes": -1,
+    "maxAgeHours": 720
+  },
+  "publishTimeoutMs": 5000,
+  "connectTimeoutMs": 5000,
+  "drainTimeoutMs": 5000,
+  "excludeHooks": ["message_sending"]
+}
+```
+
+*(Note: Legacy inline config in `openclaw.json` is still supported for backwards compatibility, but the external config file is recommended.)*
 
 ### Config Options
 
@@ -122,7 +129,7 @@ Add to the `plugins.entries` section of your `openclaw.json`:
 
 ### Authentication
 
-Include credentials in the NATS URL:
+Include credentials in the NATS URL within your external `config.json`:
 
 ```json
 {
@@ -272,7 +279,7 @@ A benchmark script is included in the repository — see `scripts/nats-benchmark
 ## Development
 
 ```bash
-# Run tests (66 tests)
+# Run tests (69 tests)
 npm test
 
 # Run with integration tests (requires NATS on localhost:14222)
