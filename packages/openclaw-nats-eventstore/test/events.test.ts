@@ -73,7 +73,8 @@ describe("ClawEvent structure", () => {
       ts: Date.now(),
       agent: "main",
       session: "main:matrix:albert",
-      type: "message.in.received",
+      type: "msg.in",
+      canonicalType: "message.in.received",
       legacyType: "msg.in",
       schemaVersion: 1,
       source: { plugin: "nats-eventstore" },
@@ -88,7 +89,8 @@ describe("ClawEvent structure", () => {
     expect(typeof event.ts).toBe("number");
     expect(event.agent).toBe("main");
     expect(event.session).toBe("main:matrix:albert");
-    expect(event.type).toBe("message.in.received");
+    expect(event.type).toBe("msg.in");
+    expect(event.canonicalType).toBe("message.in.received");
     expect(event.legacyType).toBe("msg.in");
     expect(event.payload).toHaveProperty("from");
     expect(event.payload).toHaveProperty("content");

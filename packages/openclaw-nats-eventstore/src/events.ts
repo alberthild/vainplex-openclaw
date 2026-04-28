@@ -82,8 +82,10 @@ export type ClawEvent = {
   agent: string;
   /** Session key (e.g., "main", "viola:telegram:12345") */
   session: string;
-  /** Event type identifier */
+  /** Legacy event type identifier used for backward-compatible consumers/routing. */
   type: EventType;
+  /** Canonical nervous-system event type while the taxonomy rolls out. */
+  canonicalType?: EventType;
   /** Previous event type name while the nervous-system taxonomy rolls out. */
   legacyType?: EventType;
   /** Schema version for the canonical envelope. */

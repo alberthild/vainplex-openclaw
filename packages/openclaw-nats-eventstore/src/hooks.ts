@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import type { NatsClient } from "./nats-client.js";
 import type { PluginLogger } from "./nats-client.js";
 import type { NatsEventStoreConfig } from "./config.js";
@@ -46,6 +46,7 @@ type PublishOptions = {
   visibility?: Visibility;
   redaction?: ClawEvent["redaction"];
   ctx?: HookCtx;
+  originalEvent?: Record<string, unknown>;
 };
 
 function firstString(...values: unknown[]): string | undefined {
@@ -55,22 +56,57 @@ function firstString(...values: unknown[]): string | undefined {
   return undefined;
 }
 
+function deriveEventId(
+  canonicalType: EventType,
+  session: string,
+  payload: Record<string, unknown>,
+  ctx: HookCtx,
+): string {
+  const originalEvent = (ctx as HookCtx & { originalEvent?: Record<string, unknown> }).originalEvent ?? {};
+  const stableSourceId = firstString(
+    ctx.runId,
+    payload.runId,
+    originalEvent.runId,
+    ctx.messageId,
+    payload.messageId,
+    originalEvent.messageId,
+    payload.toolCallId,
+    originalEvent.toolCallId,
+    ctx.jobId,
+    payload.jobId,
+    originalEvent.jobId,
+    originalEvent.id,
+  );
+
+  if (stableSourceId) {
+    const hash = createHash("sha256")
+      .update(`${session}:${canonicalType}:${stableSourceId}`)
+      .digest("hex")
+      .slice(0, 16);
+    return `evt-${hash}`;
+  }
+
+  return randomUUID();
+}
+
 function buildEnvelope(
-  type: EventType,
+  canonicalType: EventType,
   agent: string,
   session: string,
   payload: Record<string, unknown>,
   options: PublishOptions = {},
 ): ClawEvent {
-  const ctx = options.ctx ?? {};
+  const ctx = { ...(options.ctx ?? {}), originalEvent: options.originalEvent };
   const trace = ctx.trace ?? {};
+  const legacyType = options.legacyType ?? canonicalType;
 
   return {
-    id: randomUUID(),
+    id: deriveEventId(canonicalType, session, payload, ctx),
     ts: Date.now(),
     agent,
     session,
-    type,
+    type: legacyType,
+    canonicalType,
     legacyType: options.legacyType,
     schemaVersion: 1,
     source: { plugin: "nats-eventstore" },
@@ -116,7 +152,7 @@ function publish(
 
   const event = buildEnvelope(type, agent, session, payload, options);
 
-  const subject = buildSubject(config.subjectPrefix, agent, type);
+  const subject = buildSubject(config.subjectPrefix, agent, event.type);
   client.publish(subject, JSON.stringify(event)).catch((err) => {
     logger.warn(`[nats-eventstore] Publish ${type} failed: ${err}`);
   });
@@ -390,6 +426,7 @@ export function registerEventHooks(
           visibility: mapping.visibility,
           redaction: mapping.redaction,
           ctx,
+          originalEvent: event,
         };
 
         if (mapping.systemEvent) {
@@ -406,6 +443,7 @@ export function registerEventHooks(
               legacyType: extra.legacyType,
               visibility: extra.visibility,
               redaction: extra.redaction,
+              originalEvent: event,
             });
           }
         }
