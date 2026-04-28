@@ -128,8 +128,8 @@ describe.skipIf(!process.env.NATS_URL)("NATS Event Store Integration", () => {
 
     // Fire message_received hook
     hooks["message_received"](
-      { from: "albert", content: "integration test", timestamp: Date.now() },
-      { agentId: "main", sessionKey: "main:matrix:albert", channelId: "matrix" },
+      { from: "testuser", content: "integration test", timestamp: Date.now() },
+      { agentId: "main", sessionKey: "main:matrix:testuser", channelId: "matrix" },
     );
 
     // Give publish time to complete

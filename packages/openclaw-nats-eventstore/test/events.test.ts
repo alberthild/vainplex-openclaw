@@ -1,10 +1,10 @@
 import { describe, it, expect } from "vitest";
-import { ALL_EVENT_TYPES } from "../src/events.js";
+import { ALL_EVENT_TYPES, CANONICAL_EVENT_TYPES } from "../src/events.js";
 import type { ClawEvent, EventType } from "../src/events.js";
 
 describe("EventType", () => {
-  it("has 17 event types", () => {
-    expect(ALL_EVENT_TYPES).toHaveLength(17);
+  it("has 34 event types including canonical and legacy aliases", () => {
+    expect(ALL_EVENT_TYPES).toHaveLength(34);
   });
 
   it("includes all core event types from PR #18171", () => {
@@ -22,7 +22,7 @@ describe("EventType", () => {
     }
   });
 
-  it("includes new plugin event types", () => {
+  it("includes legacy plugin event types", () => {
     const newTypes: EventType[] = [
       "msg.sending",
       "llm.input",
@@ -40,6 +40,15 @@ describe("EventType", () => {
     }
   });
 
+
+
+  it("includes Brainplex nervous-system canonical event types", () => {
+    const canonical: EventType[] = [...CANONICAL_EVENT_TYPES];
+    for (const t of canonical) {
+      expect(ALL_EVENT_TYPES).toContain(t);
+    }
+  });
+
   it("has no duplicate event types", () => {
     const unique = new Set(ALL_EVENT_TYPES);
     expect(unique.size).toBe(ALL_EVENT_TYPES.length);
@@ -52,16 +61,26 @@ describe("ClawEvent structure", () => {
       id: "test-uuid",
       ts: Date.now(),
       agent: "main",
-      session: "main:matrix:albert",
+      session: "main:matrix:testuser",
       type: "msg.in",
-      payload: { from: "albert", content: "hello" },
+      canonicalType: "message.in.received",
+      legacyType: "msg.in",
+      schemaVersion: 1,
+      source: { plugin: "nats-eventstore" },
+      actor: { agentId: "main", channel: "matrix" },
+      scope: { sessionKey: "main:matrix:testuser" },
+      trace: { correlationId: "main:matrix:testuser" },
+      visibility: "confidential",
+      payload: { from: "testuser", content: "hello" },
     };
 
     expect(event.id).toBe("test-uuid");
     expect(typeof event.ts).toBe("number");
     expect(event.agent).toBe("main");
-    expect(event.session).toBe("main:matrix:albert");
+    expect(event.session).toBe("main:matrix:testuser");
     expect(event.type).toBe("msg.in");
+    expect(event.canonicalType).toBe("message.in.received");
+    expect(event.legacyType).toBe("msg.in");
     expect(event.payload).toHaveProperty("from");
     expect(event.payload).toHaveProperty("content");
   });
@@ -74,6 +93,12 @@ describe("ClawEvent structure", () => {
         agent: "main",
         session: "main",
         type,
+        schemaVersion: 1,
+        source: { plugin: "nats-eventstore" },
+        actor: { agentId: "main" },
+        scope: { sessionKey: "main" },
+        trace: {},
+        visibility: "internal",
         payload: {},
       };
       expect(event.type).toBe(type);
