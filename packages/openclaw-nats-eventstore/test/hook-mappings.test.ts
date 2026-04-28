@@ -122,7 +122,7 @@ describe("Event Hook Mappings", () => {
     expect(event.payload.params).toEqual({ query: "weather" });
   });
 
-  it("maps after_tool_call to tool.result", () => {
+  it("maps after_tool_call to tool.result and canonicalType tool.call.executed on success", () => {
     registerEventHooks(mockApi, defaultConfig(), () => mockClient);
 
     mockApi._fire(
@@ -137,6 +137,23 @@ describe("Event Hook Mappings", () => {
     expect(event.canonicalType).toBe("tool.call.executed");
     expect(event.legacyType).toBe("tool.result");
     expect(event.payload.durationMs).toBe(500);
+  });
+
+  it("maps after_tool_call to tool.result and canonicalType tool.call.failed on error", () => {
+    registerEventHooks(mockApi, defaultConfig(), () => mockClient);
+
+    mockApi._fire(
+      "after_tool_call",
+      { toolName: "web_search", params: { query: "weather" }, result: null, error: "Network Error", durationMs: 500 },
+      { agentId: "main", sessionKey: "main:matrix:testuser" },
+    );
+
+    expect(published).toHaveLength(1);
+    const event = JSON.parse(published[0].data);
+    expect(event.type).toBe("tool.result");
+    expect(event.canonicalType).toBe("tool.call.failed");
+    expect(event.legacyType).toBe("tool.result");
+    expect(event.payload.error).toBe("Network Error");
   });
 
   it("maps before_agent_start to run.start", () => {

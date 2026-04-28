@@ -1,4 +1,4 @@
-export type EventType =
+export type CanonicalEventType =
   // Brainplex nervous-system canonical events (v1)
   | "message.in.received"
   | "message.out.sending"
@@ -17,7 +17,9 @@ export type EventType =
   | "session.compaction.ended"
   | "session.reset"
   | "gateway.started"
-  | "gateway.stopped"
+  | "gateway.stopped";
+
+export type LegacyEventType =
   // Core (backward-compatible with PR #18171)
   | "msg.in"
   | "msg.out"
@@ -36,6 +38,8 @@ export type EventType =
   | "session.compaction_end"
   | "gateway.start"
   | "gateway.stop";
+
+export type EventType = CanonicalEventType | LegacyEventType;
 
 export type Visibility = "public" | "internal" | "confidential" | "secret";
 
@@ -85,9 +89,9 @@ export type ClawEvent = {
   /** Legacy event type identifier used for backward-compatible consumers/routing. */
   type: EventType;
   /** Canonical nervous-system event type while the taxonomy rolls out. */
-  canonicalType?: EventType;
+  canonicalType?: CanonicalEventType;
   /** Previous event type name while the nervous-system taxonomy rolls out. */
-  legacyType?: EventType;
+  legacyType?: LegacyEventType;
   /** Schema version for the canonical envelope. */
   schemaVersion: 1;
   /** Component that emitted the event. */
@@ -106,8 +110,7 @@ export type ClawEvent = {
   payload: Record<string, unknown>;
 };
 
-/** All known event types as an array (useful for validation/testing) */
-export const ALL_EVENT_TYPES: EventType[] = [
+export const CANONICAL_EVENT_TYPES: CanonicalEventType[] = [
   "message.in.received",
   "message.out.sending",
   "message.out.sent",
@@ -126,6 +129,9 @@ export const ALL_EVENT_TYPES: EventType[] = [
   "session.reset",
   "gateway.started",
   "gateway.stopped",
+];
+
+export const LEGACY_EVENT_TYPES: LegacyEventType[] = [
   "msg.in",
   "msg.out",
   "msg.sending",
@@ -142,4 +148,10 @@ export const ALL_EVENT_TYPES: EventType[] = [
   "session.compaction_end",
   "gateway.start",
   "gateway.stop",
+];
+
+/** All known event types as an array (useful for validation/testing) */
+export const ALL_EVENT_TYPES: EventType[] = [
+  ...CANONICAL_EVENT_TYPES,
+  ...LEGACY_EVENT_TYPES,
 ];

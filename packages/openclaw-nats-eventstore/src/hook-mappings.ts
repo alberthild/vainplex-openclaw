@@ -1,12 +1,15 @@
-import type { ClawEvent, EventType, Visibility } from "./events.js";
+import type { ClawEvent, EventType, CanonicalEventType, LegacyEventType, Visibility } from "./events.js";
 
-export type PayloadMapper = (event: any, ctx: any) => Record<string, unknown>;
-export type EventTypeMapper = EventType | ((event: any, ctx: any) => EventType);
+export type HookEventPayload = Record<string, unknown>;
+export type HookContext = Record<string, unknown>;
+
+export type PayloadMapper = (event: HookEventPayload, ctx?: HookContext) => Record<string, unknown>;
+export type EventTypeMapper = CanonicalEventType | ((event: HookEventPayload, ctx?: HookContext) => CanonicalEventType);
 
 export type HookMapping = {
   hookName: string;
   eventType: EventTypeMapper;
-  legacyType?: EventType;
+  legacyType?: LegacyEventType;
   visibility?: Visibility;
   redaction?: ClawEvent["redaction"];
   mapper: PayloadMapper;
@@ -18,10 +21,10 @@ export type HookMapping = {
 export type ExtraEmitter = {
   hookName: string;
   eventType: EventTypeMapper;
-  legacyType?: EventType;
+  legacyType?: LegacyEventType;
   visibility?: Visibility;
   redaction?: ClawEvent["redaction"];
-  condition: (event: any) => boolean;
+  condition: (event: HookEventPayload) => boolean;
   mapper: PayloadMapper;
 };
 
@@ -101,7 +104,7 @@ export const HOOK_MAPPINGS: HookMapping[] = [
       success: event.success,
       error: event.error,
       durationMs: event.durationMs,
-      messageCount: event.messages?.length ?? 0,
+      messageCount: Array.isArray(event.messages) ? event.messages.length : 0,
     }),
   },
   {
@@ -114,9 +117,9 @@ export const HOOK_MAPPINGS: HookMapping[] = [
       sessionId: event.sessionId,
       provider: event.provider,
       model: event.model,
-      systemPromptLength: event.systemPrompt?.length ?? 0,
-      promptLength: event.prompt?.length ?? 0,
-      historyMessageCount: event.historyMessages?.length ?? 0,
+      systemPromptLength: typeof event.systemPrompt === "string" ? event.systemPrompt.length : 0,
+      promptLength: typeof event.prompt === "string" ? event.prompt.length : 0,
+      historyMessageCount: Array.isArray(event.historyMessages) ? event.historyMessages.length : 0,
       imagesCount: event.imagesCount ?? 0,
     }),
   },
@@ -126,7 +129,7 @@ export const HOOK_MAPPINGS: HookMapping[] = [
     legacyType: "llm.output",
     redaction: { applied: true, omittedFields: ["assistantTexts"] },
     mapper: (event) => {
-      const texts = event.assistantTexts ?? [];
+      const texts = Array.isArray(event.assistantTexts) ? event.assistantTexts : [];
       return {
         runId: event.runId,
         sessionId: event.sessionId,
@@ -134,7 +137,7 @@ export const HOOK_MAPPINGS: HookMapping[] = [
         model: event.model,
         assistantTextCount: texts.length,
         assistantTextTotalLength: texts.reduce(
-          (s: number, t: string) => s + (t?.length ?? 0),
+          (s: number, t: unknown) => s + (typeof t === "string" ? t.length : 0),
           0,
         ),
         usage: event.usage,

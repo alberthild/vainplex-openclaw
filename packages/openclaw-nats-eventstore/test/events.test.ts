@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { ALL_EVENT_TYPES } from "../src/events.js";
+import { ALL_EVENT_TYPES, CANONICAL_EVENT_TYPES } from "../src/events.js";
 import type { ClawEvent, EventType } from "../src/events.js";
 
 describe("EventType", () => {
@@ -43,18 +43,7 @@ describe("EventType", () => {
 
 
   it("includes Brainplex nervous-system canonical event types", () => {
-    const canonical: EventType[] = [
-      "message.in.received",
-      "message.out.sent",
-      "tool.call.requested",
-      "tool.call.executed",
-      "tool.call.failed",
-      "run.started",
-      "run.ended",
-      "model.input.observed",
-      "model.output.observed",
-      "gateway.started",
-    ];
+    const canonical: EventType[] = [...CANONICAL_EVENT_TYPES];
     for (const t of canonical) {
       expect(ALL_EVENT_TYPES).toContain(t);
     }

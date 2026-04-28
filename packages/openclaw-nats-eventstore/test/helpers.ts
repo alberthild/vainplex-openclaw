@@ -19,13 +19,13 @@ export function createMockClient(overrides?: Partial<NatsClient>): NatsClient {
 }
 
 export function createMockApi() {
-  const handlers: Record<string, ((...args: any[]) => void)[]> = {};
+  const handlers: Record<string, ((...args: unknown[]) => void)[]> = {};
   return {
     logger: { info: vi.fn(), warn: vi.fn(), error: vi.fn(), debug: vi.fn() },
-    on: vi.fn((name: string, handler: (...args: any[]) => void) => {
+    on: vi.fn((name: string, handler: (...args: unknown[]) => void) => {
       (handlers[name] ??= []).push(handler);
     }),
-    _fire(name: string, ...args: any[]) {
+    _fire(name: string, ...args: unknown[]) {
       for (const h of handlers[name] ?? []) {
         h(...args);
       }

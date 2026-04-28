@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import type { NatsClient } from "./nats-client.js";
 import type { PluginLogger } from "./nats-client.js";
 import type { NatsEventStoreConfig } from "./config.js";
-import type { ClawEvent, EventType, Visibility } from "./events.js";
+import type { ClawEvent, EventType, CanonicalEventType, LegacyEventType, Visibility } from "./events.js";
 import { extractAgentId, buildSubject } from "./util.js";
 import {
   HOOK_MAPPINGS,
@@ -29,6 +29,7 @@ type HookCtx = {
     spanId?: string;
     parentSpanId?: string;
   };
+  originalEvent?: Record<string, unknown>;
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -49,7 +50,7 @@ function shouldPublish(hookName: string, config: NatsEventStoreConfig): boolean 
 }
 
 type PublishOptions = {
-  legacyType?: EventType;
+  legacyType?: LegacyEventType;
   visibility?: Visibility;
   redaction?: ClawEvent["redaction"];
   ctx?: HookCtx;
@@ -64,7 +65,7 @@ function firstString(...values: unknown[]): string | undefined {
 }
 
 function deriveEventId(
-  canonicalType: EventType,
+  canonicalType: CanonicalEventType,
   session: string,
   payload: Record<string, unknown>,
   ctx: HookCtx,
@@ -105,28 +106,30 @@ function buildActor(agent: string, ctx: HookCtx): ClawEvent["actor"] {
 }
 
 function buildScope(payload: Record<string, unknown>, ctx: HookCtx): ClawEvent["scope"] {
+  const oe = ctx.originalEvent ?? {};
   return {
-    sessionKey: firstString(ctx.sessionKey),
-    sessionId: firstString(ctx.sessionId),
-    runId: firstString(ctx.runId, payload.runId),
-    toolCallId: firstString(payload.toolCallId),
-    messageId: firstString(ctx.messageId, payload.messageId),
-    jobId: firstString(ctx.jobId),
+    sessionKey: firstString(ctx.sessionKey, oe.sessionKey),
+    sessionId: firstString(ctx.sessionId, oe.sessionId),
+    runId: firstString(ctx.runId, payload.runId, oe.runId),
+    toolCallId: firstString(payload.toolCallId, oe.toolCallId),
+    messageId: firstString(ctx.messageId, payload.messageId, oe.messageId),
+    jobId: firstString(ctx.jobId, payload.jobId, oe.jobId),
   };
 }
 
 function buildTrace(payload: Record<string, unknown>, ctx: HookCtx, trace: any): ClawEvent["trace"] {
+  const oe = ctx.originalEvent ?? {};
   return {
-    traceId: firstString(ctx.traceId, trace.traceId),
-    spanId: firstString(ctx.spanId, trace.spanId),
-    parentSpanId: firstString(ctx.parentSpanId, trace.parentSpanId),
-    causationId: firstString(payload.causationId),
-    correlationId: firstString(ctx.runId, ctx.sessionId, ctx.sessionKey),
+    traceId: firstString(ctx.traceId, trace.traceId, oe.traceId),
+    spanId: firstString(ctx.spanId, trace.spanId, oe.spanId),
+    parentSpanId: firstString(ctx.parentSpanId, trace.parentSpanId, oe.parentSpanId),
+    causationId: firstString(payload.causationId, oe.causationId),
+    correlationId: firstString(ctx.runId, ctx.sessionId, ctx.sessionKey, oe.runId, oe.sessionId, oe.sessionKey),
   };
 }
 
 function buildEnvelope(
-  canonicalType: EventType,
+  canonicalType: CanonicalEventType,
   agent: string,
   session: string,
   payload: Record<string, unknown>,
@@ -134,7 +137,7 @@ function buildEnvelope(
 ): ClawEvent {
   const ctx = { ...(options.ctx ?? {}), originalEvent: options.originalEvent };
   const trace = ctx.trace ?? {};
-  const legacyType = options.legacyType ?? canonicalType;
+  const legacyType = options.legacyType ?? (canonicalType as unknown as EventType);
 
   return {
     id: deriveEventId(canonicalType, session, payload, ctx),
@@ -159,7 +162,7 @@ function buildEnvelope(
 function publish(
   getClient: () => NatsClient | null,
   config: NatsEventStoreConfig,
-  type: EventType,
+  type: CanonicalEventType,
   agent: string,
   session: string,
   payload: Record<string, unknown>,
@@ -177,7 +180,7 @@ function publish(
   });
 }
 
-function resolveEventType(mapper: EventTypeMapper, event: any, ctx: any): EventType {
+function resolveEventType(mapper: EventTypeMapper, event: any, ctx: any): CanonicalEventType {
   return typeof mapper === "function" ? mapper(event, ctx) : mapper;
 }
 
@@ -185,7 +188,7 @@ function emitExtras(
   extras: ExtraEmitter[],
   event: any,
   ctx: any,
-  pub: (type: EventType, ctxPayload: HookCtx, payload: Record<string, unknown>, options?: PublishOptions) => void
+  pub: (type: CanonicalEventType, ctxPayload: HookCtx, payload: Record<string, unknown>, options?: PublishOptions) => void
 ): void {
   for (const extra of extras) {
     if (extra.condition(event)) {
@@ -206,7 +209,7 @@ function publishHookResult(
   logger: PluginLogger
 ) {
   return (
-    type: EventType,
+    type: CanonicalEventType,
     ctxPayload: HookCtx,
     payload: Record<string, unknown>,
     options: PublishOptions = {},
