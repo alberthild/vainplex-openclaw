@@ -1,4 +1,23 @@
 export type EventType =
+  // Brainplex nervous-system canonical events (v1)
+  | "message.in.received"
+  | "message.out.sending"
+  | "message.out.sent"
+  | "tool.call.requested"
+  | "tool.call.executed"
+  | "tool.call.failed"
+  | "run.started"
+  | "run.ended"
+  | "run.failed"
+  | "model.input.observed"
+  | "model.output.observed"
+  | "session.started"
+  | "session.ended"
+  | "session.compaction.started"
+  | "session.compaction.ended"
+  | "session.reset"
+  | "gateway.started"
+  | "gateway.stopped"
   // Core (backward-compatible with PR #18171)
   | "msg.in"
   | "msg.out"
@@ -15,9 +34,44 @@ export type EventType =
   | "session.end"
   | "session.compaction_start"
   | "session.compaction_end"
-  | "session.reset"
   | "gateway.start"
   | "gateway.stop";
+
+export type Visibility = "public" | "internal" | "confidential" | "secret";
+
+export type EventSource = {
+  plugin: string;
+  host?: string;
+};
+
+export type EventActor = {
+  agentId?: string;
+  userId?: string;
+  channel?: string;
+};
+
+export type EventScope = {
+  sessionKey?: string;
+  sessionId?: string;
+  runId?: string;
+  toolCallId?: string;
+  messageId?: string;
+  jobId?: string;
+};
+
+export type EventTrace = {
+  traceId?: string;
+  spanId?: string;
+  parentSpanId?: string;
+  causationId?: string;
+  correlationId?: string;
+};
+
+export type EventRedaction = {
+  applied: boolean;
+  policy?: string;
+  omittedFields?: string[];
+};
 
 export type ClawEvent = {
   /** Unique event ID (UUIDv4) */
@@ -30,12 +84,46 @@ export type ClawEvent = {
   session: string;
   /** Event type identifier */
   type: EventType;
+  /** Previous event type name while the nervous-system taxonomy rolls out. */
+  legacyType?: EventType;
+  /** Schema version for the canonical envelope. */
+  schemaVersion: 1;
+  /** Component that emitted the event. */
+  source: EventSource;
+  /** Actor metadata (agent/user/channel). */
+  actor: EventActor;
+  /** Run/session/tool/message scope metadata. */
+  scope: EventScope;
+  /** Trace and causality metadata. */
+  trace: EventTrace;
+  /** Visibility tier for consumers and projections. */
+  visibility: Visibility;
+  /** Redaction metadata for omitted or transformed payload fields. */
+  redaction?: EventRedaction;
   /** Event-specific payload */
   payload: Record<string, unknown>;
 };
 
 /** All known event types as an array (useful for validation/testing) */
 export const ALL_EVENT_TYPES: EventType[] = [
+  "message.in.received",
+  "message.out.sending",
+  "message.out.sent",
+  "tool.call.requested",
+  "tool.call.executed",
+  "tool.call.failed",
+  "run.started",
+  "run.ended",
+  "run.failed",
+  "model.input.observed",
+  "model.output.observed",
+  "session.started",
+  "session.ended",
+  "session.compaction.started",
+  "session.compaction.ended",
+  "session.reset",
+  "gateway.started",
+  "gateway.stopped",
   "msg.in",
   "msg.out",
   "msg.sending",
@@ -50,7 +138,6 @@ export const ALL_EVENT_TYPES: EventType[] = [
   "session.end",
   "session.compaction_start",
   "session.compaction_end",
-  "session.reset",
   "gateway.start",
   "gateway.stop",
 ];

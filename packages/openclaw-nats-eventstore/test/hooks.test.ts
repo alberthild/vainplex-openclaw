@@ -80,9 +80,16 @@ describe("registerEventHooks", () => {
     );
 
     expect(published).toHaveLength(1);
-    expect(published[0].subject).toBe("openclaw.events.main.msg_in");
+    expect(published[0].subject).toBe("openclaw.events.main.message_in_received");
     const event = JSON.parse(published[0].data);
-    expect(event.type).toBe("msg.in");
+    expect(event.type).toBe("message.in.received");
+    expect(event.legacyType).toBe("msg.in");
+    expect(event.schemaVersion).toBe(1);
+    expect(event.source.plugin).toBe("nats-eventstore");
+    expect(event.actor.agentId).toBe("main");
+    expect(event.actor.channel).toBe("matrix");
+    expect(event.scope.sessionKey).toBe("main:matrix:albert");
+    expect(event.visibility).toBe("confidential");
     expect(event.agent).toBe("main");
     expect(event.session).toBe("main:matrix:albert");
     expect(event.payload.from).toBe("albert");
@@ -104,7 +111,8 @@ describe("registerEventHooks", () => {
 
     expect(published).toHaveLength(1);
     const event = JSON.parse(published[0].data);
-    expect(event.type).toBe("msg.sending");
+    expect(event.type).toBe("message.out.sending");
+    expect(event.legacyType).toBe("msg.sending");
     expect(event.payload.to).toBe("albert");
     expect(event.payload.content).toBe("Hi!");
   });
@@ -120,7 +128,8 @@ describe("registerEventHooks", () => {
 
     expect(published).toHaveLength(1);
     const event = JSON.parse(published[0].data);
-    expect(event.type).toBe("msg.out");
+    expect(event.type).toBe("message.out.sent");
+    expect(event.legacyType).toBe("msg.out");
     expect(event.payload.success).toBe(true);
   });
 
@@ -135,7 +144,8 @@ describe("registerEventHooks", () => {
 
     expect(published).toHaveLength(1);
     const event = JSON.parse(published[0].data);
-    expect(event.type).toBe("tool.call");
+    expect(event.type).toBe("tool.call.requested");
+    expect(event.legacyType).toBe("tool.call");
     expect(event.payload.toolName).toBe("web_search");
     expect(event.payload.params).toEqual({ query: "weather" });
   });
@@ -151,7 +161,8 @@ describe("registerEventHooks", () => {
 
     expect(published).toHaveLength(1);
     const event = JSON.parse(published[0].data);
-    expect(event.type).toBe("tool.result");
+    expect(event.type).toBe("tool.call.executed");
+    expect(event.legacyType).toBe("tool.result");
     expect(event.payload.durationMs).toBe(500);
   });
 
@@ -166,7 +177,8 @@ describe("registerEventHooks", () => {
 
     expect(published).toHaveLength(1);
     const event = JSON.parse(published[0].data);
-    expect(event.type).toBe("run.start");
+    expect(event.type).toBe("run.started");
+    expect(event.legacyType).toBe("run.start");
     expect(event.payload.prompt).toBe("Hello Claudia");
   });
 
@@ -183,11 +195,13 @@ describe("registerEventHooks", () => {
     const runEnd = JSON.parse(published[0].data);
     const runError = JSON.parse(published[1].data);
 
-    expect(runEnd.type).toBe("run.end");
+    expect(runEnd.type).toBe("run.ended");
+    expect(runEnd.legacyType).toBe("run.end");
     expect(runEnd.payload.success).toBe(false);
     expect(runEnd.payload.messageCount).toBe(2);
 
-    expect(runError.type).toBe("run.error");
+    expect(runError.type).toBe("run.failed");
+    expect(runError.legacyType).toBe("run.error");
     expect(runError.payload.error).toBe("Provider timeout");
   });
 
@@ -202,7 +216,8 @@ describe("registerEventHooks", () => {
 
     expect(published).toHaveLength(1);
     const event = JSON.parse(published[0].data);
-    expect(event.type).toBe("run.end");
+    expect(event.type).toBe("run.ended");
+    expect(event.legacyType).toBe("run.end");
     expect(event.payload.success).toBe(true);
     expect(event.payload.messageCount).toBe(3);
   });
@@ -227,7 +242,9 @@ describe("registerEventHooks", () => {
 
     expect(published).toHaveLength(1);
     const event = JSON.parse(published[0].data);
-    expect(event.type).toBe("llm.input");
+    expect(event.type).toBe("model.input.observed");
+    expect(event.legacyType).toBe("llm.input");
+    expect(event.redaction).toEqual({ applied: true, omittedFields: ["systemPrompt", "prompt", "historyMessages"] });
     expect(event.payload.systemPromptLength).toBe("You are a helpful assistant".length);
     expect(event.payload.promptLength).toBe("What's the weather?".length);
     expect(event.payload.historyMessageCount).toBe(3);
@@ -254,7 +271,8 @@ describe("registerEventHooks", () => {
 
     expect(published).toHaveLength(1);
     const event = JSON.parse(published[0].data);
-    expect(event.type).toBe("llm.output");
+    expect(event.type).toBe("model.output.observed");
+    expect(event.legacyType).toBe("llm.output");
     expect(event.payload.assistantTextCount).toBe(2);
     expect(event.payload.assistantTextTotalLength).toBe("Hello!".length + "How can I help?".length);
     expect(event.payload.usage).toEqual({ input: 100, output: 50, cacheRead: 0, cacheWrite: 0, total: 150 });
@@ -293,12 +311,14 @@ describe("registerEventHooks", () => {
     const start = JSON.parse(published[0].data);
     const stop = JSON.parse(published[1].data);
 
-    expect(start.type).toBe("gateway.start");
+    expect(start.type).toBe("gateway.started");
+    expect(start.legacyType).toBe("gateway.start");
     expect(start.agent).toBe("system");
     expect(start.session).toBe("system");
     expect(start.payload.port).toBe(3000);
 
-    expect(stop.type).toBe("gateway.stop");
+    expect(stop.type).toBe("gateway.stopped");
+    expect(stop.legacyType).toBe("gateway.stop");
     expect(stop.agent).toBe("system");
     expect(stop.payload.reason).toBe("SIGTERM");
   });
@@ -310,8 +330,8 @@ describe("registerEventHooks", () => {
     mockApi._fire("session_end", { sessionId: "s1", messageCount: 42, durationMs: 5000 }, { agentId: "main", sessionKey: "main" });
 
     expect(published).toHaveLength(2);
-    expect(JSON.parse(published[0].data).type).toBe("session.start");
-    expect(JSON.parse(published[1].data).type).toBe("session.end");
+    expect(JSON.parse(published[0].data).type).toBe("session.started");
+    expect(JSON.parse(published[1].data).type).toBe("session.ended");
   });
 
   it("maps compaction hooks correctly", () => {
@@ -321,8 +341,8 @@ describe("registerEventHooks", () => {
     mockApi._fire("after_compaction", { messageCount: 200, compactedCount: 5, tokenCount: 8000 }, { agentId: "main", sessionKey: "main" });
 
     expect(published).toHaveLength(2);
-    expect(JSON.parse(published[0].data).type).toBe("session.compaction_start");
-    expect(JSON.parse(published[1].data).type).toBe("session.compaction_end");
+    expect(JSON.parse(published[0].data).type).toBe("session.compaction.started");
+    expect(JSON.parse(published[1].data).type).toBe("session.compaction.ended");
   });
 
   it("maps before_reset to session.reset", () => {
@@ -394,7 +414,7 @@ describe("registerEventHooks", () => {
     expect(published).toHaveLength(1);
     const event = JSON.parse(published[0].data);
     expect(event.agent).toBe("viola");
-    expect(published[0].subject).toBe("openclaw.events.viola.msg_in");
+    expect(published[0].subject).toBe("openclaw.events.viola.message_in_received");
   });
 
   it("hook handler errors are caught and do not propagate", () => {

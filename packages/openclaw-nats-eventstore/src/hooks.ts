@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import type { NatsClient } from "./nats-client.js";
 import type { PluginLogger } from "./nats-client.js";
 import type { NatsEventStoreConfig } from "./config.js";
-import type { ClawEvent, EventType } from "./events.js";
+import type { ClawEvent, EventType, Visibility } from "./events.js";
 import { extractAgentId, buildSubject } from "./util.js";
 
 type HookCtx = {
@@ -10,6 +10,18 @@ type HookCtx = {
   sessionKey?: string;
   sessionId?: string;
   channelId?: string;
+  runId?: string;
+  jobId?: string;
+  messageId?: string;
+  senderId?: string;
+  traceId?: string;
+  spanId?: string;
+  parentSpanId?: string;
+  trace?: {
+    traceId?: string;
+    spanId?: string;
+    parentSpanId?: string;
+  };
 };
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -29,6 +41,65 @@ function shouldPublish(hookName: string, config: NatsEventStoreConfig): boolean 
   return true;
 }
 
+type PublishOptions = {
+  legacyType?: EventType;
+  visibility?: Visibility;
+  redaction?: ClawEvent["redaction"];
+  ctx?: HookCtx;
+};
+
+function firstString(...values: unknown[]): string | undefined {
+  for (const value of values) {
+    if (typeof value === "string" && value.length > 0) return value;
+  }
+  return undefined;
+}
+
+function buildEnvelope(
+  type: EventType,
+  agent: string,
+  session: string,
+  payload: Record<string, unknown>,
+  options: PublishOptions = {},
+): ClawEvent {
+  const ctx = options.ctx ?? {};
+  const trace = ctx.trace ?? {};
+
+  return {
+    id: randomUUID(),
+    ts: Date.now(),
+    agent,
+    session,
+    type,
+    legacyType: options.legacyType,
+    schemaVersion: 1,
+    source: { plugin: "nats-eventstore" },
+    actor: {
+      agentId: agent === "system" ? undefined : agent,
+      userId: firstString(ctx.senderId),
+      channel: firstString(ctx.channelId),
+    },
+    scope: {
+      sessionKey: firstString(ctx.sessionKey),
+      sessionId: firstString(ctx.sessionId),
+      runId: firstString(ctx.runId, payload.runId),
+      toolCallId: firstString(payload.toolCallId),
+      messageId: firstString(ctx.messageId, payload.messageId),
+      jobId: firstString(ctx.jobId),
+    },
+    trace: {
+      traceId: firstString(ctx.traceId, trace.traceId),
+      spanId: firstString(ctx.spanId, trace.spanId),
+      parentSpanId: firstString(ctx.parentSpanId, trace.parentSpanId),
+      causationId: firstString(payload.causationId),
+      correlationId: firstString(ctx.runId, ctx.sessionId, ctx.sessionKey),
+    },
+    visibility: options.visibility ?? "internal",
+    redaction: options.redaction,
+    payload,
+  };
+}
+
 /** Fire-and-forget publish of a ClawEvent to NATS. */
 function publish(
   getClient: () => NatsClient | null,
@@ -38,18 +109,12 @@ function publish(
   session: string,
   payload: Record<string, unknown>,
   logger: PluginLogger,
+  options: PublishOptions = {},
 ): void {
   const client = getClient();
   if (!client?.isConnected()) return;
 
-  const event: ClawEvent = {
-    id: randomUUID(),
-    ts: Date.now(),
-    agent,
-    session,
-    type,
-    payload,
-  };
+  const event = buildEnvelope(type, agent, session, payload, options);
 
   const subject = buildSubject(config.subjectPrefix, agent, type);
   client.publish(subject, JSON.stringify(event)).catch((err) => {
@@ -60,10 +125,14 @@ function publish(
 // ── Hook-to-event mapping table ──
 
 type PayloadMapper = (event: any, ctx: any) => Record<string, unknown>;
+type EventTypeMapper = EventType | ((event: any, ctx: any) => EventType);
 
 type HookMapping = {
   hookName: string;
-  eventType: EventType;
+  eventType: EventTypeMapper;
+  legacyType?: EventType;
+  visibility?: Visibility;
+  redaction?: ClawEvent["redaction"];
   mapper: PayloadMapper;
   /** If true, uses "system" as agent/session (gateway hooks). */
   systemEvent?: boolean;
@@ -72,7 +141,10 @@ type HookMapping = {
 /** Additional events to emit from the same hook (e.g. run.error from agent_end). */
 type ExtraEmitter = {
   hookName: string;
-  eventType: EventType;
+  eventType: EventTypeMapper;
+  legacyType?: EventType;
+  visibility?: Visibility;
+  redaction?: ClawEvent["redaction"];
   condition: (event: any) => boolean;
   mapper: PayloadMapper;
 };
@@ -80,7 +152,9 @@ type ExtraEmitter = {
 const HOOK_MAPPINGS: HookMapping[] = [
   {
     hookName: "message_received",
-    eventType: "msg.in",
+    eventType: "message.in.received",
+    legacyType: "msg.in",
+    visibility: "confidential",
     mapper: (event, ctx) => ({
       from: event.from,
       content: event.content,
@@ -91,7 +165,9 @@ const HOOK_MAPPINGS: HookMapping[] = [
   },
   {
     hookName: "message_sending",
-    eventType: "msg.sending",
+    eventType: "message.out.sending",
+    legacyType: "msg.sending",
+    visibility: "confidential",
     mapper: (event, ctx) => ({
       to: event.to,
       content: event.content,
@@ -100,7 +176,9 @@ const HOOK_MAPPINGS: HookMapping[] = [
   },
   {
     hookName: "message_sent",
-    eventType: "msg.out",
+    eventType: "message.out.sent",
+    legacyType: "msg.out",
+    visibility: "confidential",
     mapper: (event, ctx) => ({
       to: event.to,
       content: event.content,
@@ -111,7 +189,9 @@ const HOOK_MAPPINGS: HookMapping[] = [
   },
   {
     hookName: "before_tool_call",
-    eventType: "tool.call",
+    eventType: "tool.call.requested",
+    legacyType: "tool.call",
+    visibility: "confidential",
     mapper: (event) => ({
       toolName: event.toolName,
       params: event.params,
@@ -119,7 +199,9 @@ const HOOK_MAPPINGS: HookMapping[] = [
   },
   {
     hookName: "after_tool_call",
-    eventType: "tool.result",
+    eventType: (event) => event.error ? "tool.call.failed" : "tool.call.executed",
+    legacyType: "tool.result",
+    visibility: "confidential",
     mapper: (event) => ({
       toolName: event.toolName,
       params: event.params,
@@ -130,12 +212,15 @@ const HOOK_MAPPINGS: HookMapping[] = [
   },
   {
     hookName: "before_agent_start",
-    eventType: "run.start",
+    eventType: "run.started",
+    legacyType: "run.start",
+    visibility: "confidential",
     mapper: (event) => ({ prompt: event.prompt }),
   },
   {
     hookName: "agent_end",
-    eventType: "run.end",
+    eventType: "run.ended",
+    legacyType: "run.end",
     mapper: (event) => ({
       success: event.success,
       error: event.error,
@@ -145,7 +230,9 @@ const HOOK_MAPPINGS: HookMapping[] = [
   },
   {
     hookName: "llm_input",
-    eventType: "llm.input",
+    eventType: "model.input.observed",
+    legacyType: "llm.input",
+    redaction: { applied: true, omittedFields: ["systemPrompt", "prompt", "historyMessages"] },
     mapper: (event) => ({
       runId: event.runId,
       sessionId: event.sessionId,
@@ -159,7 +246,9 @@ const HOOK_MAPPINGS: HookMapping[] = [
   },
   {
     hookName: "llm_output",
-    eventType: "llm.output",
+    eventType: "model.output.observed",
+    legacyType: "llm.output",
+    redaction: { applied: true, omittedFields: ["assistantTexts"] },
     mapper: (event) => {
       const texts = event.assistantTexts ?? [];
       return {
@@ -178,7 +267,8 @@ const HOOK_MAPPINGS: HookMapping[] = [
   },
   {
     hookName: "before_compaction",
-    eventType: "session.compaction_start",
+    eventType: "session.compaction.started",
+    legacyType: "session.compaction_start",
     mapper: (event) => ({
       messageCount: event.messageCount,
       compactingCount: event.compactingCount,
@@ -187,7 +277,8 @@ const HOOK_MAPPINGS: HookMapping[] = [
   },
   {
     hookName: "after_compaction",
-    eventType: "session.compaction_end",
+    eventType: "session.compaction.ended",
+    legacyType: "session.compaction_end",
     mapper: (event) => ({
       messageCount: event.messageCount,
       compactedCount: event.compactedCount,
@@ -201,7 +292,8 @@ const HOOK_MAPPINGS: HookMapping[] = [
   },
   {
     hookName: "session_start",
-    eventType: "session.start",
+    eventType: "session.started",
+    legacyType: "session.start",
     mapper: (event) => ({
       sessionId: event.sessionId,
       resumedFrom: event.resumedFrom,
@@ -209,7 +301,8 @@ const HOOK_MAPPINGS: HookMapping[] = [
   },
   {
     hookName: "session_end",
-    eventType: "session.end",
+    eventType: "session.ended",
+    legacyType: "session.end",
     mapper: (event) => ({
       sessionId: event.sessionId,
       messageCount: event.messageCount,
@@ -218,13 +311,15 @@ const HOOK_MAPPINGS: HookMapping[] = [
   },
   {
     hookName: "gateway_start",
-    eventType: "gateway.start",
+    eventType: "gateway.started",
+    legacyType: "gateway.start",
     mapper: (event) => ({ port: event.port }),
     systemEvent: true,
   },
   {
     hookName: "gateway_stop",
-    eventType: "gateway.stop",
+    eventType: "gateway.stopped",
+    legacyType: "gateway.stop",
     mapper: (event) => ({ reason: event.reason }),
     systemEvent: true,
   },
@@ -234,7 +329,8 @@ const HOOK_MAPPINGS: HookMapping[] = [
 const EXTRA_EMITTERS: ExtraEmitter[] = [
   {
     hookName: "agent_end",
-    eventType: "run.error",
+    eventType: "run.failed",
+    legacyType: "run.error",
     condition: (event) => !event.success,
     mapper: (event) => ({
       success: false,
@@ -260,11 +356,15 @@ export function registerEventHooks(
     type: EventType,
     ctx: HookCtx,
     payload: Record<string, unknown>,
+    options: PublishOptions = {},
   ) => {
     const agent = extractAgentId(ctx);
     const session = ctx.sessionKey ?? ctx.sessionId ?? "unknown";
-    publish(getClient, config, type, agent, session, payload, logger);
+    publish(getClient, config, type, agent, session, payload, logger, { ...options, ctx });
   };
+
+  const resolveEventType = (mapper: EventTypeMapper, event: any, ctx: any): EventType =>
+    typeof mapper === "function" ? mapper(event, ctx) : mapper;
 
   // Build lookup for extra emitters per hook
   const extrasByHook = new Map<string, ExtraEmitter[]>();
@@ -284,16 +384,29 @@ export function registerEventHooks(
       try {
         const payload = mapping.mapper(event, ctx);
 
+        const eventType = resolveEventType(mapping.eventType, event, ctx);
+        const options: PublishOptions = {
+          legacyType: mapping.legacyType,
+          visibility: mapping.visibility,
+          redaction: mapping.redaction,
+          ctx,
+        };
+
         if (mapping.systemEvent) {
-          publish(getClient, config, mapping.eventType, "system", "system", payload, logger);
+          publish(getClient, config, eventType, "system", "system", payload, logger, options);
         } else {
-          pub(mapping.eventType, ctx, payload);
+          pub(eventType, ctx, payload, options);
         }
 
         // Emit any extra events for this hook
         for (const extra of extras) {
           if (extra.condition(event)) {
-            pub(extra.eventType, ctx, extra.mapper(event, ctx));
+            const extraType = resolveEventType(extra.eventType, event, ctx);
+            pub(extraType, ctx, extra.mapper(event, ctx), {
+              legacyType: extra.legacyType,
+              visibility: extra.visibility,
+              redaction: extra.redaction,
+            });
           }
         }
       } catch (err) {
