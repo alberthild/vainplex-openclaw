@@ -29,6 +29,7 @@ import {
   type RedactionState,
 } from "./redaction/hooks.js";
 import { LlmValidator, type CallLlmFn } from "./llm-validator.js";
+import { getGovernanceNotifySecretsPath } from "./runtime-env.js";
 import { ERC8004Provider } from "./security/erc8004-provider.js";
 
 function buildToolEvalContext(
@@ -783,11 +784,7 @@ export function registerGovernanceHooks(
     // Read Matrix credentials from a dedicated secrets file (not from OpenClaw config,
     // which correctly does not expose channel tokens to plugins).
     // File format: JSON { "homeserverUrl": "...", "accessToken": "..." }
-    const { join } = require("path") as typeof import("path");
-    const secretsPath = join(
-      process.env.HOME || "/home/keller",
-      ".openclaw/plugins/openclaw-governance/matrix-notify.json",
-    );
+    const secretsPath = getGovernanceNotifySecretsPath();
     let matrixHomeserver = "";
     let matrixToken = "";
     try {

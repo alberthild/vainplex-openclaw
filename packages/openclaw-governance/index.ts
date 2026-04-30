@@ -1,5 +1,6 @@
 import type { OpenClawPluginApi } from "./src/types.js";
 import { loadConfig } from "./src/config-loader.js";
+import { getOllamaBaseUrl } from "./src/runtime-env.js";
 import { extractAgentIds } from "./src/util.js";
 import { GovernanceEngine } from "./src/engine.js";
 import { registerGovernanceHooks } from "./src/hooks.js";
@@ -13,9 +14,7 @@ type GovParams = { agentId?: string, sessionId?: string } | undefined;
  */
 function buildCallLlm(logger: OpenClawPluginApi["logger"], model?: string): CallLlmFn | undefined {
   // Default to local Ollama (zero cost, no API key)
-  const ollamaUrl = process.env.OLLAMA_HOST
-    ? `http://${process.env.OLLAMA_HOST}`
-    : "http://localhost:11434";
+  const ollamaUrl = getOllamaBaseUrl();
   const defaultModel = model || "mistral:7b";
 
   return async (prompt: string, opts?: { model?: string; maxTokens?: number; timeoutMs?: number }) => {
