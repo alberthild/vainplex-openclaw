@@ -10,7 +10,7 @@ describe("AgentProofRestClient (Write Integration)", () => {
 
   beforeEach(() => {
     vi.useFakeTimers();
-    client = new AgentProofRestClient("http://localhost:8000", "~/dummy.txt");
+    client = new AgentProofRestClient("http://localhost:8000", async () => "test-key");
     client.startFlusher();
     mockFetch.mockReset();
   });
