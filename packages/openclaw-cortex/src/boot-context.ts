@@ -239,11 +239,12 @@ export class BootContextGenerator {
 
   /**
    * Generate and write BOOTSTRAP.md to the workspace root.
+   * @param targetWorkspace - Optional workspace directory to write to (supports multi-agent setups)
    */
-  write(): boolean {
+  write(targetWorkspace?: string): boolean {
     try {
       const content = this.generate();
-      const outputPath = join(this.workspace, "BOOTSTRAP.md");
+      const outputPath = join(targetWorkspace ?? this.workspace, "BOOTSTRAP.md");
       return saveText(outputPath, content, this.logger);
     } catch (err) {
       this.logger.warn(`[cortex] Boot context generation failed: ${err}`);
