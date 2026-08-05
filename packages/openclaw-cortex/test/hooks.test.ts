@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { mkdtempSync, mkdirSync } from "node:fs";
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { registerCortexHooks } from "../src/hooks.js";
@@ -155,6 +155,28 @@ describe("registerCortexHooks", () => {
     expect(() => {
       sessionStart?.handler({}, { workspaceDir: ws });
     }).not.toThrow();
+  });
+
+  it("generates isolated boot context for each session workspace", () => {
+    const workspaceA = makeWorkspace();
+    const workspaceB = makeWorkspace();
+    writeFileSync(join(workspaceA, "memory", "reboot", "narrative.md"), "workspace-a-only");
+    writeFileSync(join(workspaceB, "memory", "reboot", "narrative.md"), "workspace-b-only");
+
+    const config = resolveConfig();
+    const { api, hooks } = makeMockApi(workspaceA);
+    registerCortexHooks(api as any, config);
+
+    const sessionStart = hooks.find(h => h.name === "session_start");
+    sessionStart?.handler({}, { workspaceDir: workspaceA });
+    sessionStart?.handler({}, { workspaceDir: workspaceB });
+
+    const bootstrapA = readFileSync(join(workspaceA, "BOOTSTRAP.md"), "utf-8");
+    const bootstrapB = readFileSync(join(workspaceB, "BOOTSTRAP.md"), "utf-8");
+    expect(bootstrapA).toContain("workspace-a-only");
+    expect(bootstrapA).not.toContain("workspace-b-only");
+    expect(bootstrapB).toContain("workspace-b-only");
+    expect(bootstrapB).not.toContain("workspace-a-only");
   });
 
   it("before_compaction hook doesn't throw", () => {
