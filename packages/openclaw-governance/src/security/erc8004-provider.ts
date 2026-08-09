@@ -17,6 +17,7 @@
 import type { ERC8004Config, ReputationResult } from "./types.js";
 import { ERC8004Client, type LRUCache } from "./erc8004-client.js";
 import { AgentProofRestClient } from "./agentproof-rest.js";
+import { loadAgentProofApiKey } from "./agentproof-secret.js";
 
 export class ERC8004Provider {
   private readonly onChainClient: ERC8004Client;
@@ -33,7 +34,7 @@ export class ERC8004Provider {
     if (config.restBaseUrl && config.apiKeyFile) {
       this.restClient = new AgentProofRestClient(
         config.restBaseUrl,
-        config.apiKeyFile,
+        () => loadAgentProofApiKey(config.apiKeyFile!),
       );
     } else {
       this.restClient = null;

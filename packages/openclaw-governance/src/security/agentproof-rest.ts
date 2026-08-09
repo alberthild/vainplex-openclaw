@@ -10,10 +10,8 @@
  * @module security/agentproof-rest
  */
 
-import { readFile } from "node:fs/promises";
-import { resolve } from "node:path";
-import { homedir } from "node:os";
 import { randomUUID } from "node:crypto";
+import { loadAgentProofApiKey } from "./agentproof-secret.js";
 
 import type { ReputationResult } from "./types.js";
 import { classifyTier } from "./erc8004-client.js";
@@ -52,31 +50,11 @@ interface SignalBatch {
   nextRetryAt: number;
 }
 
-// ── File-based API key loader ──
-
-function expandPath(filePath: string): string {
-  if (filePath.startsWith("~/") || filePath === "~") {
-    return resolve(homedir(), filePath.slice(2));
-  }
-  return resolve(filePath);
-}
-
-async function loadApiKey(filePath: string): Promise<string | null> {
-  try {
-    const resolved = expandPath(filePath);
-    const content = await readFile(resolved, "utf-8");
-    const key = content.trim();
-    return key.length > 0 ? key : null;
-  } catch {
-    return null;
-  }
-}
-
 // ── REST Client ──
 
 export class AgentProofRestClient {
   private readonly baseUrl: string;
-  private readonly apiKeyFile: string;
+  private readonly loadApiKey: () => Promise<string | null>;
   private apiKey: string | null = null;
   private apiKeyLoaded = false;
 
@@ -93,9 +71,11 @@ export class AgentProofRestClient {
   private consecutiveFailures = 0;
   private circuitOpenUntil = 0;
 
-  constructor(baseUrl: string, apiKeyFile: string) {
+  constructor(baseUrl: string, apiKey: string | (() => Promise<string | null>)) {
     this.baseUrl = baseUrl.replace(/\/+$/, "");
-    this.apiKeyFile = apiKeyFile;
+    this.loadApiKey = typeof apiKey === "function"
+      ? apiKey
+      : () => loadAgentProofApiKey(apiKey);
   }
 
   startFlusher() {
@@ -250,7 +230,7 @@ export class AgentProofRestClient {
 
   private async ensureApiKey(): Promise<string | null> {
     if (!this.apiKeyLoaded) {
-      this.apiKey = await loadApiKey(this.apiKeyFile);
+      this.apiKey = await this.loadApiKey();
       this.apiKeyLoaded = true;
     }
     return this.apiKey;

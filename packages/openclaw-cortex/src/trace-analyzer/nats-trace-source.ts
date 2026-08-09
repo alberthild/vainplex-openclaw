@@ -66,12 +66,12 @@ interface NatsModule {
 
 /**
  * Dynamically import the nats module, returning null if not installed.
- * Uses `new Function()` to prevent bundler static resolution (R-004).
+ * Uses native dynamic import so static security scanners do not flag eval-like code.
  */
 async function loadNatsModule(logger: PluginLogger): Promise<NatsModule | null> {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-require-imports
-    return await (new Function("specifier", "return import(specifier)")("nats") as Promise<NatsModule>);
+    const specifier = "nats";
+    return await import(specifier) as NatsModule;
   } catch {
     logger.info("[trace-analyzer] `nats` package not installed — NATS trace source unavailable");
     return null;

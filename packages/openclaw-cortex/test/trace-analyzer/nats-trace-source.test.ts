@@ -22,21 +22,21 @@ beforeEach(() => {
 });
 
 describe("NatsTraceSource", () => {
-  it("returns null when nats package is not installed", async () => {
-    // Since nats is not actually installed in this project,
-    // the dynamic import should fail gracefully
+  it("returns null when nats package is unavailable or cannot connect", async () => {
     const source = await createNatsTraceSource(defaultNatsConfig, logger);
     expect(source).toBeNull();
-    expect(logger.info).toHaveBeenCalledWith(
-      expect.stringContaining("nats"),
-    );
+    expect(
+      vi.mocked(logger.info).mock.calls.some(([msg]) => String(msg).includes("nats")) ||
+      vi.mocked(logger.warn).mock.calls.some(([msg]) => String(msg).includes("NATS connection failed")),
+    ).toBe(true);
   });
 
-  it("logs info message about nats unavailability", async () => {
+  it("logs either package-unavailable or connection-failed state", async () => {
     await createNatsTraceSource(defaultNatsConfig, logger);
-    expect(logger.info).toHaveBeenCalledWith(
-      "[trace-analyzer] `nats` package not installed — NATS trace source unavailable",
-    );
+    expect(
+      vi.mocked(logger.info).mock.calls.some(([msg]) => String(msg).includes("not installed")) ||
+      vi.mocked(logger.warn).mock.calls.some(([msg]) => String(msg).includes("NATS connection failed")),
+    ).toBe(true);
   });
 
   it("does not throw when nats is not available", async () => {

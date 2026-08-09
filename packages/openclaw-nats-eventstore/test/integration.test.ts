@@ -41,7 +41,11 @@ describe.skipIf(!process.env.NATS_URL)("NATS Event Store Integration", () => {
 
     // Separate subscriber connection for verifying messages
     const parsed = parseNatsUrl(NATS_URL);
-    subscriberNc = await nats.connect({ servers: parsed.servers });
+    subscriberNc = await nats.connect({
+      servers: parsed.servers,
+      user: parsed.user,
+      pass: parsed.pass,
+    });
     sc = nats.StringCodec();
   });
 

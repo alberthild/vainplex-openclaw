@@ -20,6 +20,7 @@ import { getCurrentTime, resolveAgentId } from "./util.js";
 import { ResponseGate } from "./response-gate.js";
 import { Approval2FA } from "./approval-2fa.js";
 import { MatrixPoller } from "./matrix-poller.js";
+import { loadMatrixNotifyConfig, sendMatrixNotification } from "./matrix-notify.js";
 
 import {
   initRedaction,
@@ -29,6 +30,7 @@ import {
   type RedactionState,
 } from "./redaction/hooks.js";
 import { LlmValidator, type CallLlmFn } from "./llm-validator.js";
+import { getGovernanceNotifySecretsPath } from "./runtime-env.js";
 import { ERC8004Provider } from "./security/erc8004-provider.js";
 
 function buildToolEvalContext(
@@ -783,22 +785,10 @@ export function registerGovernanceHooks(
     // Read Matrix credentials from a dedicated secrets file (not from OpenClaw config,
     // which correctly does not expose channel tokens to plugins).
     // File format: JSON { "homeserverUrl": "...", "accessToken": "..." }
-    const { join } = require("path") as typeof import("path");
-    const secretsPath = join(
-      process.env.HOME || "/home/keller",
-      ".openclaw/plugins/openclaw-governance/matrix-notify.json",
-    );
-    let matrixHomeserver = "";
-    let matrixToken = "";
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-require-imports
-      const { readFileSync } = require("fs") as typeof import("fs");
-      const secrets = JSON.parse(readFileSync(secretsPath, "utf8")) as Record<string, string>;
-      matrixHomeserver = secrets["homeserverUrl"] || "";
-      matrixToken = secrets["accessToken"] || "";
-    } catch {
-      // File doesn't exist or is unreadable — that's OK
-    }
+    const secretsPath = getGovernanceNotifySecretsPath();
+    const notifyConfig = loadMatrixNotifyConfig(secretsPath);
+    const matrixHomeserver = notifyConfig?.homeserverUrl || "";
+    const matrixToken = notifyConfig?.accessToken || "";
 
     if (!matrixToken || !roomId) {
       logger.warn(
@@ -815,19 +805,11 @@ export function registerGovernanceHooks(
         return;
       }
       try {
-        const txnId = `gov2fa_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
-        const url = `${matrixHomeserver}/_matrix/client/v3/rooms/${encodeURIComponent(roomId)}/send/m.room.message/${txnId}`;
-
-        fetch(url, {
-          method: "PUT",
-          headers: {
-            "Authorization": `Bearer ${matrixToken}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            msgtype: "m.text",
-            body: message,
-          }),
+        sendMatrixNotification({
+          homeserverUrl: matrixHomeserver,
+          accessToken: matrixToken,
+          roomId,
+          message,
         })
           .then((resp) => {
             if (resp.ok) {

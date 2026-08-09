@@ -200,7 +200,7 @@ describe("AgentProofRestClient", () => {
         new Response("Not Found", { status: 404 }),
       );
 
-      const client = new AgentProofRestClient("https://api.test.com/api/v1", "/key");
+      const client = new AgentProofRestClient("https://api.test.com/api/v1", async () => "test-key");
       const result = await client.getAgentProfile(99999);
       expect(result).toBeNull();
     });
@@ -210,7 +210,7 @@ describe("AgentProofRestClient", () => {
         new Response("Server Error", { status: 500 }),
       );
 
-      const client = new AgentProofRestClient("https://api.test.com/api/v1", "/key");
+      const client = new AgentProofRestClient("https://api.test.com/api/v1", async () => "test-key");
       const result = await client.getAgentProfile(1);
       expect(result).toBeNull();
     });
@@ -218,7 +218,7 @@ describe("AgentProofRestClient", () => {
     it("returns null on network failure", async () => {
       fetchSpy.mockRejectedValueOnce(new Error("network error"));
 
-      const client = new AgentProofRestClient("https://api.test.com/api/v1", "/key");
+      const client = new AgentProofRestClient("https://api.test.com/api/v1", async () => "test-key");
       const result = await client.getAgentProfile(1);
       expect(result).toBeNull();
     });
@@ -234,7 +234,7 @@ describe("AgentProofRestClient", () => {
         }),
       );
 
-      const client = new AgentProofRestClient("https://api.test.com/api/v1", "/key");
+      const client = new AgentProofRestClient("https://api.test.com/api/v1", async () => "test-key");
       const result = await client.getAgentProfile(1);
       expect(result!.tier).toBe("high");
     });
@@ -248,7 +248,7 @@ describe("AgentProofRestClient", () => {
         }),
       );
 
-      const client = new AgentProofRestClient("https://api.test.com/api/v1", "/key");
+      const client = new AgentProofRestClient("https://api.test.com/api/v1", async () => "test-key");
       const result = await client.getAgentProfile(1);
       expect(result).not.toBeNull();
       expect(result!.owner).toBeNull();
@@ -266,7 +266,7 @@ describe("AgentProofRestClient", () => {
         }),
       );
 
-      const client = new AgentProofRestClient("https://api.test.com/api/v1", "/key");
+      const client = new AgentProofRestClient("https://api.test.com/api/v1", async () => "test-key");
       const result = await client.getAgentProfile(1);
       expect(result!.reputationScore).toBe(100);
     });
@@ -276,7 +276,7 @@ describe("AgentProofRestClient", () => {
         mockFetchResponse({ exists: true }),
       );
 
-      const client = new AgentProofRestClient("https://api.test.com/api/v1", "/key");
+      const client = new AgentProofRestClient("https://api.test.com/api/v1", async () => "test-key");
       const result = await client.getAgentProfile(1);
       expect(result).toBeNull();
     });
@@ -297,7 +297,7 @@ describe("AgentProofRestClient", () => {
         }),
       );
 
-      const client = new AgentProofRestClient("https://api.test.com/api/v1", "/key");
+      const client = new AgentProofRestClient("https://api.test.com/api/v1", async () => "test-key");
       const results = await client.batchLookup([1, 2]);
 
       expect(fetchSpy.mock.calls[0]![0]).toBe(
@@ -317,7 +317,7 @@ describe("AgentProofRestClient", () => {
     });
 
     it("returns empty array for empty input", async () => {
-      const client = new AgentProofRestClient("https://api.test.com/api/v1", "/key");
+      const client = new AgentProofRestClient("https://api.test.com/api/v1", async () => "test-key");
       const results = await client.batchLookup([]);
       expect(results).toEqual([]);
       expect(fetchSpy).not.toHaveBeenCalled();
@@ -328,7 +328,7 @@ describe("AgentProofRestClient", () => {
         new Response("Error", { status: 500 }),
       );
 
-      const client = new AgentProofRestClient("https://api.test.com/api/v1", "/key");
+      const client = new AgentProofRestClient("https://api.test.com/api/v1", async () => "test-key");
       const results = await client.batchLookup([1, 2, 3]);
       expect(results).toEqual([null, null, null]);
     });
@@ -336,7 +336,7 @@ describe("AgentProofRestClient", () => {
     it("returns nulls on network failure", async () => {
       fetchSpy.mockRejectedValueOnce(new Error("timeout"));
 
-      const client = new AgentProofRestClient("https://api.test.com/api/v1", "/key");
+      const client = new AgentProofRestClient("https://api.test.com/api/v1", async () => "test-key");
       const results = await client.batchLookup([1, 2]);
       expect(results).toEqual([null, null]);
     });
@@ -346,7 +346,7 @@ describe("AgentProofRestClient", () => {
         mockFetchResponse({ data: "wrong shape" }),
       );
 
-      const client = new AgentProofRestClient("https://api.test.com/api/v1", "/key");
+      const client = new AgentProofRestClient("https://api.test.com/api/v1", async () => "test-key");
       const results = await client.batchLookup([1, 2]);
       expect(results).toEqual([null, null]);
     });
@@ -356,7 +356,7 @@ describe("AgentProofRestClient", () => {
         mockFetchResponse({ results: [] }),
       );
 
-      const client = new AgentProofRestClient("https://api.test.com/api/v1", "/key");
+      const client = new AgentProofRestClient("https://api.test.com/api/v1", async () => "test-key");
       await client.batchLookup([1]);
 
       const headers = (fetchSpy.mock.calls[0]![1] as RequestInit)
@@ -376,7 +376,7 @@ describe("AgentProofRestClient", () => {
     });
 
     it("DLP stripping: drops unknown fields and caps length to 200", async () => {
-      const client = new AgentProofRestClient("https://api.test.com", "/key");
+      const client = new AgentProofRestClient("https://api.test.com", async () => "test-key");
       client.pushSignal(1, "POLICY_VIOLATION", "MEDIUM", {
         toolName: "a".repeat(300),
         policyName: "b".repeat(250),
@@ -399,7 +399,7 @@ describe("AgentProofRestClient", () => {
     });
 
     it("Ring buffer overflow: drops oldest items when exceeding MAX_QUEUE_SIZE", () => {
-      const client = new AgentProofRestClient("https://api.test.com", "/key");
+      const client = new AgentProofRestClient("https://api.test.com", async () => "test-key");
       // Prevent flusher from actually taking items out of queue
       (client as any).isFlushing = true;
 
@@ -414,7 +414,7 @@ describe("AgentProofRestClient", () => {
     });
 
     it("Circuit breaker: 5 failures open circuit for 60s", async () => {
-      const client = new AgentProofRestClient("https://api.test.com", "/key");
+      const client = new AgentProofRestClient("https://api.test.com", async () => "test-key");
       fetchSpy.mockRejectedValue(new Error("Network Error"));
 
       // Trigger 5 failures
@@ -444,7 +444,7 @@ describe("AgentProofRestClient", () => {
 
     it("Retry / Backoff logic: retries up to 3 times with exponential backoff", async () => {
       fetchSpy.mockResolvedValue(new Response("Too Many Requests", { status: 429 }));
-      const client = new AgentProofRestClient("https://api.test.com", "/key");
+      const client = new AgentProofRestClient("https://api.test.com", async () => "test-key");
 
       client.pushSignal(1, "POLICY_VIOLATION", "MEDIUM", {});
       await (client as any).flushQueue();
